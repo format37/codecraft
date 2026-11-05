@@ -98,3 +98,17 @@ def test_a_player_is_read_only_on_its_seat_network_with_a_bounded_log(tmp_path):
         dict.fromkeys(("HOME", "TMPDIR", "DOTNET_CLI_HOME", "NUMBA_CACHE_DIR"), "/tmp")
     assert kw["cap_drop"] == ["ALL"] and kw["security_opt"] == ["no-new-privileges:true"]
     assert kw["mem_limit"] == kw["memswap_limit"] == "1024m" and kw["pids_limit"] == 256
+    assert "runtime" not in kw                                               # the daemon's default
+
+
+def test_docker_runtime_applies_to_players_but_not_to_a_gpu_seat(tmp_path):
+    gr, client = runner(tmp_path)
+    gr.cfg.data["docker"]["runtime"] = "runsc"
+    seat = tcp_seat(0, "10.200.208.2")
+    seat.network = MagicMock()
+    gr._start_player("cw-52", seat, "cw-52-engine")
+    assert client.containers.create.call_args.kwargs["runtime"] == "runsc"
+    seat.spec.strategy.gpu = True
+    gr._start_player("cw-52", seat, "cw-52-engine")
+    kw = client.containers.create.call_args.kwargs
+    assert "runtime" not in kw and kw["device_requests"]

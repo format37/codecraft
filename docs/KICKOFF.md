@@ -161,8 +161,9 @@ A review of what uploaded code and the public site can reach on the home node, t
   honoured from `web.trusted_proxies` only, `game_log` grep as plain text, sign-in `next` kept on the site, at
   most 20 sign-in codes a day per address, nosniff / frame / referrer / HSTS headers.
 
-Still open: the node's operating system upgrade; quotas per person rather than per account; an optional
-gVisor runtime for player and compile containers; pruning old strategy and base images.
+Still open: the node's operating system upgrade; quotas per person rather than per account; gVisor for player
+and compile containers (`docker.runtime: runsc` is ready, off until runsc is installed on the node and every
+language passes under it); pruning old strategy and base images.
 
 ## Phase 4 — other game mechanics
 

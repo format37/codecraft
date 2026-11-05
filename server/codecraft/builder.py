@@ -405,6 +405,7 @@ class Builder:
         mem = int(b.get("memory_mb") or 6144)
         cpus = float(b.get("cpus") or 4.0)
         pids = int(b.get("pids") or 1024)
+        runtime = self.cfg.get("docker", "runtime")      # e.g. runsc (gVisor); None = the daemon's default
         merge = strategy.source.merge
         command = compile_command(merge, prebuild is not None)
         out.write(f"[cw] compiling without network: {mem} MB, {cpus:g} CPUs, {pids} processes, at most "
@@ -430,7 +431,8 @@ class Builder:
                 log_config=LogConfig(type="json-file", config={"max-size": f"{max(1, self.log_cap // 2 ** 20)}m",
                                                                "max-file": "1"}),
                 labels={self.cfg["docker"]["label"]: f"build-{strategy.name}"},
-                environment={"HOME": "/root", "CW_BUILD": strategy.name})
+                environment={"HOME": "/root", "CW_BUILD": strategy.name},
+                **({"runtime": runtime} if runtime else {}))
             with tempfile.TemporaryFile() as tar:
                 _tar_sources(src, "project" if merge else "src", prebuild, tar)
                 tar.seek(0)

@@ -84,6 +84,7 @@ DEFAULTS: dict = {
         "prefix": "cw",
         "label": "codecraft.game",
         "seat_subnets": "10.200.0.0/16",   # one /24 per seat network (game.seat_subnet); must not be routed here
+        "runtime": None,            # player and compile containers, e.g. runsc (gVisor); None = the daemon's default
     },
     "hardening": {"no_new_privileges": True, "cap_drop_all": True},
 }

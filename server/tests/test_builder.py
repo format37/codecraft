@@ -175,12 +175,20 @@ def test_the_compile_container_is_offline_limited_and_committed(tmp_path):
     assert kw["log_config"]["Config"] == {"max-size": "16m", "max-file": "1"} and kw["labels"] == {"codecraft.game": "build-bot"}
     assert kw["entrypoint"] == ["bash", "-c", "cp /project/run.sh /cw-run.sh && cd /project && bash compile.sh"]
     assert kw["command"] == [] and kw["environment"] == {"HOME": "/root", "CW_BUILD": "bot"}
+    assert "runtime" not in kw                                               # docker.runtime: null
     assert sent["path"] == "/" and tar_members(sent["tar"]) == {"src/my_strategy.py": b"mine\n"}
     client.api.commit.assert_called_once_with("c0ffee", repository="codecraft/strategy-bot", tag="abc",
                                               changes=['ENTRYPOINT ["bash", "/cw-run.sh"]', "CMD []"])
     container.remove.assert_called_once_with(force=True)
     log = (tmp_path / "bot.log").read_text()
     assert "+ cmake .\nwarning\ndone\n" in log and "\x1b" not in log          # colours stripped, lines joined
+
+
+def test_docker_runtime_applies_to_the_compile_container(tmp_path):
+    builder, client, container, strategy, src, out, sent = compile_env(tmp_path)
+    builder.cfg.data["docker"]["runtime"] = "runsc"
+    builder._compile(strategy, "b", src, None, "codecraft/strategy-bot:abc", out, 1200)
+    assert client.containers.create.call_args.kwargs["runtime"] == "runsc"
 
 
 def test_a_failed_compile_leaves_no_container_and_says_why(tmp_path):

@@ -400,6 +400,8 @@ class GameRunner:
             kwargs["ulimits"] = [Ulimit(name="cpu", soft=int(cpu_time), hard=int(cpu_time) + 5)]
         if strategy.gpu:
             kwargs["device_requests"] = [DeviceRequest(count=-1, capabilities=[["gpu"]])]
+        elif self.cfg.get("docker", "runtime"):      # gVisor and the like; a GPU seat keeps the default runtime
+            kwargs["runtime"] = self.cfg.get("docker", "runtime")
         container = self.client.containers.create(seat.image, **kwargs)
         container.start()
         return container
