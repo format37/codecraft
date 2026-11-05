@@ -1,0 +1,59 @@
+{% extends "base.html" %}{% block title %}Admin{% endblock %}
+{% block content %}
+<h1>Admin</h1>
+<div class="grid">
+<div>
+<h2>Users</h2>
+<table>
+<tr><th>Id</th><th>E-mail</th><th>Name</th><th class="num">Strategies</th><th>Last login</th><th>Role</th><th></th></tr>
+{% for u in users %}
+<tr>
+  <td class="num">{{ u.id }}</td><td>{{ u.email }}</td><td>{{ u.name or '' }}</td><td class="num">{{ u.n_strategies }}</td><td class="muted">{{ u.last_login_at }}</td>
+  <td colspan="2"><form class="inline" method="post" action="/admin/users/{{ u.id }}">
+    <select name="role"><option value="user" {% if u.role == 'user' %}selected{% endif %}>user</option><option value="admin" {% if u.role == 'admin' %}selected{% endif %}>admin</option></select>
+    <label style="display:inline;font-weight:normal"><input type="checkbox" name="disabled" {% if u.disabled %}checked{% endif %}> disabled</label>
+    <button class="small secondary">save</button></form></td>
+</tr>
+{% endfor %}
+</table>
+<h2>Invitations</h2>
+<form method="post" action="/admin/invites" class="card" style="display:flex;gap:10px;align-items:end">
+  <div><label>Note</label><input type="text" name="note" placeholder="for whom"></div><div><button>Create invite</button></div>
+</form>
+<table>
+<tr><th>Link</th><th>Note</th><th>Created</th><th>Used by</th></tr>
+{% for i in invites %}
+<tr><td><code>{{ base_url }}/login?invite={{ i.code }}</code></td><td>{{ i.note or '' }}</td><td class="muted">{{ i.created_at }}</td><td>{{ i.used_email or '-' }}</td></tr>
+{% endfor %}
+</table>
+<p class="muted">Registration mode: <b>{{ registration }}</b> (config.yaml → auth.registration: open / invite / closed).</p>
+</div>
+<div>
+<h2>Build queue</h2>
+<table>
+<tr><th>Version</th><th>Status</th><th>Since</th><th></th></tr>
+{% for v in builds %}<tr><td><a href="/strategies/{{ v.strategy }}">{{ v.strategy }}</a> v{{ v.number }}</td><td>{{ v.status }}</td><td class="muted">{{ v.started_at or v.created_at }}</td><td><a href="/versions/{{ v.id }}/log">log</a></td></tr>{% endfor %}
+{% if not builds %}<tr><td colspan="4" class="muted">empty</td></tr>{% endif %}
+</table>
+<h2>Game queue</h2>
+<table>
+<tr><th>Game</th><th>Kind</th><th>Status</th><th>Since</th><th></th></tr>
+{% for g in queue %}<tr><td><a href="/games/{{ g.id }}">#{{ g.id }}</a> {{ g.format }}</td><td>{{ g.kind }}</td><td>{{ g.status }}</td><td class="muted">{{ g.started_at or g.created_at }}</td>
+  <td>{% if g.status == 'queued' %}<form class="inline" method="post" action="/games/{{ g.id }}/cancel"><button class="small secondary">cancel</button></form>{% endif %}</td></tr>{% endfor %}
+{% if not queue %}<tr><td colspan="5" class="muted">empty</td></tr>{% endif %}
+</table>
+<h2>Strategies</h2>
+<table>
+<tr><th>Name</th><th>Kind</th><th>Owner</th><th>Enabled · limits (JSON)</th></tr>
+{% for s in strategies %}
+<tr><td><a href="/strategies/{{ s.name }}">{{ s.name }}</a>{% if s.gpu %} <span class="tag">gpu</span>{% endif %}</td><td>{{ s.kind }}</td><td class="muted">{{ s.owner_id or '' }}</td>
+  <td><form class="inline" method="post" action="/admin/strategies/{{ s.name }}">
+    <input type="checkbox" name="enabled" {% if s.enabled %}checked{% endif %}>
+    <input type="text" name="limits" value='{{ s.limits or "" }}' placeholder='{"memory_mb": 2048}' style="width:200px">
+    <button class="small secondary">save</button></form></td></tr>
+{% endfor %}
+</table>
+<p class="muted">Languages: {{ languages|join(', ') }}. Failed builds can be retried from the strategy's version log page URL with <code>POST /admin/versions/&lt;id&gt;/retry</code>.</p>
+</div>
+</div>
+{% endblock %}

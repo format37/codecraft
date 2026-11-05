@@ -30,10 +30,28 @@ CPU_RE = re.compile(r"\[cw\] time real=([\d.]+) user=([\d.]+) sys=([\d.]+)")
 
 
 @dataclass
+class PlayerSpec:
+    """Who sits in a seat: a strategy with the image to run (None strategy = Empty seat)."""
+    strategy: Strategy | None
+    image: str | None = None
+    version_id: int | None = None
+    label: str | None = None
+
+    @property
+    def name(self) -> str:
+        if self.strategy is None:
+            return "empty"
+        return self.label or self.strategy.name
+
+
+def specs_from(players: list[Strategy | None], images: dict[str, str]) -> list[PlayerSpec]:
+    return [PlayerSpec(p, images.get(p.name) if p else None, p.version_id if p else None) for p in players]
+
+
+@dataclass
 class Seat:
     slot: int
-    strategy: Strategy | None          # None -> Empty seat
-    image: str | None = None
+    spec: PlayerSpec
     port: int = 0
     token: str = ""
     container: object = None
@@ -43,6 +61,23 @@ class Seat:
     cpu_sec: float | None = None
     exit_code: int | None = None
     oom_killed: bool = False
+    limits: dict = field(default_factory=dict)
+
+    @property
+    def strategy(self) -> Strategy | None:
+        return self.spec.strategy
+
+    @property
+    def image(self) -> str | None:
+        return self.spec.image
+
+    @property
+    def name(self) -> str:
+        return self.spec.name
+
+    @property
+    def is_tcp(self) -> bool:
+        return self.strategy is not None and not self.strategy.is_builtin
 
     def diagnosis(self, limits: dict) -> str | None:
         """Human-readable reason for a crash, from the container state (None if nothing is known)."""
@@ -56,15 +91,10 @@ class Seat:
             return f"exited with code {self.exit_code}"
         return None
 
-    limits: dict = field(default_factory=dict)
-
-    @property
-    def name(self) -> str:
-        return self.strategy.name if self.strategy else "empty"
-
-    @property
-    def is_tcp(self) -> bool:
-        return self.strategy is not None and not self.strategy.is_builtin
+    def row(self) -> dict:
+        return dict(slot=self.slot, strategy=self.strategy.name if self.strategy else None, image=self.image,
+                    score=self.score, crashed=self.crashed, comment=self.comment, cpu_sec=self.cpu_sec,
+                    version_id=self.spec.version_id, label=self.spec.label)
 
 
 @dataclass
@@ -107,6 +137,10 @@ def _read_file_from_container(container, path: str) -> bytes | None:
     return None
 
 
+def gpu_available(cfg: Config, client: docker.DockerClient | None) -> bool:
+    return cfg.resolve_gpu(client)
+
+
 class GameRunner:
     def __init__(self, cfg: Config, client: docker.DockerClient, db: DB):
         self.cfg = cfg
@@ -116,32 +150,33 @@ class GameRunner:
         self.label = cfg["docker"]["label"]
 
     # ------------------------------------------------------------------
-    def run(self, fmt: str, players: list[Strategy | None], images: dict[str, str],
-            seed: int | None = None, tag: str | None = None) -> GameOutcome:
+    def run(self, fmt: str, players: list[PlayerSpec], seed: int | None = None, tag: str | None = None,
+            kind: str = "sandbox", created_by: int | None = None, rated: bool = True,
+            game_id: int | None = None) -> GameOutcome:
         if fmt not in SEATS:
             raise ValueError(f"unknown format {fmt!r}; expected one of {list(SEATS)}")
         if len(players) != SEATS[fmt]:
             raise ValueError(f"{fmt} needs exactly {SEATS[fmt]} players, got {len(players)}")
         limits = self.cfg["limits"]
         seats = []
-        for slot, strategy in enumerate(players):
-            seat = Seat(slot=slot, strategy=strategy)
-            seat.limits = {**limits, **(strategy.limits if strategy else {})}
+        for slot, spec in enumerate(players):
+            seat = Seat(slot=slot, spec=spec)
+            seat.limits = {**limits, **(spec.strategy.limits if spec.strategy else {})}
             if seat.is_tcp:
-                seat.image = images.get(strategy.name)
-                if not seat.image:
-                    raise ValueError(f"strategy {strategy.name} has no built image; run `build` first")
+                if not spec.image:
+                    raise ValueError(f"strategy {spec.name} has no built image")
                 seat.port = 31001 + slot
                 seat.token = secrets.token_hex(8)
             seats.append(seat)
 
-        game_id = self.db.create_game(fmt, seed, tag)
+        if game_id is None:
+            game_id = self.db.create_game(fmt, seed, tag, kind=kind, created_by=created_by, rated=rated)
         gdir = self.cfg.games_dir / f"{game_id:06d}"
         gdir.mkdir(parents=True, exist_ok=True)
         engine_config = self._engine_config(fmt, seats, seed)
         (gdir / "config.json").write_text(json.dumps(engine_config, indent=2))
-        names = [s.name for s in seats]
-        log.info("game %d: %s %s", game_id, fmt, " vs ".join(names))
+        names = [re.sub(r"[^\w.@-]", "_", s.name)[:40] for s in seats]
+        log.info("game %d: %s %s %s", game_id, kind, fmt, " vs ".join(names))
 
         started = time.time()
         status, error = "error", None
@@ -185,25 +220,24 @@ class GameRunner:
             self._cleanup(engine, seats, network)
         duration = time.time() - started
 
-        rows = [dict(slot=s.slot, strategy=s.strategy.name if s.strategy else None, image=s.image, score=s.score,
-                     crashed=s.crashed, comment=s.comment, cpu_sec=s.cpu_sec) for s in seats]
-        rows = self._record(game_id, fmt, status, error, duration, self._seed_from_results(gdir, seed), rows)
+        rows = self._record(game_id, fmt, status, error, duration, self._seed_from_results(gdir, seed),
+                            [s.row() for s in seats], rated)
         outcome = GameOutcome(game_id, fmt, seed, status, error, duration, gdir, seats, rows)
         (gdir / "meta.json").write_text(json.dumps({
-            "id": game_id, "format": fmt, "status": status, "error": error, "duration_sec": round(duration, 1),
-            "players": rows,
+            "id": game_id, "format": fmt, "kind": kind, "rated": rated, "status": status, "error": error,
+            "duration_sec": round(duration, 1), "players": rows,
         }, indent=2, default=str))
         log.info("game %d: %s in %.0fs: %s", game_id, status, duration,
-                 ", ".join(f"{r['strategy'] or 'empty'}={r['score']}(#{r['place']})" for r in rows))
+                 ", ".join(f"{r['label'] or r['strategy'] or 'empty'}={r['score']}(#{r['place']})" for r in rows))
         return outcome
 
     def _record(self, game_id: int, fmt: str, status: str, error: str | None, duration: float,
-                seed: int | None, rows: list[dict]) -> list[dict]:
+                seed: int | None, rows: list[dict], rated: bool) -> list[dict]:
         last_exc = None
         for attempt in range(5):
             try:
                 return self.db.finish_game(game_id, status, error, duration, seed, rows,
-                                           self.cfg["rating"], self.cfg["points"][fmt])
+                                           self.cfg["rating"], self.cfg["points"][fmt], rated=rated)
             except Exception as exc:  # noqa: BLE001 - e.g. a transient "database is locked"
                 last_exc = exc
                 log.warning("game %d: recording results failed (attempt %d): %s", game_id, attempt + 1, exc)
@@ -277,6 +311,11 @@ class GameRunner:
             environment=env, labels={self.label: name},
             nano_cpus=int(cpus * 1e9), pids_limit=int(limits.get("pids") or 256),
         )
+        hard = self.cfg.get("hardening", default={}) or {}
+        if hard.get("no_new_privileges", True):
+            kwargs["security_opt"] = ["no-new-privileges:true"]
+        if hard.get("cap_drop_all", True):
+            kwargs["cap_drop"] = ["ALL"]
         mem = limits.get("memory_mb")
         if mem:
             kwargs["mem_limit"] = f"{int(mem)}m"
@@ -310,7 +349,7 @@ class GameRunner:
                 logs = seat.container.logs()
             except docker.errors.APIError as exc:
                 logs = f"[cw] could not fetch logs: {exc}".encode()
-            (gdir / f"player-{seat.slot}-{seat.name}.log").write_bytes(logs)
+            (gdir / f"player-{seat.slot}.log").write_bytes(logs)
             m = CPU_RE.search(logs.decode(errors="replace"))
             if m:
                 seat.cpu_sec = round(float(m[2]) + float(m[3]), 2)

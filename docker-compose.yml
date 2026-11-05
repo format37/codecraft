@@ -1,10 +1,13 @@
-# CodeWars sandbox server. All services share one image and talk to the host docker daemon
-# through its socket; game containers are created by the server, not by compose.
+# CodeWars server. All services share one image and talk to the host docker daemon through its
+# socket; game and build containers are created by the worker, not by compose.
 #
 #   docker compose build
-#   docker compose run --rm cli build          # engine + strategy images
-#   docker compose up -d web loop              # UI on :8080, games in a loop
+#   docker compose run --rm cli build          # engine + seed strategy images (strategies/*.yaml)
+#   docker compose up -d web worker            # UI on :8080; worker builds submissions and plays games
 #   docker compose run --rm cli play --format Round2 --players format37 thermit dragoonxen quickstart
+#
+# Mail for sign-in codes: set CW_RESEND_API_KEY (+ CW_MAIL_FROM) or configure mail.smtp in config.yaml;
+# without either, codes are printed in the web service log (docker compose logs web).
 
 x-server: &server
   build: ./server
@@ -14,6 +17,11 @@ x-server: &server
     - .:/app
   environment:
     CW_ROOT: /app
+    CW_RESEND_API_KEY: ${CW_RESEND_API_KEY:-}
+    CW_MAIL_FROM: ${CW_MAIL_FROM:-}
+    CW_BASE_URL: ${CW_BASE_URL:-}
+    CW_ADMINS: ${CW_ADMINS:-}
+    CW_SMTP_PASSWORD: ${CW_SMTP_PASSWORD:-}
   user: "${CW_UID:-1000}:${CW_GID:-1000}"
   group_add:
     - "${DOCKER_GID:-999}"
@@ -26,9 +34,9 @@ services:
       - "${CW_WEB_PORT:-8080}:8080"
     restart: unless-stopped
 
-  loop:
+  worker:
     <<: *server
-    command: ["loop"]
+    command: ["worker"]
     restart: unless-stopped
     stop_grace_period: 30m        # let running games finish (SIGTERM stops new ones)
 

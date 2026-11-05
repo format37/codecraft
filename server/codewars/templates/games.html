@@ -1,9 +1,17 @@
 {% extends "base.html" %}{% block title %}Games{% endblock %}
 {% block content %}
 <h1>Games</h1>
+<form method="get" action="/games" class="card" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+  <div><label>Kind</label><select name="kind"><option value="">any</option>{% for k in ['sandbox','custom','tournament'] %}<option value="{{ k }}" {% if kind == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div><label>Status</label><select name="status"><option value="">any</option>{% for k in ['queued','running','finished','aborted','error'] %}<option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+  <div><label>Strategy</label><input type="text" name="strategy" value="{{ strategy }}" placeholder="name"></div>
+  {% if user %}<div><label>&nbsp;</label><label style="font-weight:normal"><input type="checkbox" name="mine" value="1" {% if mine %}checked{% endif %}> only my games</label></div>{% endif %}
+  <div><button>Filter</button></div>
+</form>
 <table>
-<tr><th>Game</th><th>Format</th><th>Players · score</th><th>Status</th><th class="num">Time</th><th>Created (UTC)</th></tr>
+<tr><th>Game</th><th>Kind</th><th>Format</th><th>Players · score</th><th>Status</th><th class="num">Time</th><th>Created (UTC)</th></tr>
 {% for g in games %}{% include "_game_row.html" %}{% endfor %}
 </table>
-<p>{% if page > 0 %}<a href="/games?page={{ page - 1 }}">← newer</a>{% endif %} {% if games|length == 50 %}<a href="/games?page={{ page + 1 }}">older →</a>{% endif %}</p>
+{% set qs = '&kind=' ~ kind ~ '&status=' ~ status ~ '&strategy=' ~ strategy ~ '&mine=' ~ mine %}
+<p>{% if page > 0 %}<a href="/games?page={{ page - 1 }}{{ qs }}">← newer</a>{% endif %} {% if games|length == limit %}<a href="/games?page={{ page + 1 }}{{ qs }}">older →</a>{% endif %}</p>
 {% endblock %}

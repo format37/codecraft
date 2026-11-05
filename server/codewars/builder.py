@@ -4,6 +4,8 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import logging
+import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -16,16 +18,23 @@ from .strategies import Strategy
 
 log = logging.getLogger("codewars.build")
 
+GIT_URL_RE = re.compile(r"^https?://[\w.\-]+(:\d+)?/[\w./\-~%]+$")
+
 
 class BuildError(RuntimeError):
     pass
 
 
-def _run(cmd: list[str], cwd: Path | None = None) -> None:
+def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 600) -> str:
     log.debug("$ %s", " ".join(cmd))
-    proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ALLOW_PROTOCOL": "https:http"}
+    try:
+        proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
+    except subprocess.TimeoutExpired:
+        raise BuildError(f"{' '.join(cmd)} timed out after {timeout}s")
     if proc.returncode != 0:
         raise BuildError(f"{' '.join(cmd)} failed:\n{proc.stdout}\n{proc.stderr}")
+    return proc.stdout
 
 
 def _hash_tree(root: Path) -> str:
@@ -38,12 +47,20 @@ def _hash_tree(root: Path) -> str:
     return h.hexdigest()[:12]
 
 
+def check_git_url(url: str) -> str:
+    url = (url or "").strip()
+    if not GIT_URL_RE.match(url):
+        raise BuildError(f"only http(s) git URLs are accepted, got {url!r}")
+    return url
+
+
 class Builder:
     def __init__(self, cfg: Config, client: docker.DockerClient):
         self.cfg = cfg
         self.client = client
         self.logs_dir = cfg.build_dir / "logs"
         self.logs_dir.mkdir(parents=True, exist_ok=True)
+        self.last_commit: str | None = None
 
     # Engine --------------------------------------------------------------
     def build_engine(self, force: bool = False) -> str:
@@ -61,7 +78,14 @@ class Builder:
     def image_name(self, strategy: Strategy, build_hash: str) -> str:
         return f"codewars/strategy-{strategy.name}:{build_hash}"
 
-    def build_strategy(self, strategy: Strategy, force: bool = False, nocache: bool = False) -> tuple[str, str]:
+    def log_name(self, strategy: Strategy) -> str:
+        return f"{strategy.name}-v{strategy.version_number}" if strategy.version_number else strategy.name
+
+    def log_path(self, strategy: Strategy) -> Path:
+        return self.logs_dir / f"{self.log_name(strategy)}.log"
+
+    def build_strategy(self, strategy: Strategy, force: bool = False, nocache: bool = False,
+                       timeout: int | None = None) -> tuple[str, str]:
         """Returns (image, build_hash). Rebuilds only when the build context changed, unless forced."""
         if strategy.is_builtin:
             raise BuildError(f"{strategy.name} is a built-in bot, nothing to build")
@@ -72,9 +96,11 @@ class Builder:
             image = self.image_name(strategy, build_hash)
             if not force and self._image_exists(image):
                 log.info("%s: image %s is up to date", strategy.name, image)
+                self.log_path(strategy).write_text(f"image {image} already built (context unchanged)\n")
                 return image, build_hash
             log.info("%s: building %s", strategy.name, image)
-            self._docker_build(ctx, image, strategy.name, nocache=nocache)
+            self._docker_build(ctx, image, self.log_name(strategy), nocache=nocache,
+                               timeout=timeout or int(self.cfg.get("worker", "build_timeout_sec") or 1200))
             return image, build_hash
 
     def _assemble_context(self, strategy: Strategy, ctx: Path) -> None:
@@ -128,16 +154,22 @@ class Builder:
 
     def _fetch_source(self, strategy: Strategy) -> Path:
         src = strategy.source
+        self.last_commit = None
         if src.dir:
-            root = (strategy.dir / src.dir).resolve()
+            root = strategy.source_root()
             if not root.is_dir():
                 raise BuildError(f"{strategy.name}: source dir {root} not found")
         else:
+            url = check_git_url(src.git)
             repo = self.cfg.build_dir / "repos" / strategy.name
+            if (repo / ".git").is_dir():
+                origin = _run(["git", "-C", str(repo), "remote", "get-url", "origin"]).strip()
+                if origin != url:
+                    shutil.rmtree(repo)
             if not (repo / ".git").is_dir():
                 repo.parent.mkdir(parents=True, exist_ok=True)
-                log.info("%s: cloning %s", strategy.name, src.git)
-                _run(["git", "clone", "--quiet", src.git, str(repo)])
+                log.info("%s: cloning %s", strategy.name, url)
+                _run(["git", "clone", "--quiet", url, str(repo)])
             ref = src.ref or "HEAD"
             try:
                 _run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
@@ -147,6 +179,7 @@ class Builder:
                 _run(["git", "-C", str(repo), "checkout", "--quiet", "--force", src.ref])
             else:
                 _run(["git", "-C", str(repo), "pull", "--quiet", "--ff-only"])
+            self.last_commit = _run(["git", "-C", str(repo), "rev-parse", "HEAD"]).strip()
             root = repo
         if src.path:
             root = root / src.path
@@ -181,18 +214,23 @@ class Builder:
         except docker.errors.ImageNotFound:
             return False
 
-    def _docker_build(self, ctx: Path, tag: str, log_name: str, nocache: bool = False) -> None:
+    def _docker_build(self, ctx: Path, tag: str, log_name: str, nocache: bool = False, timeout: int = 1200) -> None:
         log_file = self.logs_dir / f"{log_name}.log"
         error = None
         with log_file.open("w") as fh:
-            for chunk in self.client.api.build(path=str(ctx), tag=tag, rm=True, nocache=nocache, decode=True):
-                if "stream" in chunk:
-                    fh.write(chunk["stream"])
-                    text = chunk["stream"].rstrip()
-                    if text:
-                        log.info("  %s", text[:200])
-                elif "error" in chunk:
-                    error = chunk.get("errorDetail", {}).get("message") or chunk["error"]
-                    fh.write(f"ERROR: {error}\n")
+            try:
+                for chunk in self.client.api.build(path=str(ctx), tag=tag, rm=True, nocache=nocache, decode=True,
+                                                   timeout=timeout):
+                    if "stream" in chunk:
+                        fh.write(chunk["stream"])
+                        text = chunk["stream"].rstrip()
+                        if text:
+                            log.info("  %s", text[:200])
+                    elif "error" in chunk:
+                        error = chunk.get("errorDetail", {}).get("message") or chunk["error"]
+                        fh.write(f"ERROR: {error}\n")
+            except Exception as exc:  # noqa: BLE001 - e.g. a read timeout on a silent build step
+                error = f"{type(exc).__name__}: {exc}"
+                fh.write(f"ERROR: {error}\n")
         if error:
             raise BuildError(f"docker build of {tag} failed: {error}\n(see {log_file})")

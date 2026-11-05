@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Custom game{% endblock %}
+{% block content %}
+<h1>Custom game</h1>
+<form method="post" action="/games/new" class="card" style="max-width:560px">
+  <div class="field"><label>Format</label>
+    <select name="format" id="fmt" onchange="updateSeats()">{% for f in formats %}<option value="{{ f }}">{{ f }} ({{ SEATS[f] }} players{% if f == 'Round1' %}, no fog{% elif f == 'Round2' %}, fog, builders only{% else %}, fog, 1v1{% endif %})</option>{% endfor %}</select></div>
+  {% for slot in range(4) %}
+  <div class="field seat" data-slot="{{ slot }}"><label>Seat {{ slot + 1 }}</label>
+    <select name="seat{{ slot }}">{% for o in options %}<option value="{{ o.value }}">{{ o.label }}{% if o.gpu %} [gpu]{% endif %}</option>{% endfor %}</select></div>
+  {% endfor %}
+  <div class="field"><label>Seed (optional)</label><input type="number" name="seed" min="0" placeholder="random"></div>
+  <p class="muted">Not rated. {% if max_gpu %}At most {{ max_gpu }} GPU strategy per game. {% endif %}Your own built versions can be seated against each other.</p>
+  <button>Queue the game</button>
+</form>
+<script>
+function updateSeats() {
+  const seats = {{ SEATS|tojson }}[document.getElementById('fmt').value];
+  document.querySelectorAll('.seat').forEach(el => { el.style.display = (+el.dataset.slot < seats) ? '' : 'none'; });
+}
+updateSeats();
+</script>
+{% endblock %}

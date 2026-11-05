@@ -1,22 +1,55 @@
 {% extends "base.html" %}{% block title %}{{ s.name }}{% endblock %}
 {% block content %}
-<h1>{{ s.name }} <span class="muted" style="font-size:15px">{{ s.title }}</span></h1>
-<p>Rating <b>{{ s.rating|rating }}</b> · {{ s.games }} games · {{ s.wins }} wins · {{ s.points }} points · {{ s.crashes }} crashes
+<h1>{{ s.name }} <span class="muted" style="font-size:15px">{{ s.title if s.title != s.name }}</span>
+  {% if not s.enabled %}<span class="tag warn">disabled</span>{% endif %}</h1>
+<p>Rating <b>{{ s.rating|rating }}</b> · {{ s.games }} rated games · {{ s.wins }} wins · {{ s.points }} points · {{ s.crashes }} crashes
   · {{ s.language or s.builtin }}{% if s.gpu %} <span class="tag">gpu</span>{% endif %}
-  {% if s.image %}· <span class="muted">{{ s.image }} built {{ s.built_at }}</span>{% endif %}</p>
+  · owner {{ s.owner_name or ('engine' if s.builtin else 'server') }}
+  {% if s.image %}· <span class="muted">image {{ s.image.split(':')[-1] }}, built {{ s.built_at }}</span>{% endif %}
+  {% if limits %}· <span class="muted">limits {{ limits }}</span>{% endif %}</p>
+{% if owner and s.kind == 'user' %}
+<div class="card">
+  <form method="post" action="/strategies/{{ s.name }}/settings" style="display:flex;gap:14px;align-items:end;flex-wrap:wrap">
+    <div><label>Title</label><input type="text" name="title" value="{{ s.title }}" maxlength="80"></div>
+    <div><label>&nbsp;</label><label style="font-weight:normal"><input type="checkbox" name="enabled" {% if s.enabled %}checked{% endif %}> plays in the sandbox</label></div>
+    <div><button>Save</button> <a class="btn" style="background:transparent;color:var(--accent)" href="/submit?name={{ s.name }}">Submit a new version</a></div>
+  </form>
+</div>
+{% endif %}
+{% if owner and versions %}
+<h2>Versions</h2>
 <table>
-<tr><th>Game</th><th>Format</th><th class="num">Seat</th><th class="num">Score</th><th class="num">Place</th><th class="num">Points</th><th class="num">Rating</th><th class="num">CPU s</th><th>Status</th><th>When (UTC)</th></tr>
+<tr><th>#</th><th>Status</th><th>Lang</th><th>Source</th><th>Note</th><th>Submitted (UTC)</th><th>Built</th><th></th></tr>
+{% for v in versions %}
+<tr>
+  <td class="num">v{{ v.number }}{% if v.id == s.active_version %} <span class="tag">active</span>{% endif %}</td>
+  <td>{% if v.status == 'ok' %}<span class="ok">ok</span>{% elif v.status in ('queued','building') %}<span class="tag">{{ v.status }}</span>{% else %}<span class="bad">{{ v.status }}</span>{% endif %}</td>
+  <td>{{ v.language }}{% if v.gpu %} <span class="tag">gpu</span>{% endif %}{% if v.merge %} <span class="tag">merge</span>{% endif %}</td>
+  <td class="wrap">{% if v.source_kind == 'git' %}<code>{{ v.source }}</code> {{ v.git_ref or '' }}{% if v.commit_hash %} <span class="muted">{{ v.commit_hash[:10] }}</span>{% endif %}{% else %}zip{% endif %}</td>
+  <td class="wrap">{{ v.note or '' }}{% if v.error %}<div class="bad" style="white-space:normal;max-width:420px;font-size:13px">{{ v.error[:300] }}</div>{% endif %}</td>
+  <td class="muted">{{ v.created_at }}</td>
+  <td class="muted">{{ v.finished_at or '' }}</td>
+  <td><a href="/versions/{{ v.id }}/log">log</a>
+    {% if v.status == 'ok' and v.id != s.active_version %}<form class="inline" method="post" action="/strategies/{{ s.name }}/settings"><input type="hidden" name="activate" value="{{ v.id }}"><button class="secondary small">activate</button></form>{% endif %}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+<h2>Games</h2>
+<table>
+<tr><th>Game</th><th>Kind</th><th>Format</th><th class="num">Seat</th><th class="num">Score</th><th class="num">Place</th><th class="num">Points</th><th class="num">Rating</th><th class="num">CPU s</th><th>Status</th><th>When (UTC)</th></tr>
 {% for g in games %}
 <tr>
-  <td><a href="/games/{{ g.id }}">#{{ g.id }}</a></td>
+  <td><a href="/games/{{ g.id }}">#{{ g.id }}</a>{% if g.label and g.label != s.name %} <span class="muted">{{ g.label }}</span>{% endif %}</td>
+  <td><span class="tag kind-{{ g.kind }}">{{ g.kind }}</span></td>
   <td>{{ g.format }}</td>
   <td class="num">{{ g.slot + 1 }}</td>
-  <td class="num">{{ g.score }}</td>
-  <td class="num">{{ g.place }}</td>
-  <td class="num">{{ g.points }}</td>
+  <td class="num">{{ g.score if g.score is not none else '-' }}</td>
+  <td class="num">{{ g.place or '-' }}</td>
+  <td class="num">{{ g.points if g.points is not none else '-' }}</td>
   <td class="num">{% if g.rating_after is not none %}{{ g.rating_before|rating }} → {{ g.rating_after|rating }}{% else %}-{% endif %}</td>
   <td class="num">{% if g.cpu_sec is not none %}{{ '%.1f'|format(g.cpu_sec) }}{% else %}-{% endif %}</td>
-  <td>{% if g.crashed %}<span class="bad">crashed</span>{% elif g.status != 'finished' %}<span class="bad">{{ g.status }}</span>{% else %}<span class="ok">ok</span>{% endif %}</td>
+  <td>{% if g.crashed %}<span class="bad">crashed</span>{% elif g.status != 'finished' %}<span class="{{ 'tag' if g.status in ('queued','running') else 'bad' }}">{{ g.status }}</span>{% else %}<span class="ok">ok</span>{% endif %}</td>
   <td class="muted">{{ g.created_at }}</td>
 </tr>
 {% endfor %}

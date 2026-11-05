@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}My page{% endblock %}
+{% block content %}
+<h1>{{ user.name or user.email }} <span class="muted" style="font-size:14px">{{ user.email }} · {{ user.role }}</span></h1>
+<form method="post" action="/me" class="card" style="display:flex;gap:12px;align-items:end">
+  <div><label>Display name</label><input type="text" name="name" value="{{ user.name or '' }}" maxlength="60"></div>
+  <div><button>Save</button></div>
+</form>
+<h2>My strategies <a class="btn" href="/submit" style="font-size:14px;margin-left:10px">Submit</a></h2>
+{% if not mine %}<p class="muted">None yet. <a href="/submit">Submit one</a>.</p>{% endif %}
+{% for s in mine %}
+<div class="card">
+  <b><a href="/strategies/{{ s.name }}">{{ s.name }}</a></b> {% if not s.enabled %}<span class="tag warn">disabled</span>{% endif %}
+  <span class="muted">rating {{ s.rating|rating }} · {{ s.games }} games · {{ s.language }}{% if s.gpu %} gpu{% endif %}</span>
+  <table style="margin-top:8px">
+  {% for v in versions[s.name] %}
+  <tr><td class="num">v{{ v.number }}{% if v.id == s.active_version %} <span class="tag">active</span>{% endif %}</td>
+      <td>{% if v.status == 'ok' %}<span class="ok">ok</span>{% elif v.status in ('queued','building') %}<span class="tag">{{ v.status }}</span>{% else %}<span class="bad">failed</span>{% endif %}</td>
+      <td class="wrap">{{ v.note or '' }} {% if v.error %}<span class="bad">{{ v.error[:160] }}</span>{% endif %}</td>
+      <td class="muted">{{ v.created_at }}</td><td><a href="/versions/{{ v.id }}/log">log</a></td></tr>
+  {% endfor %}
+  </table>
+</div>
+{% endfor %}
+<h2>My games</h2>
+<table>
+<tr><th>Game</th><th>Kind</th><th>Format</th><th>Players · score</th><th>Status</th><th class="num">Time</th><th>Created (UTC)</th></tr>
+{% for g in games %}{% include "_game_row.html" %}{% endfor %}
+</table>
+{% endblock %}

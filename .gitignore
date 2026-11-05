@@ -4,3 +4,4 @@ engine/aicup2020-preferences.json
 __pycache__/
 *.pyc
 .pytest_cache/
+.env

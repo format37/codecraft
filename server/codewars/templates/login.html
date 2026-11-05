@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}Sign in{% endblock %}
+{% block content %}
+<h1>Sign in</h1>
+{% if invite_bad %}<div class="flash err">This invitation link is unknown or already used.</div>{% endif %}
+{% if registration == 'invite' and not invite %}<p class="muted">New accounts need an invitation link; existing accounts sign in as usual.</p>{% endif %}
+{% if registration == 'closed' %}<p class="muted">Registration is closed; existing accounts sign in as usual.</p>{% endif %}
+<div class="grid">
+<form method="post" action="/login/code" class="card" id="step1" {% if sent %}style="display:none"{% endif %}>
+  <input type="hidden" name="next" value="{{ next }}"><input type="hidden" name="invite" value="{{ invite }}">
+  <div class="field"><label>E-mail</label><input type="email" name="email" value="{{ email }}" required autofocus style="width:100%"></div>
+  <button>Send me a code</button>
+  <p class="muted">No password: a six-digit code is mailed to you. First sign-in creates the account.</p>
+</form>
+<form method="post" action="/login" class="card" id="step2" {% if not sent %}style="display:none"{% endif %}>
+  <input type="hidden" name="next" value="{{ next }}"><input type="hidden" name="invite" value="{{ invite }}">
+  <div class="field"><label>E-mail</label><input type="email" name="email" id="email2" value="{{ email }}" required style="width:100%"></div>
+  <div class="field"><label>Code from the mail</label><input type="text" name="code" id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" required placeholder="123456"></div>
+  <div class="field"><label>Your name (new accounts)</label><input type="text" name="name" maxlength="60" placeholder="shown on the leaderboard"></div>
+  <button>Sign in</button> <a href="/login?next={{ next|urlencode }}&invite={{ invite|urlencode }}" class="muted" style="margin-left:10px">send another code</a>
+</form>
+</div>
+<script>
+// The button in the mail links here with the address and the code in the fragment (never sent to the server).
+const h = new URLSearchParams(location.hash.slice(1));
+if (h.get('code')) {
+  document.getElementById('step1').style.display = 'none';
+  document.getElementById('step2').style.display = '';
+  if (h.get('email')) document.getElementById('email2').value = h.get('email');
+  document.getElementById('code').value = h.get('code');
+  history.replaceState(null, '', location.pathname + location.search);
+}
+</script>
+{% endblock %}

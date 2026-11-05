@@ -1,26 +1,35 @@
 {% extends "base.html" %}{% block title %}Game #{{ game.id }}{% endblock %}
 {% block content %}
-<h1>Game #{{ game.id }} <span class="tag">{{ game.format }}</span>
-  {% if game.status == 'finished' %}<span class="ok">finished</span>{% else %}<span class="bad">{{ game.status }}</span>{% endif %}</h1>
-<p class="muted">seed {{ game.seed }} · created {{ game.created_at }} UTC{% if game.duration_sec %} · {{ '%.0f'|format(game.duration_sec) }} s{% endif %}{% if game.error %} · <span class="bad">{{ game.error }}</span>{% endif %}</p>
+<h1>Game #{{ game.id }} <span class="tag kind-{{ game.kind }}">{{ game.kind }}</span> <span class="tag">{{ game.format }}</span>
+  {% if game.status == 'finished' %}<span class="ok">finished</span>{% elif game.status in ('running','queued') %}<span class="tag">{{ game.status }}</span>{% else %}<span class="bad">{{ game.status }}</span>{% endif %}
+  {% if not game.rated %}<span class="muted" style="font-size:14px">unrated</span>{% endif %}</h1>
+<p class="muted">seed {{ game.seed or '-' }} · created {{ game.created_at }} UTC{% if game.creator_name %} by {{ game.creator_name }}{% endif %}{% if game.duration_sec %} · {{ '%.0f'|format(game.duration_sec) }} s{% endif %}{% if game.error %} · <span class="bad">{{ game.error }}</span>{% endif %}
+  {% if game.status == 'queued' and user and (user.role == 'admin' or user.id == game.created_by) %} · <form class="inline" method="post" action="/games/{{ game.id }}/cancel"><button class="secondary small">cancel</button></form>{% endif %}</p>
 <table>
 <tr><th>Seat</th><th>Strategy</th><th class="num">Score</th><th class="num">Place</th><th class="num">Points</th><th class="num">Rating</th><th class="num">CPU s</th><th>Status</th></tr>
 {% for p in players %}
 <tr>
-  <td class="num">{{ p.slot + 1 }}</td>
-  <td>{% if p.strategy %}<a href="/strategies/{{ p.strategy }}">{{ p.strategy }}</a>{% else %}<span class="muted">empty</span>{% endif %}</td>
-  <td class="num">{{ p.score }}</td>
-  <td class="num">{{ p.place }}</td>
-  <td class="num">{{ p.points }}</td>
+  <td class="num"><span class="seat-color" data-slot="{{ p.slot }}"></span> {{ p.slot + 1 }}</td>
+  <td>{% if p.strategy %}<a href="/strategies/{{ p.strategy }}">{{ p.label or p.strategy }}</a>{% else %}<span class="muted">empty</span>{% endif %}</td>
+  <td class="num">{{ p.score if p.score is not none else '-' }}</td>
+  <td class="num">{{ p.place or '-' }}</td>
+  <td class="num">{{ p.points if p.points is not none else '-' }}</td>
   <td class="num">{% if p.rating_after is not none %}{{ p.rating_before|rating }} → <b>{{ p.rating_after|rating }}</b>{% else %}-{% endif %}</td>
   <td class="num">{% if p.cpu_sec is not none %}{{ '%.1f'|format(p.cpu_sec) }}{% else %}-{% endif %}</td>
-  <td>{% if p.crashed %}<span class="bad">crashed</span> <span class="muted">{{ p.comment }}</span>{% else %}<span class="ok">ok</span>{% endif %}</td>
+  <td>{% if p.crashed %}<span class="bad">crashed</span> <span class="muted">{{ p.comment }}</span>{% elif game.status == 'finished' %}<span class="ok">ok</span>{% else %}-{% endif %}</td>
 </tr>
 {% endfor %}
 </table>
+{% if has_replay %}
+<h2>Replay</h2>
+<div id="viewer" class="card" data-replay="/games/{{ game.id }}/replay.json" data-players='{{ labels|tojson }}'></div>
+<script src="/static/viewer.js"></script>
+<script>CodeWarsViewer.mount(document.getElementById('viewer'));</script>
+<p class="muted">Official viewer: <code>./cw watch {{ game.id }}</code>. Decoded replay as JSON: <a href="/games/{{ game.id }}/replay.json">replay.json</a>.</p>
+{% endif %}
 <h2>Files</h2>
 <ul>
 {% for f in files %}<li><a href="/games/{{ game.id }}/files/{{ f }}">{{ f }}</a></li>{% endfor %}
 </ul>
-{% if has_replay %}<p>Watch the replay with the official viewer: <code>./cw watch {{ game.id }}</code> (or <code>engine/aicup2020 --replay {{ replay_path }}</code>).</p>{% endif %}
+<p class="muted">Strategy logs (player-N.log) are shown to the strategy's owner and to admins.</p>
 {% endblock %}

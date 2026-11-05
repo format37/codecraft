@@ -3,36 +3,67 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}CodeWars{% endblock %} · CodeWars sandbox</title>
+<title>{% block title %}{{ title }}{% endblock %} · {{ title }}</title>
 <style>
-  :root { --bg:#f6f7f9; --fg:#1d2330; --muted:#6b7280; --line:#e2e5ea; --accent:#2457d6; --card:#fff; }
+  :root { --bg:#f6f7f9; --fg:#1d2330; --muted:#6b7280; --line:#e2e5ea; --accent:#2457d6; --card:#fff; --ok:#1f9d55; --bad:#d64545; --warn:#b7791f; }
   @media (prefers-color-scheme: dark) { :root { --bg:#14171c; --fg:#e6e8ec; --muted:#9aa3b2; --line:#2b313b; --accent:#7ea2ff; --card:#1c2027; } }
   body { margin:0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--fg); }
-  header { padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card); display:flex; gap:22px; align-items:baseline; }
+  header { padding:12px 20px; border-bottom:1px solid var(--line); background:var(--card); display:flex; gap:20px; align-items:baseline; flex-wrap:wrap; }
   header a { color:var(--fg); text-decoration:none; font-weight:600; }
   header a.brand { color:var(--accent); font-size:18px; }
-  main { max-width:1100px; margin:0 auto; padding:20px; }
-  h1, h2 { font-weight:650; margin:18px 0 10px; }
+  header .right { margin-left:auto; display:flex; gap:14px; align-items:baseline; }
+  main { max-width:1150px; margin:0 auto; padding:20px; }
+  h1, h2, h3 { font-weight:650; margin:18px 0 10px; }
   table { border-collapse:collapse; width:100%; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
-  th, td { padding:7px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th, td { padding:7px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; vertical-align:middle; }
   th { color:var(--muted); font-weight:600; font-size:13px; }
   tr:last-child td { border-bottom:none; }
   td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  td.wrap { white-space:normal; }
   a { color:var(--accent); }
   .muted { color:var(--muted); }
   .tag { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; background:var(--line); }
-  .ok { color:#1f9d55; } .bad { color:#d64545; }
+  .tag.kind-custom { background:#e9e4ff; color:#4b3fb5; } .tag.kind-sandbox { background:var(--line); }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
   pre { background:var(--card); border:1px solid var(--line); padding:10px; overflow:auto; border-radius:6px; }
   .grid { display:grid; grid-template-columns: 1fr 1fr; gap:24px; } @media (max-width: 900px) { .grid { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:10px 0; }
+  form.inline { display:inline; }
+  input[type=text], input[type=email], input[type=number], select, textarea { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+  input[type=file] { font:inherit; }
+  button, .btn { font:inherit; padding:6px 14px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; text-decoration:none; }
+  button.secondary { background:transparent; color:var(--accent); }
+  button.small { padding:2px 8px; font-size:13px; }
+  label { display:block; margin:8px 0 4px; font-weight:600; font-size:14px; }
+  .field { margin-bottom:12px; } .field .help { color:var(--muted); font-size:13px; margin-top:3px; }
+  .flash { padding:10px 14px; border-radius:6px; margin:10px 0; }
+  .flash.msg { background:#e3f5ea; color:#176b3b; } .flash.err { background:#fde7e7; color:#8f2222; }
+  @media (prefers-color-scheme: dark) { .flash.msg { background:#17372a; color:#9be3b9; } .flash.err { background:#3d1f1f; color:#f0a1a1; } .tag.kind-custom { background:#2d2a52; color:#b8adff; } }
+  code { font-size:13px; }
+  .cw-side table th, .cw-side table td { padding:4px 6px; }
 </style>
+{% block head %}{% endblock %}
 </head>
 <body>
 <header>
-  <a class="brand" href="/">CodeWars</a>
-  <a href="/">Leaderboard</a>
+  <a class="brand" href="/">{{ title }}</a>
+  <a href="/leaderboard">Leaderboard</a>
   <a href="/games">Games</a>
-  <span class="muted">CodeCraft 2020 sandbox</span>
+  {% if user %}<a href="/submit">Submit</a><a href="/games/new">Custom game</a>{% endif %}
+  <span class="right">
+    {% if user %}
+      <a href="/me">{{ user.name or user.email }}</a>
+      {% if user.role == 'admin' %}<a href="/admin">Admin</a>{% endif %}
+      <form class="inline" method="post" action="/logout"><button class="secondary small">Sign out</button></form>
+    {% else %}
+      <a href="/login">Sign in</a>
+    {% endif %}
+  </span>
 </header>
-<main>{% block content %}{% endblock %}</main>
+<main>
+{% if msg %}<div class="flash msg">{{ msg }}</div>{% endif %}
+{% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+{% block content %}{% endblock %}
+</main>
 </body>
 </html>
