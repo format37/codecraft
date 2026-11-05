@@ -26,6 +26,13 @@ CODE_RE = re.compile(r"(?i)(\bcode\b\W{0,3})\d{6}\b")
 # image hash is scrubbed with the tokens, which is the safe direction.
 OPAQUE_RE = re.compile(r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{32,}(?![A-Za-z0-9_-])")
 UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+# A coding agent's API token (`cc_` + 40 characters, agents.py) wherever it appears, and an upload ticket,
+# which rides in the path /mcp/upload/<ticket>/ and is caught by its position. OPAQUE_RE would probably
+# catch both; these make it certain.
+API_TOKEN_RE = re.compile(r"\bcc_[A-Za-z0-9_-]{20,}")
+TICKET_RE = re.compile(r"(/upload/)[^/\s\"'?#]+")
+# For log lines: /mcp/<token>/ by position, whatever the token looks like (upload/ is a route, not a token).
+MCP_PATH_RE = re.compile(r"(/mcp/)(?!upload/)[^/\s\"'?#]+")
 # Local variables and dict keys whose value is a secret whatever its shape (the SDK's own scrubber
 # already masks `token`, `password`, `secret`, `api_key`, `session`, …; these are ours).
 SECRET_KEYS = {"code", "code_hash", "resend_api_key", "smtp_password", "cookie", "cookies", "authorization"}
@@ -42,7 +49,56 @@ def scrub_text(text: str) -> str:
     text = EMAIL_RE.sub("[email]", text)
     text = PARAM_RE.sub(r"\1[token]", text)
     text = CODE_RE.sub(r"\1[code]", text)
+    text = API_TOKEN_RE.sub("[token]", text)
+    text = TICKET_RE.sub(r"\1[token]", text)
     return OPAQUE_RE.sub(_opaque, text)
+
+
+# Log lines ------------------------------------------------------------------------------------------------
+def redact_url_secrets(text: str) -> str:
+    """A log line with the secrets of agent URLs masked: /mcp/<token>/ -> /mcp/***/, /upload/<ticket>/ ->
+    /upload/***/, and a `cc_` token anywhere else."""
+    text = TICKET_RE.sub(r"\1***", text)
+    text = MCP_PATH_RE.sub(r"\1***", text)
+    return API_TOKEN_RE.sub("cc_***", text)
+
+
+def _redact_arg(arg: Any) -> Any:
+    if isinstance(arg, str):
+        return redact_url_secrets(arg)
+    if arg is None or isinstance(arg, (int, float, bytes)):
+        return arg
+    text = str(arg)                      # a URL object, a Request: replaced only when it held a secret
+    masked = redact_url_secrets(text)
+    return arg if masked == text else masked
+
+
+class RedactFilter(logging.Filter):
+    """Masks agent secrets in log records; uvicorn's access log carries the request path. The message and
+    each argument are edited in place, so uvicorn's access formatter still finds its five arguments."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            if isinstance(record.msg, str):
+                record.msg = redact_url_secrets(record.msg)
+            if isinstance(record.args, tuple):
+                record.args = tuple(_redact_arg(a) for a in record.args)
+            elif isinstance(record.args, dict):
+                record.args = {k: _redact_arg(v) for k, v in record.args.items()}
+        except Exception:  # noqa: BLE001 - a log filter must never break logging
+            pass
+        return True
+
+
+def install_log_redaction() -> RedactFilter:
+    """On uvicorn's access and error loggers (their records do not reach the root handlers) and on every
+    root handler. Logger filters survive uvicorn's own logging config, which replaces handlers only."""
+    redact = RedactFilter()
+    for name in ("uvicorn.access", "uvicorn.error"):
+        logging.getLogger(name).addFilter(redact)
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(redact)
+    return redact
 
 
 def _scrub_tree(value: Any, key: str | None = None) -> Any:

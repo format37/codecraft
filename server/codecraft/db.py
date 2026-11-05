@@ -126,6 +126,16 @@ CREATE TABLE IF NOT EXISTS game_players (
 );
 CREATE INDEX IF NOT EXISTS idx_game_players_strategy ON game_players(strategy, game_id);
 CREATE INDEX IF NOT EXISTS idx_games_status ON games(status, id);
+CREATE TABLE IF NOT EXISTS api_tokens (            -- coding agents (MCP / REST), see agents.py
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id),
+    token_hash   TEXT UNIQUE NOT NULL,
+    label        TEXT,
+    created_at   TEXT,
+    last_used_at TEXT,
+    revoked_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id, id);
 """
 
 # Columns added after v0.1 (table -> column -> DDL type/default); applied to existing databases.
@@ -280,6 +290,40 @@ class DB:
         with self.tx() as c:
             c.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
 
+    # API tokens (coding agents) --------------------------------------------
+    def create_api_token(self, user_id: int, token_hash: str, label: str | None, max_live: int) -> int | None:
+        """A new live token, or None when the user already has `max_live` of them."""
+        with self.tx() as c:
+            live = c.execute("SELECT COUNT(*) FROM api_tokens WHERE user_id=? AND revoked_at IS NULL",
+                             (user_id,)).fetchone()[0]
+            if live >= max_live:
+                return None
+            cur = c.execute("INSERT INTO api_tokens(user_id, token_hash, label, created_at) VALUES (?, ?, ?, ?)",
+                            (user_id, token_hash, label, now()))
+            return int(cur.lastrowid)
+
+    def api_tokens(self, user_id: int) -> list[sqlite3.Row]:
+        """The user's live tokens, newest first."""
+        return self.q("SELECT id, label, created_at, last_used_at FROM api_tokens "
+                      "WHERE user_id=? AND revoked_at IS NULL ORDER BY id DESC", user_id)
+
+    def revoke_api_token(self, user_id: int, token_id: int) -> bool:
+        with self.tx() as c:
+            cur = c.execute("UPDATE api_tokens SET revoked_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL",
+                            (now(), token_id, user_id))
+            return cur.rowcount == 1
+
+    def api_token_user(self, token_hash: str) -> sqlite3.Row | None:
+        """The user behind a live token (a disabled user's tokens stop working with the user), plus the
+        token's id and last use as `token_id` / `token_last_used`."""
+        return self.one("SELECT u.*, t.id AS token_id, t.last_used_at AS token_last_used FROM api_tokens t "
+                        "JOIN users u ON u.id=t.user_id WHERE t.token_hash=? AND t.revoked_at IS NULL "
+                        "AND u.disabled=0", token_hash)
+
+    def touch_api_token(self, token_id: int) -> None:
+        with self.tx() as c:
+            c.execute("UPDATE api_tokens SET last_used_at=? WHERE id=?", (now(), token_id))
+
     # Invites ---------------------------------------------------------------
     def create_invite(self, code: str, created_by: int | None, note: str | None) -> None:
         with self.tx() as c:
@@ -423,6 +467,12 @@ class DB:
     def versions(self, strategy: str) -> list[sqlite3.Row]:
         return self.q("SELECT * FROM strategy_versions WHERE strategy=? ORDER BY number DESC", strategy)
 
+    def version_by_image(self, strategy: str, image: str, before: str | None) -> sqlite3.Row | None:
+        """The version a seat played when it was seated by name (no version_id): the newest one built into
+        that image before the game (an unchanged build context reuses the image of an earlier version)."""
+        return self.one("SELECT * FROM strategy_versions WHERE strategy=? AND image=? AND created_at<=? "
+                        "ORDER BY id DESC LIMIT 1", strategy, image, before or "9999")
+
     def ok_versions(self, strategy: str) -> list[sqlite3.Row]:
         return self.q("SELECT * FROM strategy_versions WHERE strategy=? AND status='ok' ORDER BY number DESC", strategy)
 
@@ -460,6 +510,16 @@ class DB:
     def user_versions_today(self, user_id: int) -> int:
         row = self.one("SELECT COUNT(*) AS n FROM strategy_versions WHERE created_by=? AND created_at>=?",
                        user_id, since(24))
+        return int(row["n"]) if row else 0
+
+    def user_pending_version_rows(self, user_id: int) -> list[sqlite3.Row]:
+        return self.q("SELECT * FROM strategy_versions WHERE created_by=? AND status IN ('queued','building') "
+                      "ORDER BY id", user_id)
+
+    def versions_ahead(self, version_id: int) -> int:
+        """Versions the builder takes before this one (it builds one at a time, oldest first)."""
+        row = self.one("SELECT COUNT(*) AS n FROM strategy_versions WHERE status IN ('queued','building') AND id<?",
+                       version_id)
         return int(row["n"]) if row else 0
 
     # Games -----------------------------------------------------------------
@@ -501,6 +561,14 @@ class DB:
 
     def user_games_today(self, user_id: int) -> int:
         row = self.one("SELECT COUNT(*) AS n FROM games WHERE created_by=? AND created_at>=?", user_id, since(24))
+        return int(row["n"]) if row else 0
+
+    def user_pending_game_rows(self, user_id: int) -> list[sqlite3.Row]:
+        return self.q("SELECT * FROM games WHERE created_by=? AND status IN ('queued','running') ORDER BY id", user_id)
+
+    def games_ahead(self, game_id: int) -> int:
+        """Queued games the worker plays before this one (queued games go oldest first)."""
+        row = self.one("SELECT COUNT(*) AS n FROM games WHERE status='queued' AND id<?", game_id)
         return int(row["n"]) if row else 0
 
     def finish_game(self, game_id: int, status: str, error: str | None, duration_sec: float, seed: int | None,

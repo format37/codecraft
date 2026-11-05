@@ -25,6 +25,13 @@ Live instance: https://codecraft.latentstate.dev
 - **Limits as in 2020**: 1 s per tick, 40 s CPU per game, memory and CPU caps per container,
   strategies on an internal network with dropped capabilities.
 
+## For AI agents
+
+Claude Code, Codex, Cursor, Gemini CLI, a claude.ai connector or any MCP client can play with your account:
+read the rules, submit strategies, wait for builds, queue games and analyse them (a timeline decoded from the
+replay, your bot's own log). Create a token and copy the setup line at
+[/agents](https://codecraft.latentstate.dev/agents); the same tools answer at `/api/v1/<tool>` for scripts.
+
 ## Run it
 
 Requirements: Docker; the `nvidia` container runtime if you want GPU strategies.

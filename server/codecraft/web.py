@@ -1,6 +1,8 @@
-"""Web UI and API: leaderboard, games, replay viewer, submissions, custom games, accounts, admin."""
+"""Web UI and API: leaderboard, games, replay viewer, submissions, custom games, accounts, admin, and the
+surface for coding agents (MCP at /mcp/, REST at /api/v1/<tool>, the /agents page; see agents.py)."""
 from __future__ import annotations
 
+import contextlib
 import gzip
 import json
 import logging
@@ -11,7 +13,11 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.convertors import Convertor, register_url_convertor
+from starlette.requests import ClientDisconnect
 
+from . import agents as A
+from . import mcp_server
 from . import preview as P
 from . import replay as R
 from .auth import Auth, AuthError
@@ -24,10 +30,49 @@ HERE = Path(__file__).parent
 COOKIE = "cw_session"
 
 
+class _Anything(Convertor):
+    """Like Starlette's `path` convertor, but across newlines too: with `path` (regex `.*`) a decoded %0A
+    would make the upload route miss and the request fall through to the next route under /mcp/."""
+
+    regex = r"[\s\S]*"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+register_url_convertor("anything", _Anything())
+
+
+def _agent_path(path: str) -> bool:
+    """Paths where the API token is the credential: the MCP endpoint and the REST mirror."""
+    return path in ("/mcp", "/api/v1") or path.startswith(("/mcp/", "/api/v1/"))
+
+
+def _json_line(body: dict, status: int, headers: dict | None = None) -> Response:
+    """JSON with a newline at the end: curl prints it, and the shell prompt starts on a new line."""
+    return Response(json.dumps(body, ensure_ascii=False) + "\n", status_code=status, media_type="application/json",
+                    headers=headers)
+
+
 def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
     auth = auth or Auth(cfg, db)
     title = str(cfg["web"].get("title") or "CodeCraft")
-    app = FastAPI(title=title, docs_url=None, redoc_url=None)
+    ax = A.Agents(cfg, db)
+    mcp = mcp_server.build(ax)
+    mcp_app = mcp.streamable_http_app()      # creates the session manager the lifespan runs
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_app):
+        # The MCP SDK needs its session manager running even in stateless mode; a mounted app's own
+        # lifespan is not run by Starlette, so it is entered here.
+        async with mcp.session_manager.run():
+            yield
+
+    app = FastAPI(title=title, docs_url=None, redoc_url=None, lifespan=lifespan)
+    app.state.agents, app.state.mcp = ax, mcp
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.filters["rating"] = lambda v: "-" if v is None else f"{v:.0f}"
@@ -97,8 +142,47 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
         return request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
             request.client.host if request.client else "?")
 
+    async def agent_gate(request: Request, call_next, path: str):
+        """/mcp/ and /api/v1/: the API token is the credential and the cookie is ignored, so a browser
+        cannot drive these routes; there is no Origin check here (an MCP client is not a browser; the
+        MCP SDK checks Host and Origin itself). The token comes as `Authorization: Bearer` or as the first
+        path segment, /mcp/<token>/..., which is cut out before the MCP app sees the path. The upload
+        route /mcp/upload/<ticket>/ carries its own credential."""
+        request.state.user = None
+        if path.startswith(A.UPLOAD_PREFIX):
+            return await call_next(request)
+        token = None
+        header = request.headers.get("authorization") or ""
+        if header[:7].lower() == "bearer ":
+            token = header[7:].strip()
+        segments = path.split("/")                      # ['', 'mcp', '<token>', ...]
+        if segments[1] == "mcp" and len(segments) > 2 and segments[2].startswith(A.TOKEN_PREFIX):
+            token = segments[2]
+            rest = "/mcp/" + "/".join(segments[3:])
+            request.scope["path"] = rest
+            request.scope["raw_path"] = rest.encode()
+        user = ax.tokens.user(token)
+        if user is None:
+            return JSONResponse(
+                {"error": "a valid API token is needed: Authorization: Bearer <token>, or the URL "
+                          f"{ax.url('/mcp/<token>/')}; create one at {ax.url('/agents')}"},
+                status_code=401, headers={"WWW-Authenticate": 'Bearer realm="codecraft"'})
+        if not ax.limiter.allow(f"token:{user['token_id']}"):
+            return JSONResponse({"error": f"rate limit: at most {A.RATE_LIMIT} requests a minute per token"},
+                                status_code=429, headers={"Retry-After": "30"})
+        if request.method == "GET" and request.scope["path"] == "/mcp/":
+            # Stateless: the server never pushes, and the SDK would hold an empty event stream open
+            # forever. 405 is the spec's way of saying "no stream here"; clients carry on without one.
+            return JSONResponse({"error": "no event stream: this MCP server is stateless, POST JSON-RPC to it"},
+                                status_code=405, headers={"Allow": "POST"})
+        request.state.user = user
+        return await call_next(request)
+
     @app.middleware("http")
     async def session_middleware(request: Request, call_next):
+        path = request.scope.get("path") or "/"
+        if _agent_path(path):
+            return await agent_gate(request, call_next, path)
         request.state.user = auth.user_from_token(request.cookies.get(COOKIE))
         if request.method == "POST":
             origin = request.headers.get("origin")
@@ -162,76 +246,25 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                       page=page, kind=kind or "", strategy=strategy or "", mine=mine, status=status or "", limit=limit)
 
     # Custom games -----------------------------------------------------------
-    def seat_options(user):
-        """Strategies a user may seat: every runnable strategy's active image, plus the user's own
-        successfully built older versions."""
-        opts = [{"value": "empty", "label": "(empty seat)", "gpu": False}]
-        for row in db.runnable_strategies():
-            if row["gpu"] and not cfg.gpu_ok:
-                continue
-            opts.append({"value": row["name"], "label": row["name"] + (" (built-in)" if row["builtin"] else ""),
-                         "gpu": bool(row["gpu"])})
-            if user and (row["owner_id"] == user["id"] or is_admin(user)):
-                for v in db.ok_versions(row["name"]):
-                    if v["id"] != row["active_version"] and not (v["gpu"] and not cfg.gpu_ok):
-                        opts.append({"value": f"{row['name']}@{v['id']}", "label": f"{row['name']} v{v['number']}",
-                                     "gpu": bool(v["gpu"])})
-        return opts
-
     @app.get("/games/new", response_class=HTMLResponse)
     def new_game_form(request: Request):
         user = need_user(request)
-        return render(request, "new_game.html", options=seat_options(user), formats=sorted(SEATS),
+        return render(request, "new_game.html", options=A.seat_options(cfg, db, user), formats=sorted(SEATS),
                       max_gpu=int(cfg.get("gpu", "max_per_game", default=1) or 0) if cfg.gpu_ok else 0)
 
     @app.post("/games/new")
     async def new_game_post(request: Request):
+        """The form's rules live in agents.queue_custom_game, shared with the agents' `play`."""
         user = need_user(request)
         form = await request.form()
         fmt = str(form.get("format") or "Round1")
         if fmt not in SEATS:
             return back("/games/new", err="bad format")
-        sub = cfg["submissions"]
-        if not is_admin(user):
-            if db.user_pending_games(user["id"]) >= int(sub.get("custom_games_queued") or 3):
-                return back("/games/new", err="you already have games waiting; let them finish first")
-            if db.user_games_today(user["id"]) >= int(sub.get("custom_games_per_day") or 50):
-                return back("/games/new", err="daily custom-game limit reached")
-        allowed = {o["value"]: o for o in seat_options(user)}
-        seats, gpu_count, real = [], 0, 0
-        for slot in range(SEATS[fmt]):
-            value = str(form.get(f"seat{slot}") or "empty")
-            opt = allowed.get(value)
-            if opt is None:
-                return back("/games/new", err=f"seat {slot + 1}: not available")
-            if value == "empty":
-                seats.append({"slot": slot, "strategy": None})
-                continue
-            name, _, vid = value.partition("@")
-            row = db.strategy(name)
-            version_id, image, label = None, row["image"], name
-            if vid:
-                v = db.version(int(vid))
-                version_id, image, label = v["id"], v["image"], f"{name}-v{v['number']}"
-            if row["builtin"] is None:
-                real += 1
-            gpu_count += int(opt["gpu"])
-            seats.append({"slot": slot, "strategy": name, "version_id": version_id, "image": image, "label": label})
-        max_gpu = int(cfg.get("gpu", "max_per_game", default=1) or 0) if cfg.gpu_ok else 0
-        if gpu_count > max_gpu:
-            return back("/games/new", err=f"at most {max_gpu} GPU strategy per game")
-        if real < 1:
-            return back("/games/new", err="seat at least one real strategy")
-        seed_txt = str(form.get("seed") or "").strip()
-        seed = None
-        if seed_txt:
-            try:
-                seed = int(seed_txt)
-                if not 0 <= seed < 2 ** 64:
-                    raise ValueError
-            except ValueError:
-                return back("/games/new", err="seed must be an unsigned 64-bit integer")
-        game_id = db.queue_game(fmt, seed, user["id"], seats, kind="custom", rated=False)
+        seats = [str(form.get(f"seat{slot}") or "empty") for slot in range(SEATS[fmt])]
+        try:
+            game_id = A.queue_custom_game(cfg, db, user, fmt, seats, str(form.get("seed") or "").strip() or None)
+        except A.AgentError as exc:
+            return back("/games/new", err=str(exc))
         return back(f"/games/{game_id}", msg="queued; the worker will play it shortly")
 
     @app.get("/games/{game_id}", response_class=HTMLResponse)
@@ -518,6 +551,83 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
             raise HTTPException(404, "no such game")
         return JSONResponse({"game": dict(row), "players": [dict(p) for p in players]})
 
+    # Coding agents ---------------------------------------------------------------------
+    def agents_page(request: Request, new_token: str | None = None):
+        user = request.state.user
+        resp = render(request, "agents.html", tokens=db.api_tokens(user["id"]) if user else [], new_token=new_token,
+                      base=ax.base or absolute(request, ""), max_tokens=A.MAX_TOKENS, starter=A.STARTER,
+                      languages=cfg.languages(),
+                      og=dict(title=f"Coding agents · {title}", url=absolute(request, "/agents"),
+                              description="Let Claude Code, Codex, Cursor or any MCP client write, submit and test "
+                                          "CodeCraft strategies with your token."))
+        if new_token:
+            resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    @app.get("/agents", response_class=HTMLResponse)
+    def agents(request: Request):
+        return agents_page(request)
+
+    @app.post("/agents/tokens", response_class=HTMLResponse)
+    def agents_new_token(request: Request, label: str = Form("")):
+        """The token is rendered into this response once (never into a redirect URL) and only its hash is kept."""
+        user = need_user(request)
+        try:
+            token = ax.tokens.create(user["id"], label)
+        except A.AgentError as exc:
+            return back("/agents", err=str(exc))
+        return agents_page(request, new_token=token)
+
+    @app.post("/agents/tokens/{token_id}/revoke")
+    def agents_revoke_token(request: Request, token_id: int):
+        user = need_user(request)
+        if not db.revoke_api_token(user["id"], token_id):
+            return back("/agents", err="no such token")
+        return back("/agents", msg="token revoked; it stopped working at once")
+
+    @app.api_route(A.UPLOAD_PREFIX + "{rest:anything}", include_in_schema=False,
+                   methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+    async def agents_upload(request: Request):
+        """upload_link()'s endpoint: the ticket in the path is the credential (agent_gate lets it through).
+        It answers every method itself, so nothing under this token-free prefix reaches the MCP app."""
+        try:
+            rec = await ax.uploads.receive(request.method, request.path_params.get("rest", ""), request.headers,
+                                           request.stream())
+        except A.UploadError as exc:
+            return _json_line({"error": exc.error, **({"hint": exc.hint} if exc.hint else {})}, exc.status,
+                              {"Allow": "PUT, POST"} if exc.status == 405 else None)
+        except ClientDisconnect:
+            return _json_line({"error": "the upload was cut off"}, 400)
+        return _json_line(A.Uploads.public(rec), 201)
+
+    @app.api_route("/api/v1/{tool}", methods=["GET", "POST"], include_in_schema=False)
+    async def api_v1(request: Request, tool: str):
+        """The REST mirror of the MCP tools: POST /api/v1/<tool> with a JSON object of its arguments, or GET
+        with query parameters for the read-only ones; Authorization: Bearer <token> (agent_gate)."""
+        spec = A.TOOLS.get(tool)
+        if spec is None:
+            return JSONResponse({"error": f"unknown tool {tool!r}; the tools: {', '.join(A.TOOLS)}"}, status_code=404)
+        if request.method == "GET":
+            if not spec.read:
+                return JSONResponse({"error": f"{tool} changes things: POST a JSON object of its arguments"},
+                                    status_code=405, headers={"Allow": "POST"})
+            args = dict(request.query_params)
+        else:
+            body = await request.body()
+            try:
+                args = json.loads(body) if body.strip() else {}
+            except ValueError:
+                args = None
+            if not isinstance(args, dict):
+                return JSONResponse({"error": "the body must be a JSON object of the tool's arguments"}, status_code=400)
+        try:
+            result = await A.call(ax, tool, request.state.user, args)
+        except A.AgentError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        if isinstance(result, str):
+            return PlainTextResponse(result)
+        return JSONResponse(result)
+
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):
         if exc.status_code == 303 and exc.headers:
@@ -527,4 +637,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                                                                       "detail": exc.detail}, status_code=exc.status_code)
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
+    # The MCP endpoint is exactly /mcp/ (streamable_http_path "/" inside the mount). Mounted last: the
+    # upload route above must match first.
+    app.mount("/mcp", mcp_app)
     return app

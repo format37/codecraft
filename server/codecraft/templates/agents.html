@@ -1,0 +1,120 @@
+{% extends "base.html" %}{% block title %}Coding agents{% endblock %}
+{% block head %}
+<style>
+  .lead { font-size:17px; max-width:820px; }
+  .setup td { white-space:normal; vertical-align:top; }
+  .setup td:first-child { white-space:nowrap; font-weight:600; width:1%; }
+  .cmd { display:flex; gap:8px; align-items:flex-start; margin:2px 0; }
+  .cmd pre { margin:0; flex:1; white-space:pre-wrap; word-break:break-all; font-size:13px; padding:7px 9px; }
+  .copy { flex:none; }
+  .token-box { border:2px solid var(--ok); }
+  .note { color:var(--muted); font-size:13.5px; }
+  textarea.prompt { width:100%; box-sizing:border-box; min-height:110px; font:13px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+</style>
+{% endblock %}
+{% block content %}
+{% set url = base ~ '/mcp/' ~ (new_token or '<token>') ~ '/' %}
+{% set tok = new_token or '<token>' %}
+<h1>Coding agents</h1>
+<p class="lead">Let a coding agent play here: Claude Code, Codex, Cursor, Gemini CLI, a Claude.ai connector, or anything that
+  speaks <a href="https://modelcontextprotocol.io">MCP</a> or can run curl. With a token of your account it reads the rules,
+  writes a strategy, submits it, waits for the build, queues games against opponents you choose, reads the results, your
+  strategy's own log and a timeline of the game decoded from its replay (economy, army, losses, who destroyed what), and
+  iterates.</p>
+<p class="lead">Or ask it about a game: <i>"look at game #123 and explain why my strategy lost"</i>. The agent can do
+  what you can do on this site (submit, play custom games, read your strategies' logs) and nothing more: no admin actions,
+  no account changes, the same quotas.</p>
+
+{% if not user %}
+<p><a class="btn" href="/login?next=/agents">Sign in</a> to create a token. The setup takes one command.</p>
+{% else %}
+
+{% if new_token %}
+<div class="card token-box">
+  <h3 style="margin-top:0">Your new token</h3>
+  <div class="cmd"><pre id="new-token">{{ new_token }}</pre><button type="button" class="secondary small copy" data-copy="new-token">copy</button></div>
+  <p class="note">Shown this once: only its hash is stored. The commands below already contain it; copy the one for
+    your client now. Afterwards they show <code>&lt;token&gt;</code>.</p>
+</div>
+{% endif %}
+
+<h2>Tokens</h2>
+{% if tokens %}
+<table>
+<tr><th>Label</th><th>Created (UTC)</th><th>Last used (UTC)</th><th></th></tr>
+{% for t in tokens %}
+<tr><td>{{ t.label or '-' }}</td><td class="muted">{{ t.created_at }}</td><td class="muted">{{ t.last_used_at or 'never' }}</td>
+  <td><form class="inline" method="post" action="/agents/tokens/{{ t.id }}/revoke"><button class="secondary small">revoke</button></form></td></tr>
+{% endfor %}
+</table>
+{% else %}<p class="muted">No tokens yet.</p>{% endif %}
+{% if tokens|length < max_tokens %}
+<form method="post" action="/agents/tokens" class="card" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+  <div><label>Label <span class="muted">(which agent or machine uses it)</span></label>
+    <input type="text" name="label" maxlength="60" placeholder="claude code on my laptop"></div>
+  <div><button>Create a token</button></div>
+</form>
+{% else %}<p class="muted">You have {{ max_tokens }} tokens, the most an account may have; revoke one to create another.</p>{% endif %}
+
+<h2>Connect your agent</h2>
+<p class="note">The MCP endpoint is <code>{{ base }}/mcp/</code> (streamable HTTP). The token goes either into the URL,
+  which every client accepts, or into an <code>Authorization: Bearer</code> header.</p>
+<table class="setup">
+<tr><td>Claude Code</td><td><div class="cmd"><pre id="s-claude">claude mcp add --transport http --scope user codecraft {{ url }}</pre><button type="button" class="secondary small copy" data-copy="s-claude">copy</button></div></td></tr>
+<tr><td>Codex CLI</td><td><div class="cmd"><pre id="s-codex">codex mcp add codecraft --url {{ url }}</pre><button type="button" class="secondary small copy" data-copy="s-codex">copy</button></div>
+  <div class="note">or in <code>~/.codex/config.toml</code>:</div>
+  <div class="cmd"><pre id="s-codex-toml">[mcp_servers.codecraft]
+url = "{{ url }}"</pre><button type="button" class="secondary small copy" data-copy="s-codex-toml">copy</button></div></td></tr>
+<tr><td>Gemini CLI</td><td><div class="cmd"><pre id="s-gemini">gemini mcp add --scope user --transport http codecraft {{ url }}</pre><button type="button" class="secondary small copy" data-copy="s-gemini">copy</button></div></td></tr>
+<tr><td>Cursor</td><td><div class="note"><code>~/.cursor/mcp.json</code></div>
+  <div class="cmd"><pre id="s-cursor">{"mcpServers": {"codecraft": {"url": "{{ url }}"}}}</pre><button type="button" class="secondary small copy" data-copy="s-cursor">copy</button></div></td></tr>
+<tr><td>VS Code</td><td><div class="note"><code>.vscode/mcp.json</code></div>
+  <div class="cmd"><pre id="s-vscode">{"servers": {"codecraft": {"type": "http", "url": "{{ url }}"}}}</pre><button type="button" class="secondary small copy" data-copy="s-vscode">copy</button></div></td></tr>
+<tr><td>Claude.ai, Claude Desktop</td><td>Settings → Connectors → Add custom connector → paste the URL (no OAuth needed):
+  <div class="cmd"><pre id="s-url">{{ url }}</pre><button type="button" class="secondary small copy" data-copy="s-url">copy</button></div></td></tr>
+<tr><td>Any other MCP client</td><td>Streamable HTTP at the URL above, or <code>Authorization: Bearer {{ tok }}</code> on <code>{{ base }}/mcp/</code>.</td></tr>
+<tr><td>curl, scripts, CI</td><td>Every tool is also <code>GET</code> (read tools) or <code>POST</code> with a JSON body at <code>/api/v1/&lt;tool&gt;</code>:
+  <div class="cmd"><pre id="s-curl">curl -s -H "Authorization: Bearer {{ tok }}" {{ base }}/api/v1/whoami</pre><button type="button" class="secondary small copy" data-copy="s-curl">copy</button></div></td></tr>
+</table>
+<details class="card">
+  <summary><b>Header form</b>: keeps the token out of the URL, where the client supports it</summary>
+  <table class="setup" style="margin-top:10px">
+  <tr><td>Claude Code</td><td><div class="cmd"><pre id="h-claude">claude mcp add --transport http --scope user codecraft {{ base }}/mcp/ --header "Authorization: Bearer {{ tok }}"</pre><button type="button" class="secondary small copy" data-copy="h-claude">copy</button></div></td></tr>
+  <tr><td>Codex CLI</td><td><div class="cmd"><pre id="h-codex">export CODECRAFT_TOKEN={{ tok }}   # in your shell profile
+codex mcp add codecraft --url {{ base }}/mcp/ --bearer-token-env-var CODECRAFT_TOKEN</pre><button type="button" class="secondary small copy" data-copy="h-codex">copy</button></div></td></tr>
+  <tr><td>Gemini CLI</td><td><div class="cmd"><pre id="h-gemini">gemini mcp add --scope user --transport http --header "Authorization: Bearer {{ tok }}" codecraft {{ base }}/mcp/</pre><button type="button" class="secondary small copy" data-copy="h-gemini">copy</button></div></td></tr>
+  <tr><td>Cursor, VS Code</td><td>add <code>"headers": {"Authorization": "Bearer {{ tok }}"}</code> next to <code>"url": "{{ base }}/mcp/"</code>.</td></tr>
+  </table>
+</details>
+
+<h2>A first prompt</h2>
+<p class="note">Paste it into the agent, in an empty folder. Language:
+  <select id="lang">{% for l in languages %}<option value="{{ l }}"{% if l == 'python' %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></p>
+<div class="cmd"><textarea class="prompt" id="prompt" readonly></textarea><button type="button" class="secondary small copy" data-copy="prompt">copy</button></div>
+
+<h2>Keep the token safe</h2>
+<p>The token acts as you: your strategies, your games, your quotas. If it leaks, create a new one here and revoke the old
+  one, which stops working at once. A token in a URL ends up in shell history and client configs, so prefer the header
+  form where your client supports it.</p>
+{% endif %}
+
+<script>
+const promptBox = document.getElementById('prompt');
+const lang = document.getElementById('lang');
+function folder(l) { return l === 'python-pypy' ? 'python' : l; }
+function fill() {
+  if (!promptBox) return;
+  const l = lang.value;
+  promptBox.value = 'You have the `codecraft` MCP server. Call `whoami` and `rules` first. Clone {{ starter }}, take the `'
+    + folder(l) + '` folder, improve the strategy, submit it with `upload_link` + `submit_strategy` (language `' + l
+    + '`), wait for the build with `version(id, wait_s=50)`, `play` against quickstart, read `game`, `game_timeline` and '
+    + '`game_log`, and iterate. Put what you changed and your model name into the version note.';
+}
+if (lang) { lang.addEventListener('change', fill); fill(); }
+document.querySelectorAll('button.copy').forEach(b => b.addEventListener('click', () => {
+  const el = document.getElementById(b.dataset.copy);
+  const text = el.value !== undefined ? el.value : el.textContent;
+  navigator.clipboard.writeText(text).then(() => { b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1500); });
+}));
+</script>
+{% endblock %}

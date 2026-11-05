@@ -91,8 +91,10 @@ def submit(cfg: Config, db: DB, *, name: str, language: str, user: dict | None, 
         if row["builtin"]:
             raise SubmissionError(f"{name!r} is a built-in bot")
     if enforce_quota and user is not None and user.get("role") != "admin":
-        if db.user_pending_versions(user_id) >= int(sub.get("per_user_queued") or 1):
-            raise SubmissionError("you already have a version waiting to be built; wait for it to finish")
+        pending = db.user_pending_version_rows(user_id)
+        if len(pending) >= int(sub.get("per_user_queued") or 1):
+            waiting = ", ".join(f"{p['strategy']} v{p['number']} (version id {p['id']}, {p['status']})" for p in pending)
+            raise SubmissionError(f"you already have a version waiting to be built: {waiting}; wait for it to finish")
         if db.user_versions_today(user_id) >= int(sub.get("per_user_per_day") or 20):
             raise SubmissionError("daily submission limit reached")
     if zip_data is not None:

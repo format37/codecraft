@@ -7,5 +7,6 @@ python-multipart>=0.0.9
 markdown>=3.6
 Pillow>=10.1
 sentry-sdk[fastapi]>=2.30   # error monitoring; imported only when CW_SENTRY_DSN is set
+mcp==1.29.0                 # MCP server for coding agents (/mcp/); same pin as the other MCP services, 2.x is a separate move
 pytest>=8
 httpx>=0.27                 # tests: FastAPI's TestClient

@@ -175,7 +175,9 @@ Controls in the app:
 - P - pause/play
 - Left/Right - move time tick by tick (when paused)
 
-You can save the config to a file, and then run the app with `--config <file>` option, bypassing this config screen. Other available options are listed when using `--help` option.## Entity properties values
+You can save the config to a file, and then run the app with `--config <file>` option, bypassing this config screen. Other available options are listed when using `--help` option.
+
+## Entity properties values
 
 Here you can see the value of entity properties:
 

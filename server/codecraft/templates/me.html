@@ -5,6 +5,7 @@
   <div><label>Display name <span class="muted">(shown next to your strategies)</span></label><input type="text" name="name" value="{{ user.name or '' }}" maxlength="60" required></div>
   <div><button>Save</button></div>
 </form>
+<p class="muted">Let a coding agent (Claude Code, Codex, Cursor, …) write, submit and test strategies for you: <a href="/agents">tokens and setup</a>.</p>
 <h2>My strategies <a class="btn" href="/submit" style="font-size:14px;margin-left:10px">Submit</a></h2>
 {% if not mine %}<p class="muted">None yet. <a href="/submit">Submit one</a>.</p>{% endif %}
 {% for s in mine %}

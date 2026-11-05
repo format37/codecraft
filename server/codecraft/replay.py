@@ -5,7 +5,7 @@ Vec/map = i32 count + items):
 
     Model                      -- the full initial state (tick 0)
     repeat for every tick:
-        Vec<Event>             -- always empty in CodeCraft
+        Vec<Event>             -- the tick's attacks: (tag 0, attacker id, target id), mining included
         ModelDelta             -- batbox `Diff` of the model against the previous tick
 
 `Model` = next_id, map_size, fog_of_war, entity_properties (map EntityType -> EntityProperties),
@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import struct
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -313,6 +314,134 @@ def final_scores(replay: Replay) -> list[int]:
     for _, players, _, _ in replay.states():
         pass
     return [p[2] for p in sorted(players.values(), key=lambda p: p[1])]
+
+
+UNIT_TYPES = {3, 5, 7}             # BUILDER_UNIT, MELEE_UNIT, RANGED_UNIT
+BASE_TYPES = {2, 4, 6}             # BUILDER_BASE, MELEE_BASE, RANGED_BASE
+TIMELINE_EVERY = (10, 200)
+
+
+def _type_name(t: int) -> str:
+    return ENTITY_TYPES[t] if 0 <= t < len(ENTITY_TYPES) else str(t)
+
+
+def timeline(replay: Replay, every: int = 50) -> dict:
+    """The game as an analyst reads it: one sample per seat at tick 0, every `every` ticks (clamped to
+    10..200) and at the last tick, plus the events that decide a game.
+
+    A seat's sample: `score`, `resource`, `population` [used, provided by active buildings], `units` and
+    active `buildings` by type, and since the previous sample `built` (entities added), `lost` (own
+    entities removed: a unit died, a building was destroyed) and `killed` (enemy entities this seat
+    destroyed). Types with a zero count are left out. Events: `base_destroyed` (a builder, melee or ranged
+    base removed) and `eliminated` (a seat's last entity removed), each with the tick, the seat and `by`,
+    the seat that dealt the blow (None when unknown).
+
+    Who killed what: the tick's attack events are replayed against the health before the tick, in the
+    engine's order, and the first hit that takes a target to zero is the killing blow (the rules give
+    the destroy score to that attacker); when the damage does not add up, the last attacker of that
+    tick is taken. Several players hitting one entity in the same tick is the only ambiguous case."""
+    every = max(TIMELINE_EVERY[0], min(TIMELINE_EVERY[1], int(every)))
+    init = replay.initial
+    props = init.entity_properties
+    slot_of = {pid: p[1] for pid, p in init.players.items()}
+    order = sorted(slot_of, key=slot_of.get)
+    players = {k: list(v) for k, v in init.players.items()}
+    ents = {k: list(v) for k, v in init.entities.items()}
+    alive = Counter(e[1] for e in ents.values() if e[1] is not None)
+    out = set()
+    window: dict = {}
+    samples: list[dict] = []
+    events: list[dict] = []
+
+    def reset(pid):
+        window[pid] = {"built": Counter(), "lost": Counter(), "killed": Counter()}
+
+    for pid in order:
+        reset(pid)
+
+    def damage(e) -> int:
+        attack = (props.get(e[2]) or {}).get("attack")
+        return int(attack["damage"]) if attack else 0
+
+    def sample(tick: int) -> None:
+        units = {pid: Counter() for pid in order}
+        buildings = {pid: Counter() for pid in order}
+        used, provided = Counter(), Counter()
+        for e in ents.values():
+            pid = e[1]
+            if pid not in units:
+                continue
+            p = props.get(e[2]) or {}
+            used[pid] += int(p.get("population_use") or 0)
+            if e[6]:
+                provided[pid] += int(p.get("population_provide") or 0)
+            if e[2] in UNIT_TYPES:
+                units[pid][_type_name(e[2])] += 1
+            elif e[6]:
+                buildings[pid][_type_name(e[2])] += 1
+        seats = []
+        for pid in order:
+            pl = players.get(pid)
+            row = {"slot": slot_of[pid], "score": pl[2] if pl else 0, "resource": pl[3] if pl else 0,
+                   "population": [used[pid], provided[pid]], "units": dict(units[pid]),
+                   "buildings": dict(buildings[pid])}
+            for key, counts in window[pid].items():
+                if counts:
+                    row[key] = dict(counts)
+            seats.append(row)
+            reset(pid)
+        samples.append({"tick": tick, "seats": seats})
+
+    sample(init.current_tick)
+    last = replay.tick_count
+    for d in replay.ticks:
+        hp, killer, hitter = {}, {}, {}
+        for ev in d.events:
+            if ev[0] != 0:
+                continue
+            a, b = ents.get(ev[1]), ents.get(ev[2])
+            if a is None or b is None or b[1] is None:     # unknown ids, or mining a resource
+                continue
+            hitter[b[0]] = a[1]
+            health = hp.get(b[0], b[5])
+            if health > 0:
+                health -= damage(a)
+                hp[b[0]] = health
+                if health <= 0:
+                    killer.setdefault(b[0], a[1])
+        last_blow = {}
+        for i in d.entities.removed:
+            e = ents.get(i)
+            if e is None or e[1] is None:                    # a resource ran out
+                continue
+            pid, name = e[1], _type_name(e[2])
+            by = killer.get(i, hitter.get(i))
+            by = None if by == pid else by
+            if pid in window:
+                window[pid]["lost"][name] += 1
+            if by in window:
+                window[by]["killed"][name] += 1
+            alive[pid] -= 1
+            last_blow[pid] = by
+            if e[2] in BASE_TYPES:
+                events.append({"tick": d.current_tick, "event": "base_destroyed", "slot": slot_of.get(pid),
+                               "base": name, "by": slot_of.get(by)})
+        for e in d.entities.added:
+            if e[1] is not None:
+                alive[e[1]] += 1
+                if e[1] in window:
+                    window[e[1]]["built"][_type_name(e[2])] += 1
+        _apply(ents, d.entities, 0)
+        _apply(players, d.players, 0)
+        for pid in order:
+            if pid not in out and pid in last_blow and alive[pid] <= 0:
+                out.add(pid)
+                events.append({"tick": d.current_tick, "event": "eliminated", "slot": slot_of[pid],
+                               "by": slot_of.get(last_blow[pid])})
+        if d.current_tick % every == 0 or d.current_tick == last:
+            sample(d.current_tick)
+    return {"tick_count": last, "map_size": init.map_size, "fog_of_war": init.fog_of_war, "every": every,
+            "samples": samples, "events": events}
 
 
 def main(argv=None):

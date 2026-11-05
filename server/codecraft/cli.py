@@ -137,6 +137,10 @@ def cmd_serve(args):
     from .web import create_app
 
     cfg, db, _ = _context(args)
+    # Agent tokens (/mcp/<token>/) and upload tickets (/mcp/upload/<ticket>/) ride in URLs; the access
+    # log would print them.
+    monitoring.install_log_redaction()
+    logging.getLogger("mcp").setLevel(logging.WARNING)   # two INFO lines per MCP request otherwise
     uvicorn.run(create_app(cfg, db), host=args.host or cfg["web"]["host"], port=args.port or int(cfg["web"]["port"]),
                 log_level="info", proxy_headers=True, forwarded_allow_ips="*")
 

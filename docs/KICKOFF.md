@@ -117,6 +117,22 @@ overrides: csharp/fsharp (debian:buster repositories gone -> `mcr.microsoft.com/
 the 20.2.0 native-image plugin still works). Every port was checked for equivalence with a seed-fixed
 Round1 game of four copies of itself: identical score vectors across all languages.
 
+## Phase 3b — coding agents (done 2026-11-05)
+
+A coding agent works with a user's API token: MCP at `/mcp/` (streamable HTTP, stateless, JSON responses;
+token as `/mcp/<token>/` or `Authorization: Bearer`) and the same 13 tools as `GET`/`POST /api/v1/<tool>`.
+Tools: `whoami`, `rules`, `leaderboard`, `strategy`, `version` and `game` (both with `wait_s` up to 50 s,
+polled on the event loop), `games`, `game_timeline`, `game_log`, `upload_link` (a 15-minute ticket for
+`curl -T strategy.zip`), `submit_strategy`, `play` (unrated custom game), `set_strategy`. Everything runs
+inside the `web` service: `agents.py` (tokens, uploads, tool functions, the custom-game rules shared with
+the form), `mcp_server.py` (FastMCP wrappers and the agent-facing texts), the `/agents` page (tokens, setup
+lines per client, a first prompt). Tokens: `cc_` + 40 characters, sha256 in `api_tokens`, 5 per user,
+120 requests a minute each; a token never acts as an admin when it writes. `replay.timeline()` samples
+score, resource, population, units and buildings per seat and counts built / lost / killed between samples;
+kills are attributed by replaying each tick's attack events against the health before the tick (the
+first hit that takes a target to zero), which matches the engine's destroy score. Tokens and upload
+tickets are masked in the access log and in Sentry events. `mcp==1.29.0`.
+
 ## Phase 4 — other game mechanics
 
 Introduce a `GameKind` abstraction: engine image + command, seats per format, config generator,

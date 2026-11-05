@@ -192,6 +192,11 @@ class Config:
         return self.data_dir / "submissions"
 
     @property
+    def uploads_dir(self) -> Path:
+        """Strategy sources coding agents upload with curl before submitting (agents.Uploads)."""
+        return self.data_dir / "uploads"
+
+    @property
     def db_path(self) -> Path:
         return self.data_dir / "codecraft.db"
 
@@ -214,6 +219,7 @@ class Config:
     def ensure_dirs(self) -> None:
         for d in (self.data_dir, self.games_dir, self.build_dir, self.submissions_dir):
             d.mkdir(parents=True, exist_ok=True)
+        self.uploads_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     def languages(self, gpu: bool | None = None) -> list[str]:
         """Languages a user may submit: templates/<lang> first, then official clients. The CUDA templates
