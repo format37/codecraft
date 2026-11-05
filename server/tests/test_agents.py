@@ -345,7 +345,11 @@ def test_play_seats_fill_versions_quota_and_seed(env):
     assert r.status_code == 400 and "as a string" in r.json()["error"]
     assert len(env.db.games(limit=100)) == n
     r = env.client.post("/api/v1/play", headers=oh, json={"format": "Finals", "opponents": ["bot", "quickstart"]})
-    assert r.status_code == 400 and "2 seats" in r.json()["error"]
+    assert r.status_code == 400 and r.json()["error"] == "Finals has 2 seats: yours and at most 1 opponent"
+    r = env.client.post("/api/v1/play", headers=oh, json={"format": "Round1", "opponents": ["bot"] * 4})
+    assert r.status_code == 400 and r.json()["error"].endswith("at most 3 opponents")
+    r = env.client.post("/api/v1/play", headers=oh, json={"opponents": [], "fill": "bogus"})
+    assert r.status_code == 400 and r.json()["error"] == "fill is \"quickstart\" or \"empty\", not 'bogus'"
     env.client.post("/api/v1/set_strategy", headers=oh, json={"name": "bobbot", "enabled": False})
     r = env.client.post("/api/v1/play", headers=oh, json={"opponents": []})
     assert r.status_code == 400 and "paused" in r.json()["error"]

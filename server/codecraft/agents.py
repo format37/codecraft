@@ -1027,8 +1027,12 @@ def play(ax: Agents, user: dict, opponents: list[str], format: str = "Round1", m
         raise AgentError(f"mine={mine!r} is not one of your strategies ({names or 'you have none'})")
     seats = [mine] + [(o or "").strip().lower() or "empty" for o in opponents]
     if len(seats) > SEATS[fmt]:
-        raise AgentError(f"{fmt} has {SEATS[fmt]} seats: yours and at most {SEATS[fmt] - 1} opponents")
-    seats += [(fill or "quickstart").strip().lower()] * (SEATS[fmt] - len(seats))
+        most = SEATS[fmt] - 1
+        raise AgentError(f"{fmt} has {SEATS[fmt]} seats: yours and at most {most} opponent{'' if most == 1 else 's'}")
+    fill = (fill or "quickstart").strip().lower()
+    if fill not in ("quickstart", "empty"):
+        raise AgentError(f"fill is \"quickstart\" or \"empty\", not {fill!r}")
+    seats += [fill] * (SEATS[fmt] - len(seats))
     game_id = queue_custom_game(cfg, db, _writer(user), fmt, seats, seed)
     _, players = db.game(game_id)
     return {"game_id": game_id, "url": ax.url(f"/games/{game_id}"), "format": fmt, "rated": False,
