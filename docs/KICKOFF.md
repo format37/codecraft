@@ -90,7 +90,9 @@ site block, auto-TLS, Cloudflare grey-cloud A record). `.env` on the node: `CW_W
 during the first hours, open since 2026-11-05 evening), the Resend key + `CW_MAIL_FROM` (domain
 `codecraft.latentstate.dev` verified in Resend), `DOCKER_GID` of the node, `CW_SENTRY_DSN` (Sentry
 org personal-htg, project `codecraft`, since 2026-11-05). Deploy a change: push to GitHub, on the node `git pull && docker compose build && docker
-compose up -d web worker` (new seed strategies: `docker compose run --rm cli build`).
+compose up -d --force-recreate web worker`. The image holds only the requirements and the code is mounted from the checkout, so a plain
+`up -d` leaves a code-only change unloaded; the worker finishes its running games before it stops (new seed strategies: `docker compose run
+--rm cli build`).
 Machine-specific facts (addresses, helper scripts, tokens) live in the private ops notes, not here.
 Later: nightly backup of `data/` (SQLite + replays), log rotation, uptime check.
 

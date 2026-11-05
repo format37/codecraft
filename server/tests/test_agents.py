@@ -318,6 +318,8 @@ def test_play_seats_fill_versions_quota_and_seed(env):
     assert r.status_code == 400 and "not one of your strategies" in r.json()["error"]
     r = env.client.post("/api/v1/play", headers=oh, json={"opponents": ["ghost"]})
     assert r.status_code == 400 and "no such strategy" in r.json()["error"]
+    r = env.client.post("/api/v1/play", headers=oh, json={"opponents": [], "seed": '"43"'}).json()
+    assert str(env.db.game(r["game_id"])[0]["seed"]) == "43"        # quotes sent along with the string are dropped
     for bad in (str(2 ** 64), -1, "x"):
         r = env.client.post("/api/v1/play", headers=oh, json={"opponents": [], "seed": bad})
         assert r.status_code == 400 and "unsigned 64-bit" in r.json()["error"]
@@ -458,6 +460,18 @@ def test_play_takes_the_seed_as_a_string_over_mcp(env):
         assert not r.get("isError"), r
         game_id = json.loads(r["content"][0]["text"])["game_id"]
         assert str(env.db.game(game_id)[0]["seed"]) == kept
+
+
+def test_strategy_lists_a_game_once_when_it_held_several_seats(env):
+    """The live check of 2026-11-05: mcp-check played v2 against its own v1 and strategy() listed the game twice."""
+    user, token = env.user()
+    v1, v2 = env.built(user, "bot", 2)
+    h = {"Authorization": f"Bearer {token}"}
+    r = env.client.post("/api/v1/play", headers=h, json={"opponents": [f"bot@{v1}", "bot"], "format": "Round2"})
+    assert r.status_code == 200, r.text
+    games = env.client.get("/api/v1/strategy?name=bot", headers=h).json()["games"]
+    assert [g["id"] for g in games] == [r.json()["game_id"]]
+    assert [s["strategy"] for s in games[0]["seats"]][:3] == ["bot", "bot", "bot"]
 
 
 def test_every_mcp_wrapper_matches_its_tool_function(env):

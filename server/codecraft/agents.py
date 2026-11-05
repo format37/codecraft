@@ -554,13 +554,15 @@ def queue_custom_game(cfg: Config, db: DB, user: dict, fmt: str, seats: list[str
     if real < 1:
         raise AgentError("seat at least one real strategy")
     seed_value = None
-    if seed is not None and str(seed).strip():
+    # An agent told to pass the seed "as a string" sometimes sends the quotes as well: '"42"'.
+    text = None if seed is None else str(seed).strip().strip("\"'").strip()
+    if text:
         try:
-            seed_value = int(str(seed).strip())
+            seed_value = int(text)
             if not 0 <= seed_value < 2 ** 64:
                 raise ValueError
         except ValueError:
-            raise AgentError("seed must be an unsigned 64-bit integer") from None
+            raise AgentError(f"seed must be an unsigned 64-bit integer (a string of digits), not {seed!r}") from None
     return db.queue_game(fmt, seed_value, user["id"], rows, kind="custom", rated=False)
 
 
@@ -577,9 +579,8 @@ def seed_arg(value) -> str | None:
     if isinstance(value, bool) or not isinstance(value, int):
         raise AgentError("seed is a string of digits, e.g. \"7\"")
     if value > SAFE_INT:
-        raise AgentError(f"pass the seed as a string, in quotes, as game() gives it: as a JSON number a seed "
-                         f"above 2^53 loses its last digits on the way, so {value} may not be the seed you "
-                         f"meant")
+        raise AgentError(f"pass the seed as a string, as game() gives it: as a JSON number a seed above 2^53 "
+                         f"loses its last digits on the way, so {value} may not be the seed you meant")
     return str(value)
 
 
@@ -777,7 +778,7 @@ def strategy(ax: Agents, user: dict, name: str) -> dict:
             "played_by_active_build": db.sandbox_games_of_build(s["name"], s["image"]) if s["image"] else 0,
             "about": "every new active version of an enabled strategy plays this many rated sandbox games, "
                      "scheduled by the server; custom games (play) are unrated"}
-    rows = db.strategy_games(s["name"], limit=20)
+    rows = db.games(limit=20, strategy=s["name"])   # one row per game, also when it held several seats
     seats = db.game_players_for([g["id"] for g in rows])
     out["games"] = [_game_row(ax, g, seats.get(g["id"], [])) for g in rows]
     return out
