@@ -19,7 +19,8 @@ Live instance: https://codewars.latentstate.dev
   rating-aware matchmaking, multiplayer Elo); then the worker rests until the next submission.
 - **Custom games**: any format, any seats (including your own older versions), unrated.
 - **Replay viewer** in the browser: the official `replay.dat` is decoded
-  ([docs/replay-format.md](docs/replay-format.md)); the official 3D viewer works too.
+  ([docs/replay-format.md](docs/replay-format.md)); the official 3D viewer works too. A game link pasted
+  into Telegram, Slack or Discord shows the final board (Open Graph preview image).
 - **Limits as in 2020**: 1 s per tick, 40 s CPU per game, memory and CPU caps per container,
   strategies on an internal network with dropped capabilities.
 

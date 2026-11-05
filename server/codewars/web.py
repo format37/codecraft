@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from . import preview as P
 from . import replay as R
 from .auth import Auth, AuthError
 from .config import SEATS, Config
@@ -41,6 +42,25 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
 
     def game_dir(game_id: int) -> Path:
         return cfg.games_dir / f"{game_id:06d}"
+
+    def absolute(request: Request, path: str) -> str:
+        """Absolute URL for link previews: the configured base URL, else the request's."""
+        base = (cfg["auth"].get("base_url") or str(request.base_url)).rstrip("/")
+        return base + path
+
+    def player_labels(players) -> list[str]:
+        return [p["label"] or p["strategy"] or "empty" for p in players]
+
+    def game_og(request: Request, row, players, has_replay: bool) -> dict:
+        parts = [row["format"]]
+        if row["status"] == "finished":
+            parts += [f"{(p['label'] or p['strategy'] or 'empty')} {p['score'] or 0} (#{p['place']})"
+                      for p in sorted(players, key=lambda p: (p["place"] or 99, p["slot"]))]
+        else:
+            parts += [row["status"], " vs ".join(player_labels(players))]
+        return dict(title=f"Game #{row['id']} · {row['format']}", description=" · ".join(parts),
+                    url=absolute(request, f"/games/{row['id']}"),
+                    image=absolute(request, f"/games/{row['id']}/preview.png") if has_replay else None)
 
     def render(request: Request, name: str, **ctx):
         ctx.setdefault("user", request.state.user)
@@ -105,10 +125,12 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                 featured = g
                 break
         labels = []
+        og = dict(title=f"{title} · CodeCraft 2020 arena", url=absolute(request, "/"))
         if featured is not None:
-            labels = [p["label"] or p["strategy"] or "empty" for p in db.game(featured["id"])[1]]
+            labels = player_labels(db.game(featured["id"])[1])
+            og["image"] = absolute(request, f"/games/{featured['id']}/preview.png")
         return render(request, "cover.html", featured=featured, labels=labels, stats=db.stats(),
-                      n_strategies=len(db.leaderboard()), n_users=len(db.users()))
+                      n_strategies=len(db.leaderboard()), n_users=len(db.users()), og=og)
 
     @app.get("/rules", response_class=HTMLResponse)
     def rules(request: Request):
@@ -227,9 +249,25 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                 if p.name.startswith("player-") and not (user and (is_admin(user) or _owns_slot(user, players, p.name))):
                     continue
                 files.append(p.name)
-        return render(request, "game.html", game=row, players=players, files=files,
-                      has_replay=(gdir / "replay.dat").exists(),
-                      labels=[p["label"] or p["strategy"] or "empty" for p in players])
+        has_replay = (gdir / "replay.dat").exists()
+        return render(request, "game.html", game=row, players=players, files=files, has_replay=has_replay,
+                      labels=player_labels(players), og=game_og(request, row, players, has_replay))
+
+    @app.get("/games/{game_id}/preview.png")
+    def game_preview(request: Request, game_id: int, tick: int | None = None):
+        """The field at the last tick (or `?tick=`, rounded to a keyframe) as a 1200x630 PNG."""
+        row, players = db.game(game_id)
+        if row is None:
+            raise HTTPException(404, "no such game")
+        gdir = game_dir(game_id)
+        if not (gdir / "replay.dat").exists():
+            raise HTTPException(404, "no replay for this game")
+        try:
+            path = P.ensure(gdir, player_labels(players), game_id, row["format"],
+                            footer=P.site_host(cfg["auth"].get("base_url")), tick=tick)
+        except R.ReplayError as exc:
+            raise HTTPException(500, f"replay cannot be decoded: {exc}")
+        return FileResponse(path, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
     def _owns_slot(user, players, fname: str) -> bool:
         try:

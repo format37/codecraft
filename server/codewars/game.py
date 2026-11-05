@@ -229,6 +229,13 @@ class GameRunner:
         }, indent=2, default=str))
         log.info("game %d: %s in %.0fs: %s", game_id, status, duration,
                  ", ".join(f"{r['label'] or r['strategy'] or 'empty'}={r['score']}(#{r['place']})" for r in rows))
+        if status == "finished" and (gdir / "replay.dat").exists():
+            try:   # the link-preview image, so a shared link shows the board at once
+                from . import preview
+                preview.ensure(gdir, [r["label"] or r["strategy"] or "empty" for r in rows], game_id, fmt,
+                               footer=preview.site_host(self.cfg["auth"].get("base_url")))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("game %d: preview image not rendered: %s", game_id, exc)
         return outcome
 
     def _record(self, game_id: int, fmt: str, status: str, error: str | None, duration: float,

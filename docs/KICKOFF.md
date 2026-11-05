@@ -47,6 +47,8 @@ Delivered (`server/codewars/`):
 - `replay.py` — decoder + JSON export; `web.py` + templates + `static/viewer.js` — leaderboard, games
   with filters, game page with the canvas viewer, strategy page (versions, activate, pause), submit,
   custom game form, login, profile, admin (users, invites, queues, limits).
+- `preview.py` — Open Graph link previews: the field + scoreboard as a 1200x630 PNG (`/games/<id>/preview.png`,
+  `?tick=` keyframes), cached next to `replay.dat`, pre-rendered by the worker; `og:` tags on every page.
 - `cli.py` — `worker` (alias `loop`), `submit`, `users`, `admin`, `invite`, `replay`, plus the old
   commands. `docker-compose.yml`: services `web`, `worker`, `cli`; `.env` for secrets.
 - 36 tests. Verified live: sign-in with a console code, zip submission → built by the worker →
