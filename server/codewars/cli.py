@@ -10,6 +10,7 @@ from pathlib import Path
 
 import docker
 
+from . import monitoring
 from .auth import Auth, Mailer
 from .builder import BuildError, Builder
 from .config import SEATS, Config
@@ -23,6 +24,7 @@ log = logging.getLogger("codewars")
 def _context(args):
     cfg = Config.load(args.root)
     cfg.ensure_dirs()
+    monitoring.init(cfg)
     handler = logging.FileHandler(cfg.data_dir / "codewars.log")
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logging.getLogger().addHandler(handler)

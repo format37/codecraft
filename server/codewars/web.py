@@ -62,11 +62,11 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                     url=absolute(request, f"/games/{row['id']}"),
                     image=absolute(request, f"/games/{row['id']}/preview.png") if has_replay else None)
 
-    def render(request: Request, name: str, **ctx):
+    def render(request: Request, template: str, **ctx):
         ctx.setdefault("user", request.state.user)
         ctx.setdefault("msg", request.query_params.get("m"))
         ctx.setdefault("err", request.query_params.get("e"))
-        return templates.TemplateResponse(request, name, ctx)
+        return templates.TemplateResponse(request, template, ctx)
 
     def back(url: str, msg: str | None = None, err: str | None = None) -> RedirectResponse:
         sep = "&" if "?" in url else "?"

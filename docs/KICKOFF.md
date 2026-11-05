@@ -50,8 +50,9 @@ Delivered (`server/codewars/`):
 - `preview.py` — Open Graph link previews: the field + scoreboard as a 1200x630 PNG (`/games/<id>/preview.png`,
   `?tick=` keyframes), cached next to `replay.dat`, pre-rendered by the worker; `og:` tags on every page.
 - `cli.py` — `worker` (alias `loop`), `submit`, `users`, `admin`, `invite`, `replay`, `rename`, plus the
-  old commands. `docker-compose.yml`: services `web`, `worker`, `cli`; `.env` for secrets.
-- 40 tests. Verified live: sign-in with a console code, zip submission → built by the worker →
+  old commands. `monitoring.py` — Sentry, on when `CW_SENTRY_DSN` is set (errors only, no request bodies,
+  addresses and tokens scrubbed), inited in `cli._context` so `web` and `worker` both report. `docker-compose.yml`: services `web`, `worker`, `cli`; `.env` for secrets.
+- 46 tests (`test_web.py` drives the app through FastAPI's TestClient). Verified live: sign-in with a console code, zip submission → built by the worker →
   custom game queued from the web → played; the viewer renders game 15 in Chrome.
 
 Known gaps / small follow-ups:
@@ -83,7 +84,8 @@ and reached through the existing WireGuard tunnel by the VPS Caddy (`codewars.la
 site block, auto-TLS, Cloudflare grey-cloud A record). `.env` on the node: `CW_WEB_PORT`,
 `CW_BASE_URL=https://codewars.latentstate.dev`, `CW_ADMINS`, `CW_REGISTRATION=open` (invite-only
 during the first hours, open since 2026-11-05 evening), the Resend key + `CW_MAIL_FROM` (domain
-`codewars.latentstate.dev` verified in Resend), `DOCKER_GID` of the node. Deploy a change: push to GitHub, on the node `git pull && docker compose build && docker
+`codewars.latentstate.dev` verified in Resend), `DOCKER_GID` of the node, `CW_SENTRY_DSN` (Sentry
+org personal-htg, project `codewars`, since 2026-11-05). Deploy a change: push to GitHub, on the node `git pull && docker compose build && docker
 compose up -d web worker` (new seed strategies: `docker compose run --rm cli build`).
 Machine-specific facts (addresses, helper scripts, tokens) live in the private ops notes, not here.
 Later: nightly backup of `data/` (SQLite + replays), log rotation, uptime check.

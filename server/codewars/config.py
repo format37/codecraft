@@ -66,6 +66,7 @@ DEFAULTS: dict = {
         "resend_api_key": None,     # or env CW_RESEND_API_KEY
         "smtp": {"host": None, "port": 587, "user": None, "password": None, "starttls": True},
     },
+    "sentry": {"dsn": None, "environment": "production"},   # or env CW_SENTRY_DSN; unset = monitoring off
     "web": {"host": "0.0.0.0", "port": 8080, "title": "CodeWars"},
     "docker": {"prefix": "cw", "label": "codewars.game"},
     "hardening": {"no_new_privileges": True, "cap_drop_all": True},
@@ -127,6 +128,10 @@ class Config:
             data["auth"]["registration"] = env["CW_REGISTRATION"].strip().lower()
         if env.get("CW_GPU_ENABLED"):
             data["gpu"]["enabled"] = _tri(env["CW_GPU_ENABLED"])
+        if env.get("CW_SENTRY_DSN", "").strip():
+            data["sentry"]["dsn"] = env["CW_SENTRY_DSN"].strip()
+        if env.get("CW_SENTRY_ENVIRONMENT", "").strip():
+            data["sentry"]["environment"] = env["CW_SENTRY_ENVIRONMENT"].strip()
         data["gpu"]["enabled"] = _tri(data["gpu"].get("enabled", "auto"))
         if str(data["auth"].get("cookie_secure", "auto")).lower() == "auto":
             data["auth"]["cookie_secure"] = str(data["auth"].get("base_url") or "").lower().startswith("https")
