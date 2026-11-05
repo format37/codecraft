@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from codewars.builder import Builder, BuildError, language_subdir
-from codewars.config import Config
-from codewars.strategies import load_strategy
+from codecraft.builder import Builder, BuildError, language_subdir
+from codecraft.config import Config
+from codecraft.strategies import load_strategy
 
 
 def make_root(tmp_path: Path) -> Path:

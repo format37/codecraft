@@ -1,4 +1,4 @@
-# CodeWars server. All services share one image and talk to the host docker daemon through its
+# CodeCraft server. All services share one image and talk to the host docker daemon through its
 # socket; game and build containers are created by the worker, not by compose.
 #
 #   docker compose build
@@ -9,9 +9,11 @@
 # Mail for sign-in codes: set CW_RESEND_API_KEY (+ CW_MAIL_FROM) or configure mail.smtp in config.yaml;
 # without either, codes are printed in the web service log (docker compose logs web).
 
+name: codecraft                 # compose project name, independent of the folder name
+
 x-server: &server
   build: ./server
-  image: codewars/server
+  image: codecraft/server
   volumes:
     - /var/run/docker.sock:/var/run/docker.sock
     - .:/app

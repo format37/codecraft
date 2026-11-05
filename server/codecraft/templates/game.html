@@ -24,7 +24,7 @@
 <h2>Replay</h2>
 <div id="viewer" class="card" data-replay="/games/{{ game.id }}/replay.json" data-players='{{ labels|tojson }}'></div>
 <script src="/static/viewer.js"></script>
-<script>CodeWarsViewer.mount(document.getElementById('viewer'));</script>
+<script>CodeCraftViewer.mount(document.getElementById('viewer'));</script>
 <p class="muted">Official viewer: <code>./cw watch {{ game.id }}</code>. Decoded replay as JSON: <a href="/games/{{ game.id }}/replay.json">replay.json</a>.</p>
 {% endif %}
 <h2>Files</h2>

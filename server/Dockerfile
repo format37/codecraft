@@ -5,4 +5,4 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 ENV PYTHONPATH=/app/server CW_ROOT=/app PYTHONUNBUFFERED=1 HOME=/tmp
 WORKDIR /app
-ENTRYPOINT ["python", "-m", "codewars"]
+ENTRYPOINT ["python", "-m", "codecraft"]

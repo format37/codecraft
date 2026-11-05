@@ -1,4 +1,4 @@
-from codewars import rating as R
+from codecraft import rating as R
 
 
 def test_placements_with_ties():

@@ -1,4 +1,4 @@
-# CodeWars platform — kickoff and status (updated 2026-11-05)
+# CodeCraft platform — kickoff and status (updated 2026-11-05)
 
 Entry point for a working session. Read this, then `README.md`, then `config.yaml`.
 
@@ -31,7 +31,7 @@ Decisions taken with Alex: e-mail code sign-in like Phonyx (no passwords); zip +
 replay viewer **decodes the official `replay.dat`** (format fully reverse-engineered, see
 `docs/replay-format.md`); SQLite stays.
 
-Delivered (`server/codewars/`):
+Delivered (`server/codecraft/`):
 
 - `db.py` — users, login_codes, sessions, invites, strategies (owner, kind seed/user, active version,
   limits), strategy_versions (build queue), games (kind, rated, queued status), game_players
@@ -76,16 +76,20 @@ during a round; round pages with standings. Tables `tournaments`/`rounds`/`waves
 
 ## Phase 3 — deployment (done 2026-11-05)
 
-Live at https://codewars.latentstate.dev: the home node (8 cores, 14 GB, docker, **no NVIDIA GPU**
+Renamed from CodeWars on 2026-11-05 (repo, domain, package, images, DB file, Resend domain, Sentry
+project); codewars.latentstate.dev 301-redirects here and github.com/format37/codewars redirects to
+the new repo.
+
+Live at https://codecraft.latentstate.dev: the home node (8 cores, 14 GB, docker, **no NVIDIA GPU**
 for now — the GPU is not attached because of the machine's power budget, so `gpu.enabled: auto`
 resolves to false and the CUDA languages are hidden; the RTX 4090 stays on the dev machine) runs
 `web` + `worker` from a clone of the public repo; the web port is published to the home LAN only
-and reached through the existing WireGuard tunnel by the VPS Caddy (`codewars.latentstate.dev`
+and reached through the existing WireGuard tunnel by the VPS Caddy (`codecraft.latentstate.dev`
 site block, auto-TLS, Cloudflare grey-cloud A record). `.env` on the node: `CW_WEB_PORT`,
-`CW_BASE_URL=https://codewars.latentstate.dev`, `CW_ADMINS`, `CW_REGISTRATION=open` (invite-only
+`CW_BASE_URL=https://codecraft.latentstate.dev`, `CW_ADMINS`, `CW_REGISTRATION=open` (invite-only
 during the first hours, open since 2026-11-05 evening), the Resend key + `CW_MAIL_FROM` (domain
-`codewars.latentstate.dev` verified in Resend), `DOCKER_GID` of the node, `CW_SENTRY_DSN` (Sentry
-org personal-htg, project `codewars`, since 2026-11-05). Deploy a change: push to GitHub, on the node `git pull && docker compose build && docker
+`codecraft.latentstate.dev` verified in Resend), `DOCKER_GID` of the node, `CW_SENTRY_DSN` (Sentry
+org personal-htg, project `codecraft`, since 2026-11-05). Deploy a change: push to GitHub, on the node `git pull && docker compose build && docker
 compose up -d web worker` (new seed strategies: `docker compose run --rm cli build`).
 Machine-specific facts (addresses, helper scripts, tokens) live in the private ops notes, not here.
 Later: nightly backup of `data/` (SQLite + replays), log rotation, uptime check.

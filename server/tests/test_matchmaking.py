@@ -1,7 +1,7 @@
 import random
 from collections import Counter
 
-from codewars.matchmaking import Candidate, choose_format, pick_players
+from codecraft.matchmaking import Candidate, choose_format, pick_players
 
 
 def cands():

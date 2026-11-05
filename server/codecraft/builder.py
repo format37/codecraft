@@ -16,7 +16,7 @@ import docker
 from .config import Config
 from .strategies import Strategy
 
-log = logging.getLogger("codewars.build")
+log = logging.getLogger("codecraft.build")
 
 GIT_URL_RE = re.compile(r"^https?://[\w.\-]+(:\d+)?/[\w./\-~%]+$")
 
@@ -95,7 +95,7 @@ class Builder:
 
     # Strategies ----------------------------------------------------------
     def image_name(self, strategy: Strategy, build_hash: str) -> str:
-        return f"codewars/strategy-{strategy.name}:{build_hash}"
+        return f"codecraft/strategy-{strategy.name}:{build_hash}"
 
     def log_name(self, strategy: Strategy) -> str:
         return f"{strategy.name}-v{strategy.version_number}" if strategy.version_number else strategy.name
@@ -136,7 +136,7 @@ class Builder:
         lines = [("COPY client /project" if l.strip() == "COPY . /project" else l) for l in lines]
         merge = strategy.source.merge
         src_dir = "/project" if merge else "/src"
-        lines += ["", "# --- added by codewars ---", "RUN mkdir -p /output /src"]
+        lines += ["", "# --- added by codecraft ---", "RUN mkdir -p /output /src"]
         # merge mode: the strategy's files land on top of the official client and compile.sh is run
         # with "base", which skips its own copy step (that step replaces the whole client otherwise)
         lines.append("COPY src /project/" if merge else "COPY src /src")

@@ -32,7 +32,7 @@ title: QuickStart (engine bot)
 builtin: QuickStart
 ```
 
-`./cw build` builds every enabled strategy into `codewars/strategy-<name>:<content hash>`.
+`./cw build` builds every enabled strategy into `codecraft/strategy-<name>:<content hash>`.
 
 The bundled 2020 entries (`*-2020`) are disabled: the bare names stay free for their authors, who
 submit through the web like everyone else. `./cw rename OLD NEW` renames a strategy in the database

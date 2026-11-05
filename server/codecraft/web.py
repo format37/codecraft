@@ -19,14 +19,14 @@ from .config import SEATS, Config
 from .db import DB
 from .submissions import SubmissionError, submit
 
-log = logging.getLogger("codewars.web")
+log = logging.getLogger("codecraft.web")
 HERE = Path(__file__).parent
 COOKIE = "cw_session"
 
 
 def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
     auth = auth or Auth(cfg, db)
-    title = str(cfg["web"].get("title") or "CodeWars")
+    title = str(cfg["web"].get("title") or "CodeCraft")
     app = FastAPI(title=title, docs_url=None, redoc_url=None)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     templates = Jinja2Templates(directory=str(HERE / "templates"))
@@ -125,7 +125,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                 featured = g
                 break
         labels = []
-        og = dict(title=f"{title} · CodeCraft 2020 arena", url=absolute(request, "/"))
+        og = dict(title=f"{title} · Russian AI Cup 2020 arena", url=absolute(request, "/"))
         if featured is not None:
             labels = player_labels(db.game(featured["id"])[1])
             og["image"] = absolute(request, f"/games/{featured['id']}/preview.png")

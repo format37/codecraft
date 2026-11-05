@@ -3,9 +3,9 @@ import zipfile
 
 import pytest
 
-from codewars.config import Config
-from codewars.db import DB
-from codewars.submissions import SubmissionError, check_name, extract_zip, submit
+from codecraft.config import Config
+from codecraft.db import DB
+from codecraft.submissions import SubmissionError, check_name, extract_zip, submit
 
 
 def zip_bytes(files: dict) -> bytes:
@@ -95,7 +95,7 @@ def test_bad_archive_leaves_no_strategy_behind(tmp_path):
 
 
 def test_gpu_languages_follow_resolved_availability(tmp_path):
-    from codewars.config import Config
+    from codecraft.config import Config
     (tmp_path / "templates" / "python-cuda").mkdir(parents=True)
     (tmp_path / "templates" / "python-cuda" / "Dockerfile").write_text("FROM x\n")
     (tmp_path / "templates" / "python").mkdir()
@@ -111,10 +111,10 @@ def test_gpu_languages_follow_resolved_availability(tmp_path):
 
 
 def test_env_overrides_registration_gpu_and_secure_cookie(tmp_path, monkeypatch):
-    from codewars.config import Config
+    from codecraft.config import Config
     monkeypatch.setenv("CW_REGISTRATION", "Invite")
     monkeypatch.setenv("CW_GPU_ENABLED", "false")
-    monkeypatch.setenv("CW_BASE_URL", "https://codewars.example")
+    monkeypatch.setenv("CW_BASE_URL", "https://codecraft.example")
     cfg = Config.load(tmp_path)
     assert cfg["auth"]["registration"] == "invite"
     assert cfg["gpu"]["enabled"] is False and cfg.gpu_ok is False

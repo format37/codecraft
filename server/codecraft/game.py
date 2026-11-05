@@ -18,7 +18,7 @@ from .config import MAX_TICKS, SEATS, Config
 from .db import DB
 from .strategies import Strategy
 
-log = logging.getLogger("codewars.game")
+log = logging.getLogger("codecraft.game")
 
 # Wrapper around the client's run.sh: records the exit code and the CPU time of the strategy
 # (user+sys of all children) so the orchestrator can report it.

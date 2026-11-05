@@ -3,10 +3,10 @@ import re
 
 from fastapi.testclient import TestClient
 
-from codewars.auth import Auth
-from codewars.config import Config
-from codewars.db import DB
-from codewars.web import COOKIE, create_app
+from codecraft.auth import Auth
+from codecraft.config import Config
+from codecraft.db import DB
+from codecraft.web import COOKIE, create_app
 
 
 class FakeMailer:

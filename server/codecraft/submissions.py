@@ -13,7 +13,7 @@ from .config import Config
 from .db import DB
 from .strategies import NAME_RE
 
-log = logging.getLogger("codewars.submit")
+log = logging.getLogger("codecraft.submit")
 
 RESERVED = {"empty", "quickstart", "new", "admin", "me", "api", "static"}
 REF_RE = re.compile(r"^[\w./@^~-]{1,120}$")

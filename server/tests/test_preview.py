@@ -2,14 +2,14 @@ from pathlib import Path
 
 from PIL import Image
 
-from codewars import preview as P
-from codewars import replay as R
+from codecraft import preview as P
+from codecraft import replay as R
 from test_replay import make_replay
 
 
 def test_render_size_and_scores():
     rep = R.parse(make_replay())
-    img = P.render(rep, ["alice", "bob"], heading="Game #1 · Round1", footer="codewars.test")
+    img = P.render(rep, ["alice", "bob"], heading="Game #1 · Round1", footer="codecraft.test")
     assert img.size == (P.WIDTH, P.HEIGHT)
     # a unit of player 2 (index 1, red) stands at (9, 9): the top-right cell of the 10x10 field (56 px cells)
     r, g, b = img.getpixel((35 + 9 * 56 + 28, 35 + 28))

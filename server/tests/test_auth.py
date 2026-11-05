@@ -2,9 +2,9 @@ import re
 
 import pytest
 
-from codewars.auth import Auth, AuthError, Mailer
-from codewars.config import Config
-from codewars.db import DB
+from codecraft.auth import Auth, AuthError, Mailer
+from codecraft.config import Config
+from codecraft.db import DB
 
 
 class FakeMailer:

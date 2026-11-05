@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-log = logging.getLogger("codewars.monitoring")
+log = logging.getLogger("codecraft.monitoring")
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # `code=…` / `token=…` in a query string or a URL fragment (the mail link), whatever the length.
@@ -105,7 +105,7 @@ def scrub_breadcrumb(crumb: dict, hint: Any = None) -> dict | None:
     if not isinstance(crumb, dict):
         return crumb
     message = crumb.get("message")
-    if crumb.get("category") == "codewars.auth" and isinstance(message, str) and message.startswith("mail("):
+    if crumb.get("category") == "codecraft.auth" and isinstance(message, str) and message.startswith("mail("):
         return None
     if isinstance(message, str):
         crumb["message"] = scrub_text(message)
@@ -115,13 +115,13 @@ def scrub_breadcrumb(crumb: dict, hint: Any = None) -> dict | None:
 
 
 def release(root: Path) -> str:
-    """`codewars@<short sha>` of the checkout (the repository is mounted into the containers)."""
+    """`codecraft@<short sha>` of the checkout (the repository is mounted into the containers)."""
     try:
         sha = subprocess.run(["git", "-c", "safe.directory=*", "-C", str(root), "rev-parse", "--short", "HEAD"],
                              capture_output=True, text=True, timeout=5, check=True).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         sha = ""
-    return f"codewars@{sha or 'unknown'}"
+    return f"codecraft@{sha or 'unknown'}"
 
 
 def init(cfg) -> bool:

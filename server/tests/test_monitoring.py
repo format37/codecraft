@@ -3,8 +3,8 @@ as `before_send` / `before_breadcrumb`. Pure functions, so no DSN is needed here
 import uuid
 from pathlib import Path
 
-from codewars import monitoring
-from codewars.config import Config
+from codecraft import monitoring
+from codecraft.config import Config
 
 
 def test_an_address_a_code_and_a_token_are_scrubbed_an_identifier_is_not():
@@ -32,8 +32,8 @@ def test_an_event_is_scrubbed_in_its_text_fields_frames_and_request():
                                                 "resend_api_key": "re_x", "game_id": 7}}]}}]},
         "request": {"url": "https://x/login?code=123456", "query_string": "code=123456", "method": "POST"},
         "breadcrumbs": {"values": [
-            {"category": "codewars.auth", "message": "mail(console) to=bob@example.com subject='Your code'"},
-            {"category": "codewars.auth", "message": "auth: no code for bob@example.com (registration closed)"},
+            {"category": "codecraft.auth", "message": "mail(console) to=bob@example.com subject='Your code'"},
+            {"category": "codecraft.auth", "message": "auth: no code for bob@example.com (registration closed)"},
         ]},
     }
     out = monitoring.scrub_event(event)
@@ -64,7 +64,7 @@ def test_init_is_off_without_a_dsn_and_configures_the_sdk_with_one(tmp_path, mon
     assert monitoring.init(cfg) is True
     (kw,) = calls
     assert kw["dsn"] == "https://public@o0.ingest.sentry.io/1" and kw["environment"] == "staging"
-    assert kw["release"] == "codewars@unknown"           # tmp_path is no git checkout
+    assert kw["release"] == "codecraft@unknown"           # tmp_path is no git checkout
     assert kw["send_default_pii"] is False and kw["max_request_body_size"] == "never"
     assert kw["traces_sample_rate"] == 0.0
     assert kw["before_send"] is monitoring.scrub_event and kw["before_breadcrumb"] is monitoring.scrub_breadcrumb
@@ -72,5 +72,5 @@ def test_init_is_off_without_a_dsn_and_configures_the_sdk_with_one(tmp_path, mon
 
 def test_release_names_the_checkout():
     repo = Path(__file__).resolve().parents[2]
-    assert monitoring.release(Path("/nonexistent")) == "codewars@unknown"
-    assert (repo / ".git").exists() and monitoring.release(repo) != "codewars@unknown"
+    assert monitoring.release(Path("/nonexistent")) == "codecraft@unknown"
+    assert (repo / ".git").exists() and monitoring.release(repo) != "codecraft@unknown"

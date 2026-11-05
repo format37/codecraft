@@ -9,7 +9,7 @@ import yaml
 
 DEFAULTS: dict = {
     "engine": {
-        "image": "codewars/engine:1.3.0",
+        "image": "codecraft/engine:1.3.0",
         "binary": "engine/aicup2020",
         "memory_mb": 512,
         "cpus": 1.0,
@@ -62,13 +62,13 @@ DEFAULTS: dict = {
     },
     "mail": {
         "provider": "auto",         # auto (resend if CW_RESEND_API_KEY, else smtp if host, else console)
-        "from": "CodeWars <onboarding@resend.dev>",
+        "from": "CodeCraft <onboarding@resend.dev>",
         "resend_api_key": None,     # or env CW_RESEND_API_KEY
         "smtp": {"host": None, "port": 587, "user": None, "password": None, "starttls": True},
     },
     "sentry": {"dsn": None, "environment": "production"},   # or env CW_SENTRY_DSN; unset = monitoring off
-    "web": {"host": "0.0.0.0", "port": 8080, "title": "CodeWars"},
-    "docker": {"prefix": "cw", "label": "codewars.game"},
+    "web": {"host": "0.0.0.0", "port": 8080, "title": "CodeCraft"},
+    "docker": {"prefix": "cw", "label": "codecraft.game"},
     "hardening": {"no_new_privileges": True, "cap_drop_all": True},
 }
 
@@ -193,7 +193,7 @@ class Config:
 
     @property
     def db_path(self) -> Path:
-        return self.data_dir / "codewars.db"
+        return self.data_dir / "codecraft.db"
 
     @property
     def strategies_dir(self) -> Path:

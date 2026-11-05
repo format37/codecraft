@@ -1,4 +1,4 @@
-/* CodeWars replay viewer: renders the decoded CodeCraft 2020 replay (see codewars/replay.py).
+/* CodeCraft replay viewer: renders the decoded CodeCraft 2020 replay (see codecraft/replay.py).
    Data: {map_size, tick_count, properties, players:[[id,index,score,resource]], entities:[[id,player,type,x,y,hp,active]],
           actions:{id:action}, ticks:[{t, p:[players], a:[added], r:[removed ids], u:[updated], act:{id:action}, actr:[ids], ev:[[tag,a,b]]}]} */
 (function () {
@@ -276,5 +276,5 @@
 
   function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
-  window.CodeWarsViewer = { mount: (root) => new Viewer(root) };
+  window.CodeCraftViewer = { mount: (root) => new Viewer(root) };
 })();

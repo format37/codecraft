@@ -318,7 +318,7 @@ def final_scores(replay: Replay) -> list[int]:
 def main(argv=None):
     args = argv or sys.argv[1:]
     if not args:
-        sys.exit("usage: python -m codewars.replay <replay.dat> [--json out.json]")
+        sys.exit("usage: python -m codecraft.replay <replay.dat> [--json out.json]")
     replay = load(args[0])
     print(f"map {replay.initial.map_size}x{replay.initial.map_size}, fog={replay.initial.fog_of_war}, "
           f"ticks {replay.tick_count}, players {len(replay.initial.players)}, "

@@ -18,14 +18,14 @@ from .db import DB
 from .game import GameRunner, PlayerSpec
 from .strategies import Strategy, load_strategies, strategy_from_row
 
-log = logging.getLogger("codewars")
+log = logging.getLogger("codecraft")
 
 
 def _context(args):
     cfg = Config.load(args.root)
     cfg.ensure_dirs()
     monitoring.init(cfg)
-    handler = logging.FileHandler(cfg.data_dir / "codewars.log")
+    handler = logging.FileHandler(cfg.data_dir / "codecraft.log")
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logging.getLogger().addHandler(handler)
     db = DB(cfg.db_path)
@@ -286,7 +286,7 @@ def cmd_rename(args):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="codewars", description="CodeCraft 2020 competition server")
+    parser = argparse.ArgumentParser(prog="codecraft", description="CodeCraft 2020 competition server")
     parser.add_argument("--root", help="project root (default: $CW_ROOT or the repository)")
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="cmd", required=True)

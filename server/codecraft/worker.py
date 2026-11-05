@@ -19,7 +19,7 @@ from .game import GameRunner, PlayerSpec
 from .matchmaking import Candidate, choose_format, pick_players
 from .strategies import Strategy, strategy_for_version, strategy_from_row
 
-log = logging.getLogger("codewars.worker")
+log = logging.getLogger("codecraft.worker")
 
 
 class Worker:

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from codewars.db import DB
+from codecraft.db import DB
 
 RATING = {"initial": 1200, "k": 32, "k_min": 16, "k_half_life_games": 50}
 
@@ -88,11 +88,11 @@ def test_rename_strategy_touches_rows_versions_and_seats(tmp_path):
     db = DB(tmp_path / "t.db")
     for n in ("old", "q"):
         db.upsert_strategy(strategy(n, builtin="QuickStart" if n == "q" else None), 1200)
-    db.set_image("old", "codewars/strategy-old:abc", "abc")
+    db.set_image("old", "codecraft/strategy-old:abc", "abc")
     vid = db.create_version("old", None, "zip", "submissions/x", None, "python", False, False, None, "first")
     gid = db.create_game("Finals", None)
     db.finish_game(gid, "finished", None, 1.0, 1, [
-        dict(slot=0, strategy="old", image="codewars/strategy-old:abc", score=1, crashed=False, comment=None, cpu_sec=None),
+        dict(slot=0, strategy="old", image="codecraft/strategy-old:abc", score=1, crashed=False, comment=None, cpu_sec=None),
         dict(slot=1, strategy="q", image=None, score=0, crashed=False, comment=None, cpu_sec=None),
     ], RATING, [2, 0])
     with db.tx() as c:
@@ -102,7 +102,7 @@ def test_rename_strategy_touches_rows_versions_and_seats(tmp_path):
     assert db.rename_strategy("old", "new") == [gid]
     assert db.strategy("old") is None
     row = db.strategy("new")
-    assert row["image"] == "codewars/strategy-old:abc" and row["games"] == 1
+    assert row["image"] == "codecraft/strategy-old:abc" and row["games"] == 1
     _, players = db.game(gid)
     assert players[0]["strategy"] == "new" and players[0]["label"] == "new-v2"
     assert db.version(vid)["strategy"] == "new"

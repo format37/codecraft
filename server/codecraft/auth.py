@@ -21,7 +21,7 @@ from urllib.parse import quote, urlencode
 from .config import Config
 from .db import DB
 
-log = logging.getLogger("codewars.auth")
+log = logging.getLogger("codecraft.auth")
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 CODE_DIGITS = 6
@@ -87,7 +87,7 @@ class Mailer:
             else:
                 provider = "console"
         self.provider = provider
-        self.sender = m.get("from") or "codewars@localhost"
+        self.sender = m.get("from") or "codecraft@localhost"
         self.api_key = m.get("resend_api_key")
         self.smtp = m.get("smtp") or {}
         if provider == "resend" and not self.api_key:
@@ -104,7 +104,7 @@ class Mailer:
             req = urllib.request.Request("https://api.resend.com/emails", data=payload.encode(), method="POST",
                                          headers={"Authorization": f"Bearer {self.api_key}",
                                                   "Content-Type": "application/json",
-                                                  "User-Agent": "codewars/1.0"})
+                                                  "User-Agent": "codecraft/1.0"})
             with urllib.request.urlopen(req, timeout=15) as resp:
                 if resp.status >= 300:
                     raise RuntimeError(f"resend answered {resp.status}")
@@ -178,7 +178,7 @@ class Auth:
             return
         code = f"{secrets.randbelow(10 ** CODE_DIGITS):0{CODE_DIGITS}d}"
         self.db.issue_code(email, code_hash(email, code), self.ttl_minutes)
-        subject, text, html = render_code_mail(str(self.cfg["web"].get("title") or "CodeWars"), code,
+        subject, text, html = render_code_mail(str(self.cfg["web"].get("title") or "CodeCraft"), code,
                                                self.ttl_minutes, self.code_link(email, code, invite))
         try:
             self.mailer.send(email, subject, text, html)

@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% block title %}CodeCraft 2020 arena{% endblock %}
+{% extends "base.html" %}{% block title %}Russian AI Cup 2020 arena{% endblock %}
 {% block head %}
 <style>
   .hero { padding:28px 0 10px; }
@@ -41,7 +41,7 @@
 <p class="caption">Game <a href="/games/{{ featured.id }}">#{{ featured.id }}</a> · {{ featured.format }} ·
   {% for l in labels %}{{ l }}{% if not loop.last %} vs {% endif %}{% endfor %}. Click an entity to see what it is doing; every game has such a replay.</p>
 <script src="/static/viewer.js"></script>
-<script>CodeWarsViewer.mount(document.getElementById('viewer'));</script>
+<script>CodeCraftViewer.mount(document.getElementById('viewer'));</script>
 {% else %}
 <div class="card muted">No finished game yet — the worker will play the first one as soon as a strategy is built.</div>
 {% endif %}

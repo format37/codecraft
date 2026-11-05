@@ -1,6 +1,6 @@
 # Official replay format (`aicup2020 --save-replay`) — decoded
 
-`server/codewars/replay.py` reads it; `./cw replay <game id>` validates a file and can export JSON;
+`server/codecraft/replay.py` reads it; `./cw replay <game id>` validates a file and can export JSON;
 the web viewer (`/games/<id>`, `static/viewer.js`) consumes `/games/<id>/replay.json`. Verified on
 every stored replay: the file parses to the last byte and the scores at the final tick equal
 `results.json`.

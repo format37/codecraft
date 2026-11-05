@@ -1,13 +1,13 @@
-# CodeWars
+# CodeCraft
 
 A self-hosted competition server for **CodeCraft**, the game of
 [Russian AI Cup 2020](https://github.com/MailRuChamps/raic-2020) by Mail.ru Group. The official
 platform (cups.online) is gone; the official game engine — the local runner `aicup2020` 1.3.0 — is
-not. CodeWars puts it back behind a web platform: players sign in, upload strategies, the server
+not. This server puts it back behind a web platform: players sign in, upload strategies, the server
 builds them into Docker images, plays them against each other, keeps an Elo ladder and shows every
 replay in the browser. We restored it for ourselves, to sharpen our coding skills.
 
-Live instance: https://codewars.latentstate.dev
+Live instance: https://codecraft.latentstate.dev
 
 ## Features
 
@@ -79,7 +79,7 @@ engine/      aicup2020 1.3.0 (the official local runner, closed source) + GUI as
 clients/     official v1.3.0 clients (GPL-3.0, MailRuChamps/raic-2020)
 templates/   base-image overrides per language
 strategies/  seed strategy manifests
-server/      codewars package: web, worker, builder, game, replay, auth, db, monitoring; tests; Dockerfile
+server/      codecraft package: web, worker, builder, game, replay, auth, db, monitoring; tests; Dockerfile
 docs/        official rules (en/ru), replay format, tournament formats, plan (KICKOFF.md)
 data/        database, submissions, build cache, games (git-ignored)
 ```
@@ -87,7 +87,7 @@ data/        database, submissions, build cache, games (git-ignored)
 ## Credits and licence
 
 The game, the engine and the clients were made by the Russian AI Cup team (Mail.ru Group; engine by
-[kuviman](https://github.com/kuviman)). CodeWars is an independent, non-commercial restoration and is
+[kuviman](https://github.com/kuviman)). This server is an independent, non-commercial restoration and is
 not affiliated with them.
 
 The server code is [MIT](LICENSE): run it on your own machine, change it, share it. The official

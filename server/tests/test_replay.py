@@ -3,7 +3,7 @@ import struct
 
 import pytest
 
-from codewars import replay as R
+from codecraft import replay as R
 
 
 class W:
