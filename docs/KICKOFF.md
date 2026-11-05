@@ -106,6 +106,12 @@ Starter (2026-11-05 evening): github.com/format37/codecraft-starter, one folder 
 client + the same ~100-line strategy, ported to all 15 languages and built through the real pipeline);
 the builder takes the folder named after the chosen language when a submission's root holds only docs
 (`builder.language_subdir`, `python-pypy` -> `python/`). Linked from the submit page and the README.
+Building all 15 languages through the pipeline exposed more 2020 base-image rot, fixed with template
+overrides: csharp/fsharp (debian:buster repositories gone -> `mcr.microsoft.com/dotnet/sdk:5.0`), rust
+(rust:1.48 cargo cannot read edition-2021 crates -> `rust:1.82`), java/kotlin-graalvm-native
+(oracle/graalvm-ce gone from Docker Hub -> `ghcr.io/graalvm/graalvm-ce:ol8-java11-22.3.3` + Maven 3.6.3;
+the 20.2.0 native-image plugin still works). Every port was checked for equivalence with a seed-fixed
+Round1 game of four copies of itself: identical score vectors across all languages.
 
 ## Phase 4 — other game mechanics
 

@@ -66,8 +66,9 @@ client's strategy file (`my_strategy.py`, `MyStrategy.java`, …); several files
 client project; merge mode lays your files over the client (for CUDA kernels + `CMakeLists.txt`).
 A repository with one folder per language is built from the folder named after the chosen language:
 [codecraft-starter](https://github.com/format37/codecraft-starter) has every language ready to submit.
-Base images are overridden in `templates/` where the 2020 ones no longer build, plus `cpp-cuda`
-(nvcc) and `python-cuda` (CuPy / PyTorch) images. Seed strategies in `strategies/` are manifests
+Base images are overridden in `templates/` where the 2020 ones no longer build (C++, Python, C#, F#,
+Rust, the GraalVM variants: Debian buster and the old GraalVM image are gone, old cargo and pip choke on
+today's registries), plus `cpp-cuda` (nvcc) and `python-cuda` (CuPy / PyTorch) images. Seed strategies in `strategies/` are manifests
 for server-managed bots (see [strategies/README.md](strategies/README.md)); the bundled 2020 contest
 entries carry a `-2020` suffix and are disabled, so their authors can register under their own names.
 
