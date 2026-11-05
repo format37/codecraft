@@ -347,6 +347,32 @@ class DB:
     def strategies(self) -> list[sqlite3.Row]:
         return self.q("SELECT * FROM strategies ORDER BY rating DESC, games DESC, name")
 
+    def rename_strategy(self, old: str, new: str) -> list[int]:
+        """Rename a strategy everywhere: its row, its versions, the seats and labels of past games.
+        Returns the ids of the games touched (their cached previews carry the old label). A row that
+        already holds the new name is folded in when it is an unused seed (the usual case: the manifest
+        was renamed and the seed sync created a fresh row before the rename)."""
+        if old == new:
+            return []
+        if self.strategy(old) is None:
+            raise ValueError(f"no strategy {old!r}")
+        with self.tx() as c:
+            c.execute("PRAGMA defer_foreign_keys=ON")
+            taken = c.execute("SELECT kind, games, active_version, image FROM strategies WHERE name=?", (new,)).fetchone()
+            if taken is not None:
+                versions = c.execute("SELECT COUNT(*) FROM strategy_versions WHERE strategy=?", (new,)).fetchone()[0]
+                seats = c.execute("SELECT COUNT(*) FROM game_players WHERE strategy=?", (new,)).fetchone()[0]
+                if taken["kind"] != "seed" or taken["games"] or versions or seats or taken["image"]:
+                    raise ValueError(f"{new!r} already exists and has history")
+                c.execute("DELETE FROM strategies WHERE name=?", (new,))
+            games = [r[0] for r in c.execute("SELECT DISTINCT game_id FROM game_players WHERE strategy=?", (old,))]
+            c.execute("UPDATE strategies SET name=? WHERE name=?", (new, old))
+            c.execute("UPDATE strategy_versions SET strategy=? WHERE strategy=?", (new, old))
+            c.execute("UPDATE game_players SET label=? || substr(label, ?) WHERE strategy=? AND "
+                      "(label=? OR label LIKE ?)", (new, len(old) + 1, old, old, old + "-v%"))
+            c.execute("UPDATE game_players SET strategy=? WHERE strategy=?", (new, old))
+        return games
+
     def strategy(self, name: str) -> sqlite3.Row | None:
         return self.one("SELECT s.*, u.name AS owner_name, u.email AS owner_email FROM strategies s "
                         "LEFT JOIN users u ON u.id=s.owner_id WHERE s.name=?", name)

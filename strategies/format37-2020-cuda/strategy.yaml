@@ -1,7 +1,7 @@
 # Example of a GPU-enabled strategy: the same code on the PyTorch/CUDA base image with the host
 # GPUs attached. Disabled for the sandbox loop; build/play it explicitly:
-#   ./cw build format37-cuda && ./cw play --format Round1 --players format37-cuda format37
-name: format37-cuda
+#   ./cw build format37-2020-cuda && ./cw play --format Round1 --players format37-2020-cuda format37-2020
+name: format37-2020-cuda
 title: format37 on CUDA (example)
 language: python-cuda
 gpu: true

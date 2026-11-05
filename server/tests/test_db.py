@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from codewars.db import DB
 
 RATING = {"initial": 1200, "k": 32, "k_min": 16, "k_half_life_games": 50}
@@ -80,3 +82,30 @@ def test_migration_adds_columns_to_an_old_database(tmp_path):
     db = DB(path)
     assert db.strategy("old")["kind"] == "seed" and db.game(1)[0]["kind"] == "sandbox" and db.game(1)[0]["seed"] == "42"
     assert db.users() == [] and db.next_queued_game() is None
+
+
+def test_rename_strategy_touches_rows_versions_and_seats(tmp_path):
+    db = DB(tmp_path / "t.db")
+    for n in ("old", "q"):
+        db.upsert_strategy(strategy(n, builtin="QuickStart" if n == "q" else None), 1200)
+    db.set_image("old", "codewars/strategy-old:abc", "abc")
+    vid = db.create_version("old", None, "zip", "submissions/x", None, "python", False, False, None, "first")
+    gid = db.create_game("Finals", None)
+    db.finish_game(gid, "finished", None, 1.0, 1, [
+        dict(slot=0, strategy="old", image="codewars/strategy-old:abc", score=1, crashed=False, comment=None, cpu_sec=None),
+        dict(slot=1, strategy="q", image=None, score=0, crashed=False, comment=None, cpu_sec=None),
+    ], RATING, [2, 0])
+    with db.tx() as c:
+        c.execute("UPDATE game_players SET label='old-v2' WHERE game_id=? AND slot=0", (gid,))
+    # a fresh, unused row with the new name (as the seed sync creates it) is folded in
+    db.upsert_strategy(strategy("new"), 1200)
+    assert db.rename_strategy("old", "new") == [gid]
+    assert db.strategy("old") is None
+    row = db.strategy("new")
+    assert row["image"] == "codewars/strategy-old:abc" and row["games"] == 1
+    _, players = db.game(gid)
+    assert players[0]["strategy"] == "new" and players[0]["label"] == "new-v2"
+    assert db.version(vid)["strategy"] == "new"
+    with pytest.raises(ValueError):
+        db.rename_strategy("new", "q")      # q has history (a seat)
+

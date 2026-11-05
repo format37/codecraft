@@ -3,7 +3,7 @@
 One directory per strategy with a `strategy.yaml`:
 
 ```yaml
-name: format37                 # unique id (also the docker image name suffix)
+name: format37-2020            # unique id (also the docker image name suffix)
 title: format37 (Python)       # shown in the UI
 language: python               # a template in templates/ or an official client dir (cpp, java, kotlin, rust, ...)
 gpu: false                     # true -> the container gets all host GPUs (use with language: python-cuda)
@@ -33,3 +33,7 @@ builtin: QuickStart
 ```
 
 `./cw build` builds every enabled strategy into `codewars/strategy-<name>:<content hash>`.
+
+The bundled 2020 entries (`*-2020`) are disabled: the bare names stay free for their authors, who
+submit through the web like everyone else. `./cw rename OLD NEW` renames a strategy in the database
+(row, versions, past games) when a manifest's name changes.

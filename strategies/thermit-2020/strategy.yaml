@@ -1,0 +1,11 @@
+# A 2020 contest entry kept as a sparring partner. Disabled: it was used to test the platform, and the
+# `-2020` suffix leaves the bare name free for its author to register. Enable it here (and run
+# `./cw build`) to put it back into the sandbox.
+name: thermit-2020
+title: ThermIt (Java, 18th in the 2020 finals)
+language: java
+enabled: false
+source:
+  git: https://github.com/ThermIt/CodeCraft-2020
+  ref: e90f138edb750651b40df261654ca432ef3b0262
+overlay: overlay

@@ -416,11 +416,17 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
 
     @app.post("/login")
     def login_post(request: Request, email: str = Form(...), code: str = Form(...), next: str = Form("/"),
-                   invite: str = Form(""), name: str = Form("")):
+                   invite: str = Form(""), name: str | None = Form(None)):
+        """The code form has no name field: an existing account is signed in at once (also when the mail
+        link auto-submits the form); a new address gets the name step, which posts the same code again."""
         try:
             user, token = auth.login(email, code, ip_of(request), request.headers.get("user-agent"),
-                                     invite or None, name or None)
+                                     invite or None, name)
         except AuthError as exc:
+            if exc.code == "name_required":
+                address = email.strip().lower()
+                return render(request, "login.html", ask_name=True, email=address, code=code, next=next,
+                              invite=invite, suggested=address.split("@")[0][:60])
             return back(f"/login?next={quote(next)}&invite={quote(invite)}&email={quote(email.strip().lower())}&sent=1",
                         err=str(exc))
         resp = RedirectResponse(next if next.startswith("/") else "/", status_code=303)

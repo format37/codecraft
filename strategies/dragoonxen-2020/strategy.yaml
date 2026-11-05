@@ -1,0 +1,11 @@
+# A 2020 contest entry kept as a sparring partner. Disabled: it was used to test the platform, and the
+# `-2020` suffix leaves the bare name free for its author to register. Enable it here (and run
+# `./cw build`) to put it back into the sandbox.
+name: dragoonxen-2020
+title: DragoonXen (C++)
+language: cpp
+enabled: false
+source:
+  git: https://bitbucket.org/DragoonXen/codecraft.git
+  ref: d9fd4612ee71d38c107f77e432c09d8575a3c0f8
+prebuild: prebuild.sh

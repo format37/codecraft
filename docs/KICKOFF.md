@@ -49,9 +49,9 @@ Delivered (`server/codewars/`):
   custom game form, login, profile, admin (users, invites, queues, limits).
 - `preview.py` — Open Graph link previews: the field + scoreboard as a 1200x630 PNG (`/games/<id>/preview.png`,
   `?tick=` keyframes), cached next to `replay.dat`, pre-rendered by the worker; `og:` tags on every page.
-- `cli.py` — `worker` (alias `loop`), `submit`, `users`, `admin`, `invite`, `replay`, plus the old
-  commands. `docker-compose.yml`: services `web`, `worker`, `cli`; `.env` for secrets.
-- 36 tests. Verified live: sign-in with a console code, zip submission → built by the worker →
+- `cli.py` — `worker` (alias `loop`), `submit`, `users`, `admin`, `invite`, `replay`, `rename`, plus the
+  old commands. `docker-compose.yml`: services `web`, `worker`, `cli`; `.env` for secrets.
+- 40 tests. Verified live: sign-in with a console code, zip submission → built by the worker →
   custom game queued from the web → played; the viewer renders game 15 in Chrome.
 
 Known gaps / small follow-ups:
@@ -81,9 +81,9 @@ resolves to false and the CUDA languages are hidden; the RTX 4090 stays on the d
 `web` + `worker` from a clone of the public repo; the web port is published to the home LAN only
 and reached through the existing WireGuard tunnel by the VPS Caddy (`codewars.latentstate.dev`
 site block, auto-TLS, Cloudflare grey-cloud A record). `.env` on the node: `CW_WEB_PORT`,
-`CW_BASE_URL=https://codewars.latentstate.dev`, `CW_ADMINS`, `CW_REGISTRATION=invite`, the Resend
-key + `CW_MAIL_FROM` (domain `codewars.latentstate.dev` verified in Resend), `DOCKER_GID` of the
-node. Deploy a change: push to GitHub, on the node `git pull && docker compose build && docker
+`CW_BASE_URL=https://codewars.latentstate.dev`, `CW_ADMINS`, `CW_REGISTRATION=open` (invite-only
+during the first hours, open since 2026-11-05 evening), the Resend key + `CW_MAIL_FROM` (domain
+`codewars.latentstate.dev` verified in Resend), `DOCKER_GID` of the node. Deploy a change: push to GitHub, on the node `git pull && docker compose build && docker
 compose up -d web worker` (new seed strategies: `docker compose run --rm cli build`).
 Machine-specific facts (addresses, helper scripts, tokens) live in the private ops notes, not here.
 Later: nightly backup of `data/` (SQLite + replays), log rotation, uptime check.
@@ -91,6 +91,14 @@ Later: nightly backup of `data/` (SQLite + replays), log rotation, uptime check.
 Other changes this round: cover page at `/` (featured replay autoplay, the 2020 story), rules page,
 bounded sandbox (`worker.sandbox_games_per_build`, default 10: the worker idles once every build
 has played its share), README rewritten for a public repository.
+
+Opening up (2026-11-05, after Alex's first look): registration open; the mail button signs in at
+once and only a new address is asked for a name (changeable at `/me`); the 2020 entries used for
+testing were renamed `format37-2020`, `dragoonxen-2020`, `thermit-2020` (+ `format37-2020-cuda`) and
+disabled, so the authors can take their names when they register (Alex plays from a non-admin
+account). Seeds' `enabled` follows the manifest at every worker start, so re-enabling a sparring
+partner means editing its `strategy.yaml`, not only the admin page. With no enabled seed but
+QuickStart, the first user strategy plays its sandbox games against QuickStart fillers.
 
 ## Phase 4 — other game mechanics
 

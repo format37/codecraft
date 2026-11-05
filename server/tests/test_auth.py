@@ -43,8 +43,24 @@ def test_code_flow_creates_account_and_session(tmp_path):
     assert auth.user_from_token(token) is None
     # configured admins get the role on sign-in
     auth.request_code("boss@example.com", "1.1.1.2")
-    boss, _ = auth.login("boss@example.com", mailer.last_code(), "1.1.1.2", None)
-    assert boss["role"] == "admin"
+    boss, _ = auth.login("boss@example.com", mailer.last_code(), "1.1.1.2", None, name="")
+    assert boss["role"] == "admin" and boss["name"] == "boss"
+
+
+def test_new_account_is_asked_for_a_name_but_an_existing_one_is_not(tmp_path):
+    """The mail link submits the code without a name: a new address gets the name step (the code
+    stays valid), a known address is signed in at once."""
+    auth, db, mailer = make(tmp_path)
+    auth.request_code("new@b.co", "1.1.1.1")
+    code = mailer.last_code()
+    with pytest.raises(AuthError) as exc:
+        auth.login("new@b.co", code, "1.1.1.1", None)
+    assert exc.value.code == "name_required" and db.user_by_email("new@b.co") is None
+    user, _ = auth.login("new@b.co", code, "1.1.1.1", None, name="  Newbie ")
+    assert user["name"] == "Newbie"
+    auth.request_code("new@b.co", "1.1.1.1")
+    again, token = auth.login("new@b.co", mailer.last_code(), "1.1.1.1", None)
+    assert again["id"] == user["id"] and auth.user_from_token(token)["name"] == "Newbie"
 
 
 def test_wrong_answers_kill_the_code(tmp_path):
@@ -66,13 +82,13 @@ def test_invite_mode(tmp_path):
         auth.login("new@b.co", code, "1.1.1.1", None)
     assert exc.value.code == "invite_required"
     invite = auth.make_invite(None, "friend")
-    user, _ = auth.login("new@b.co", code, "1.1.1.1", None, invite=invite)
+    user, _ = auth.login("new@b.co", code, "1.1.1.1", None, invite=invite, name="")
     assert user["email"] == "new@b.co"
     assert db.invite(invite)["used_by"] == user["id"]
     # a used invite does not admit a second person
     auth.request_code("other@b.co", "1.1.1.1")
     with pytest.raises(AuthError):
-        auth.login("other@b.co", mailer.last_code(), "1.1.1.1", None, invite=invite)
+        auth.login("other@b.co", mailer.last_code(), "1.1.1.1", None, invite=invite, name="")
 
 
 def test_closed_registration_mails_nothing_to_strangers(tmp_path):

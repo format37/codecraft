@@ -1,5 +1,6 @@
 """Passwordless sign-in: a six-digit code mailed to the address, typed back (or opened through the
-link in the mail), then a session cookie. Modelled on Phonyx's door: nothing on these routes says
+link in the mail, which signs an existing account in at once), then a session cookie. A new account is
+asked for its name after the code is proven, so the link never needs a form. Modelled on Phonyx's door: nothing on these routes says
 whether an address has an account, a code lives ten minutes and dies after a few wrong answers,
 and the session lives in the database so that logout and admin revocation really invalidate it."""
 from __future__ import annotations
@@ -126,7 +127,7 @@ class Mailer:
 def render_code_mail(title: str, code: str, minutes: int, link: str) -> tuple[str, str, str]:
     subject = f"{code} is your {title} sign-in code"
     text = (f"Your {title} sign-in code:\n\n{code}\n\nIt is valid for {minutes} minutes.\n"
-            f"Or open this link in the browser you signed in from:\n{link}\n\n"
+            f"Or open this link to sign in at once:\n{link}\n\n"
             "If you did not ask for it, ignore this message.")
     html = (
         '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;'
@@ -136,7 +137,7 @@ def render_code_mail(title: str, code: str, minutes: int, link: str) -> tuple[st
         f"<p>It is valid for {minutes} minutes.</p>"
         f"<p><a href=\"{escape(link)}\" style='display:inline-block;background:#2457d6;color:#fff;text-decoration:none;"
         "padding:10px 18px;border-radius:4px;font-weight:600'>Sign in</a></p>"
-        "<p style='color:#5e5e65;font-size:13px'>The button works in the browser you asked from; elsewhere, type the code.<br>"
+        "<p style='color:#5e5e65;font-size:13px'>The button signs you in at once; a new account is asked for its name.<br>"
         "If you did not ask for it, ignore this message.</p></div>"
     )
     return subject, text, html
@@ -187,7 +188,9 @@ class Auth:
 
     def login(self, email: str, code: str, ip: str, user_agent: str | None, invite: str | None = None,
               name: str | None = None) -> tuple[dict, str]:
-        """Prove the code; create the account on first sign-in. Returns (user, session token)."""
+        """Prove the code; create the account on first sign-in. Returns (user, session token).
+        A new account needs `name` (an empty string takes the mailbox name): with `name=None` the call
+        raises `name_required` and leaves the code valid, so the caller can ask and come back."""
         if not self.login_limiter.allow(ip):
             raise AuthError("rate_limited", "too many attempts, try again later")
         email = normalize_email(email)
@@ -204,6 +207,8 @@ class Auth:
                 inv = self.db.invite(invite) if invite else None
                 if inv is None or inv["used_by"] is not None:
                     raise AuthError("invite_required", "an invitation is required to create an account")
+            if name is None:
+                raise AuthError("name_required", "new account: a name is needed")
             self.db.check_code(email, code_hash(email, code), self.max_attempts, spend=True)
             user = self.db.create_user(email, (name or "").strip()[:60] or email.split("@")[0],
                                        "admin" if is_admin else "user")

@@ -11,7 +11,8 @@ Live instance: https://codewars.latentstate.dev
 
 ## Features
 
-- **Sign-in by e-mail code** (no passwords); registration open, by invitation, or closed; admins.
+- **Sign-in by e-mail code** (no passwords): the button in the mail signs you in, a new address is
+  asked for a name once (changeable on your page); registration open, by invitation, or closed; admins.
 - **Submissions**: zip upload or public git URL, any of the 15 official client languages, optional
   GPU (CUDA) and merge mode. Each submission is a numbered version; a successful build becomes
   the active one. Build logs and your bot's own output are visible only to you.
@@ -51,6 +52,7 @@ CLI (`./cw`, through the compose `cli` service or a local venv):
 ./cw submit --name friend --language java --zip friend.zip --owner friend@mail
 ./cw invite --note "for Ivan"      ./cw users      ./cw admin you@mail
 ./cw ladder      ./cw games      ./cw replay 15 --json out.json      ./cw watch 15
+./cw rename oldname newname      # a strategy's row, versions and past games
 ```
 
 Tests: `python -m pytest server/tests`.
@@ -63,7 +65,8 @@ client's strategy file (`my_strategy.py`, `MyStrategy.java`, …); several files
 client project; merge mode lays your files over the client (for CUDA kernels + `CMakeLists.txt`).
 Base images are overridden in `templates/` where the 2020 ones no longer build, plus `cpp-cuda`
 (nvcc) and `python-cuda` (CuPy / PyTorch) images. Seed strategies in `strategies/` are manifests
-for server-managed bots (see [strategies/README.md](strategies/README.md)).
+for server-managed bots (see [strategies/README.md](strategies/README.md)); the bundled 2020 contest
+entries carry a `-2020` suffix and are disabled, so their authors can register under their own names.
 
 ## Layout
 

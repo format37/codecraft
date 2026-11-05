@@ -4,7 +4,7 @@
 #   docker compose build
 #   docker compose run --rm cli build          # engine + seed strategy images (strategies/*.yaml)
 #   docker compose up -d web worker            # UI on :8080; worker builds submissions and plays games
-#   docker compose run --rm cli play --format Round2 --players format37 thermit dragoonxen quickstart
+#   docker compose run --rm cli play --format Round2 --players format37-2020 thermit-2020 dragoonxen-2020 quickstart
 #
 # Mail for sign-in codes: set CW_RESEND_API_KEY (+ CW_MAIL_FROM) or configure mail.smtp in config.yaml;
 # without either, codes are printed in the web service log (docker compose logs web).

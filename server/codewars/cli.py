@@ -260,6 +260,29 @@ def cmd_submit(args):
     print(f"{v['strategy']} v{v['number']} queued (id {vid}); the worker builds it")
 
 
+def cmd_rename(args):
+    """Rename a strategy in the database (row, versions, past game seats). Unlike the other commands
+    this does not sync the seed manifests first: after a manifest was renamed that sync would create
+    the new name as an empty row, which the rename then folds in."""
+    from .strategies import NAME_RE
+
+    if not NAME_RE.match(args.new):
+        sys.exit(f"invalid strategy name {args.new!r} (use [a-z0-9_-])")
+    cfg = Config.load(args.root)
+    db = DB(cfg.db_path)
+    try:
+        games = db.rename_strategy(args.old, args.new)
+    except ValueError as exc:
+        sys.exit(str(exc))
+    dropped = 0
+    for gid in games:
+        for p in (cfg.games_dir / f"{gid:06d}").glob("preview*.png"):
+            p.unlink()
+            dropped += 1
+    print(f"{args.old} -> {args.new}: {len(games)} games relabelled, {dropped} cached previews dropped "
+          f"(the image keeps its old tag until the next build)")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="codewars", description="CodeCraft 2020 competition server")
     parser.add_argument("--root", help="project root (default: $CW_ROOT or the repository)")
@@ -316,6 +339,10 @@ def main(argv=None):
     p = sub.add_parser("invite", help="create an invitation link")
     p.add_argument("--note")
     p.set_defaults(func=cmd_invite)
+    p = sub.add_parser("rename", help="rename a strategy everywhere (row, versions, past games)")
+    p.add_argument("old")
+    p.add_argument("new")
+    p.set_defaults(func=cmd_rename)
     p = sub.add_parser("submit", help="queue a strategy version from a local zip/dir or a git URL")
     p.add_argument("--name", required=True)
     p.add_argument("--language", required=True)

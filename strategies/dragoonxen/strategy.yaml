@@ -1,7 +1,0 @@
-name: dragoonxen
-title: DragoonXen (C++)
-language: cpp
-source:
-  git: https://bitbucket.org/DragoonXen/codecraft.git
-  ref: d9fd4612ee71d38c107f77e432c09d8575a3c0f8
-prebuild: prebuild.sh
