@@ -26,7 +26,7 @@
   <td>{% if v.status == 'ok' %}<span class="ok">ok</span>{% elif v.status in ('queued','building') %}<span class="tag">{{ v.status }}</span>{% else %}<span class="bad">{{ v.status }}</span>{% endif %}</td>
   <td>{{ v.language }}{% if v.gpu %} <span class="tag">gpu</span>{% endif %}{% if v.merge %} <span class="tag">merge</span>{% endif %}</td>
   <td class="wrap">{% if v.source_kind == 'git' %}<code>{{ v.source }}</code> {{ v.git_ref or '' }}{% if v.commit_hash %} <span class="muted">{{ v.commit_hash[:10] }}</span>{% endif %}{% else %}zip{% endif %}</td>
-  <td class="wrap">{{ v.note or '' }}{% if v.error %}<div class="bad" style="white-space:normal;max-width:420px;font-size:13px">{{ v.error[:300] }}</div>{% endif %}</td>
+  <td class="wrap">{{ v.note or '' }}{% if v.error %}<div class="bad" style="white-space:normal;max-width:420px;font-size:13px">{{ (v.error|build_error)[:300] }}</div>{% endif %}</td>
   <td class="muted">{{ v.created_at }}</td>
   <td class="muted">{{ v.finished_at or '' }}</td>
   <td><a href="/versions/{{ v.id }}/log">log</a>

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from codecraft.builder import Builder, BuildError, language_subdir
+from codecraft.builder import Builder, BuildError, git_failure, language_subdir
 from codecraft.config import Config
 from codecraft.strategies import load_strategy
 
@@ -96,3 +96,17 @@ def test_a_multi_language_repository_yields_the_directory_of_the_chosen_language
     # a single-language project with a directory that happens to carry a language name is left alone
     (repo / "main.cpp").write_text("int main() {}\n")
     assert language_subdir(repo, "cpp") == repo
+
+
+def test_git_failures_name_the_likely_cause_without_server_paths():
+    """The live check of 2026-11-06: a missing repository answered with git's "could not read Username"."""
+    url = "https://github.com/someone/nope"
+    e = git_failure("git clone --quiet https://github.com/someone/nope <clone> failed:\n\n"
+                    "fatal: could not read Username for 'https://github.com': terminal prompts disabled\n", url, None)
+    assert str(e).startswith(f"cannot clone {url}: the repository does not exist or is private")
+    assert "upload a zip" in str(e) and "--quiet" not in str(e) and "could not read Username" in str(e)
+    e = git_failure("git -C <clone> checkout --quiet --force deadbeef failed:\n\n"
+                    "error: pathspec 'deadbeef' did not match any file(s) known to git\n", url, "deadbeef")
+    assert str(e).startswith(f"{url} has no commit, branch or tag 'deadbeef'")
+    e = git_failure("git clone x failed:\n\nfatal: unable to access: Could not resolve host\n", url, None)
+    assert str(e) == f"git could not fetch {url}\n(git: fatal: unable to access: Could not resolve host)"

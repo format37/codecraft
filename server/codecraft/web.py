@@ -76,6 +76,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.filters["rating"] = lambda v: "-" if v is None else f"{v:.0f}"
+    templates.env.filters["build_error"] = A.build_error
     if cfg.get("gpu", "available") is None:
         try:
             import docker

@@ -40,6 +40,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
 from . import replay as R
 from .auth import RateLimiter, hash_token
+from .builder import ANSI_RE
 from .config import LIMIT_KEYS, MAX_TICKS, SEATS, Config
 from .db import DB, since
 from .submissions import SubmissionError, submit
@@ -605,14 +606,14 @@ def _version_brief(v) -> dict | None:
         return None
     out = {"id": v["id"], "number": v["number"], "status": v["status"]}
     if v["error"]:
-        out["error"] = v["error"][:300]
+        out["error"] = build_error(v["error"])[:300]
     return out
 
 
 def _version_row(v, s) -> dict:
     return {"id": v["id"], "number": v["number"], "status": v["status"], "active": v["id"] == s["active_version"],
             "language": v["language"], "source": _source(v), "note": v["note"],
-            "error": (v["error"] or "")[:300] or None, "created_at": v["created_at"], "finished_at": v["finished_at"]}
+            "error": (build_error(v["error"]) or "")[:300] or None, "created_at": v["created_at"], "finished_at": v["finished_at"]}
 
 
 def _seat_brief(p) -> dict:
@@ -639,8 +640,17 @@ def _strategy_public(ax: Agents, s, user: dict) -> dict:
             "built_at": s["built_at"], "url": ax.url(f"/strategies/{s['name']}")}
 
 
+def build_error(text: str | None) -> str | None:
+    """A stored build error as its owner reads it. Errors stored before 2026-11-06 carry terminal colours,
+    "(see <log path>)" and the server's clone path; the builder no longer writes them."""
+    if not text:
+        return text
+    text = re.sub(r"\s*\(see /[^)]*\)", "", ANSI_RE.sub("", text))
+    return re.sub(r"/[\w./-]*/build/repos/[\w.-]+", "<clone>", text)
+
+
 def _tail(path: Path, nbytes: int) -> str:
-    """The last `nbytes` of a text file, from a line start when one is near."""
+    """The last `nbytes` of a text file, from a line start when one is near, without terminal colours."""
     size = path.stat().st_size
     with path.open("rb") as fh:
         if size > nbytes:
@@ -649,7 +659,7 @@ def _tail(path: Path, nbytes: int) -> str:
     if size > nbytes:
         cut = text.find("\n")
         text = "[...]\n" + (text[cut + 1:] if 0 <= cut < 300 else text)
-    return text
+    return ANSI_RE.sub("", text)
 
 
 def _slot_of_file(name: str) -> int | None:
@@ -796,7 +806,7 @@ def version(ax: Agents, user: dict, version_id: int, wait_s: int = 0, log_tail_k
         raise AgentError(f"version id {version_id} belongs to another user's strategy")
     out = {"id": v["id"], "strategy": v["strategy"], "number": v["number"], "status": v["status"],
            "active": v["id"] == s["active_version"], "language": v["language"], "gpu": bool(v["gpu"]),
-           "source": _source(v), "note": v["note"], "error": v["error"], "image": v["image"],
+           "source": _source(v), "note": v["note"], "error": build_error(v["error"]), "image": v["image"],
            "created_at": v["created_at"], "started_at": v["started_at"], "finished_at": v["finished_at"],
            "build_sec": _seconds(v["started_at"], v["finished_at"])}
     if v["status"] == "queued":

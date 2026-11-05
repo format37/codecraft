@@ -16,7 +16,7 @@
   {% for v in versions[s.name] %}
   <tr><td class="num">v{{ v.number }}{% if v.id == s.active_version %} <span class="tag">active</span>{% endif %}</td>
       <td>{% if v.status == 'ok' %}<span class="ok">ok</span>{% elif v.status in ('queued','building') %}<span class="tag">{{ v.status }}</span>{% else %}<span class="bad">failed</span>{% endif %}</td>
-      <td class="wrap">{{ v.note or '' }} {% if v.error %}<span class="bad">{{ v.error[:160] }}</span>{% endif %}</td>
+      <td class="wrap">{{ v.note or '' }} {% if v.error %}<span class="bad">{{ (v.error|build_error)[:160] }}</span>{% endif %}</td>
       <td class="muted">{{ v.created_at }}</td><td><a href="/versions/{{ v.id }}/log">log</a></td></tr>
   {% endfor %}
   </table>

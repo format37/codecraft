@@ -220,6 +220,22 @@ def test_version_waits_while_pending(env, monkeypatch):
     assert r["status"] == "queued" and r["queued_ahead"] == 0 and r["log_tail"].endswith("step 2\n")
 
 
+def test_a_failed_version_reads_without_colours_and_server_paths(env):
+    """The live check of 2026-11-06: log_tail carried docker's terminal colours, the error a log path."""
+    user, token = env.user()
+    vid = A.submit(env.cfg, env.db, name="bot", language="python", user=user, zip_data=zip_bytes({"a.py": "x"}))
+    log = env.cfg.build_dir / "logs" / "bot-v1.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("Step 8/9 : RUN bash compile.sh\n\x1b[91m  File \"main.py\", line 47\n\x1b[0mSyntaxError\n")
+    env.db.finish_version(vid, "failed", error="docker build of img failed: \x1b[91mboom\x1b[0m\n"
+                                              "(see /app/data/build/logs/bot-v1.log) in /app/data/build/repos/bot")
+    r = env.client.get(f"/api/v1/version?version_id={vid}", headers=bearer(token)).json()
+    assert r["status"] == "failed" and "\x1b" not in r["log_tail"] and 'File "main.py", line 47' in r["log_tail"]
+    assert r["error"] == "docker build of img failed: boom in <clone>"
+    s = env.client.get("/api/v1/strategy?name=bot", headers=bearer(token)).json()
+    assert s["versions"][0]["error"] == r["error"]
+
+
 # Uploads and submissions ------------------------------------------------------------------------------------
 def upload(env, token, name, body):
     link = env.client.post("/api/v1/upload_link", headers=bearer(token)).json()

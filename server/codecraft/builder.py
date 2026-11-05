@@ -19,6 +19,11 @@ from .strategies import Strategy
 log = logging.getLogger("codecraft.build")
 
 GIT_URL_RE = re.compile(r"^https?://[\w.\-]+(:\d+)?/[\w./\-~%]+$")
+# Terminal colours: docker prints a build step's stderr in red, which is noise in a stored log.
+ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+GIT_NO_ACCESS_RE = re.compile(r"could not read Username|Repository not found|Authentication failed|Access denied"
+                              r"|returned error: 40[134]", re.I)
+GIT_NO_REF_RE = re.compile(r"pathspec .* did not match|unknown revision|not a commit|reference is not a tree", re.I)
 
 
 class BuildError(RuntimeError):
@@ -64,6 +69,21 @@ def language_subdir(root: Path, language: str) -> Path:
         if key in dirs:
             return dirs[key]
     return root
+
+
+def git_failure(output: str, url: str, ref: str | None) -> BuildError:
+    """A failed git command as the submitter reads it: the likely cause first, git's own words after,
+    without the command line and the server's clone path."""
+    lines = [ln for ln in output.splitlines()[1:] if ln.strip()]       # line 0 is "<command> failed:"
+    said = "\n".join(ln for ln in lines if not ln.startswith("hint:"))[:1000]
+    if GIT_NO_ACCESS_RE.search(output):
+        why = (f"cannot clone {url}: the repository does not exist or is private. The server clones without "
+               f"credentials, so make it public or upload a zip instead")
+    elif ref and GIT_NO_REF_RE.search(output):
+        why = f"{url} has no commit, branch or tag {ref!r}: push it first or give another git_ref"
+    else:
+        why = f"git could not fetch {url}" + (f" at {ref!r}" if ref else "")
+    return BuildError(f"{why}\n(git: {said})" if said else why)
 
 
 def check_git_url(url: str) -> str:
@@ -171,6 +191,17 @@ class Builder:
             raise BuildError(f"unknown language {language!r}: no templates/{language}/Dockerfile and no clients/{language}")
         return client_dir / "Dockerfile", client_dir
 
+    def _git_checkout(self, repo: Path, url: str, ref: str | None) -> None:
+        try:
+            _run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", f"{ref or 'HEAD'}^{{commit}}"])
+        except BuildError:
+            _run(["git", "-C", str(repo), "fetch", "--quiet", "origin"])
+        if ref:
+            _run(["git", "-C", str(repo), "checkout", "--quiet", "--force", ref])
+        else:
+            _run(["git", "-C", str(repo), "pull", "--quiet", "--ff-only"])
+        self.last_commit = _run(["git", "-C", str(repo), "rev-parse", "HEAD"]).strip()
+
     def _fetch_source(self, strategy: Strategy) -> Path:
         src = strategy.source
         self.last_commit = None
@@ -188,17 +219,14 @@ class Builder:
             if not (repo / ".git").is_dir():
                 repo.parent.mkdir(parents=True, exist_ok=True)
                 log.info("%s: cloning %s", strategy.name, url)
-                _run(["git", "clone", "--quiet", url, str(repo)])
-            ref = src.ref or "HEAD"
+                try:
+                    _run(["git", "clone", "--quiet", url, str(repo)])
+                except BuildError as exc:
+                    raise git_failure(str(exc).replace(str(repo), "<clone>"), url, src.ref) from None
             try:
-                _run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
-            except BuildError:
-                _run(["git", "-C", str(repo), "fetch", "--quiet", "origin"])
-            if src.ref:
-                _run(["git", "-C", str(repo), "checkout", "--quiet", "--force", src.ref])
-            else:
-                _run(["git", "-C", str(repo), "pull", "--quiet", "--ff-only"])
-            self.last_commit = _run(["git", "-C", str(repo), "rev-parse", "HEAD"]).strip()
+                self._git_checkout(repo, url, src.ref)
+            except BuildError as exc:
+                raise git_failure(str(exc).replace(str(repo), "<clone>"), url, src.ref) from None
             root = repo
         if src.path:
             root = root / src.path
@@ -243,15 +271,16 @@ class Builder:
                 for chunk in self.client.api.build(path=str(ctx), tag=tag, rm=True, nocache=nocache, decode=True,
                                                    timeout=timeout):
                     if "stream" in chunk:
-                        fh.write(chunk["stream"])
-                        text = chunk["stream"].rstrip()
+                        stream = ANSI_RE.sub("", chunk["stream"])
+                        fh.write(stream)
+                        text = stream.rstrip()
                         if text:
                             log.info("  %s", text[:200])
                     elif "error" in chunk:
-                        error = chunk.get("errorDetail", {}).get("message") or chunk["error"]
+                        error = ANSI_RE.sub("", chunk.get("errorDetail", {}).get("message") or chunk["error"])
                         fh.write(f"ERROR: {error}\n")
             except Exception as exc:  # noqa: BLE001 - e.g. a read timeout on a silent build step
                 error = f"{type(exc).__name__}: {exc}"
                 fh.write(f"ERROR: {error}\n")
         if error:
-            raise BuildError(f"docker build of {tag} failed: {error}\n(see {log_file})")
+            raise BuildError(f"the build failed: {error}\nThe end of the build log shows why.")
