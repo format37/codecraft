@@ -22,6 +22,8 @@ x-server: &server
     CW_BASE_URL: ${CW_BASE_URL:-}
     CW_ADMINS: ${CW_ADMINS:-}
     CW_SMTP_PASSWORD: ${CW_SMTP_PASSWORD:-}
+    CW_REGISTRATION: ${CW_REGISTRATION:-}
+    CW_GPU_ENABLED: ${CW_GPU_ENABLED:-}
   user: "${CW_UID:-1000}:${CW_GID:-1000}"
   group_add:
     - "${DOCKER_GID:-999}"
