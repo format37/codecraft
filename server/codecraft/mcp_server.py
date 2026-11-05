@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import warnings
+from typing import Annotated
 from urllib.parse import urlsplit
 
 # The SDK's FastMCP settings carry a forward-referenced `lifespan` field that pydantic-settings warns about
@@ -24,8 +25,21 @@ from mcp.server.fastmcp import Context, FastMCP  # noqa: E402
 from mcp.server.fastmcp.exceptions import ToolError  # noqa: E402
 from mcp.server.transport_security import TransportSecuritySettings  # noqa: E402
 from mcp.types import CallToolResult, TextContent, ToolAnnotations  # noqa: E402
+from pydantic import BeforeValidator  # noqa: E402
 
 from . import agents as A  # noqa: E402
+
+
+def _seed_in(value):
+    """play's seed reaches the agent's model as a string-only schema, so clients send it in quotes; a small
+    number still passes, one above 2^53 (possibly rounded on the way) is refused with the reason."""
+    try:
+        return A.seed_arg(value)
+    except A.AgentError as exc:
+        raise ValueError(str(exc)) from None
+
+
+Seed = Annotated[str | None, BeforeValidator(_seed_in)]
 
 READ = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
@@ -262,16 +276,17 @@ def build(ax: A.Agents) -> FastMCP:
 
     @mcp.tool(annotations=WRITE)
     async def play(ctx: Context, opponents: list[str], format: str = "Round1", mine: str | None = None,
-                   seed: str | int | None = None, fill: str = "quickstart") -> CallToolResult:
+                   seed: Seed = None, fill: str = "quickstart") -> CallToolResult:
         """Queue an unrated custom game. Slot 0 is `mine`: one of your strategies, or name@version_id for
         an older successful version of it (may be left out when you own exactly one strategy). Then the
         opponents in order: strategy names from leaderboard(), name@version_id of your own versions,
         "quickstart" (the engine's built-in bot) or "empty". The format's remaining seats get `fill`
         ("quickstart" or "empty"). format: Round1 (4 seats, no fog of war, three bases, a turret and one
         unit of each kind at the start), Round2 (4 seats, fog of war, a builder base and one builder) or
-        Finals (2 seats, the same as Round2 1v1). seed: the map and the
-        engine's dice, 0..2^64-1, default random; to replay a game's map, pass its seed as the string
-        game() gives ("6951506665061147718"): as a JSON number, a seed above 2^53 loses its last digits.
+        Finals (2 seats, the same as Round2 1v1). seed: the map and the engine's dice, a string of digits
+        0..2^64-1, default random; to replay a game's map, pass its seed as the string game() gives, in
+        quotes ("6951506665061147718"): as a JSON number a seed above 2^53 loses its last digits, so such
+        numbers are refused.
 
         Returns JSON {game_id, url, format, rated: false, seats [{slot, label}], queued_ahead, next}.
         Then game(game_id, wait_s=50) until finished. A paused (disabled) strategy cannot be seated.

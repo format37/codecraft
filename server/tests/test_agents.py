@@ -3,6 +3,7 @@ endpoint (plain JSON-RPC over HTTP: stateless + JSON responses need no MCP clien
 import hashlib
 import inspect
 import io
+import json
 import logging
 import re
 import shutil
@@ -317,9 +318,14 @@ def test_play_seats_fill_versions_quota_and_seed(env):
     assert r.status_code == 400 and "not one of your strategies" in r.json()["error"]
     r = env.client.post("/api/v1/play", headers=oh, json={"opponents": ["ghost"]})
     assert r.status_code == 400 and "no such strategy" in r.json()["error"]
-    for bad in (2 ** 64, -1):
+    for bad in (str(2 ** 64), -1, "x"):
         r = env.client.post("/api/v1/play", headers=oh, json={"opponents": [], "seed": bad})
         assert r.status_code == 400 and "unsigned 64-bit" in r.json()["error"]
+    # A number above 2^53 may have been rounded by a JavaScript client on the way: refused, not played.
+    n = len(env.db.games(limit=100))
+    r = env.client.post("/api/v1/play", headers=oh, json={"opponents": [], "seed": 11249517513654704000})
+    assert r.status_code == 400 and "as a string" in r.json()["error"]
+    assert len(env.db.games(limit=100)) == n
     r = env.client.post("/api/v1/play", headers=oh, json={"format": "Finals", "opponents": ["bot", "quickstart"]})
     assert r.status_code == 400 and "2 seats" in r.json()["error"]
     env.client.post("/api/v1/set_strategy", headers=oh, json={"name": "bobbot", "enabled": False})
@@ -430,6 +436,28 @@ def test_tools_with_a_name_argument_work_over_mcp(env):
     assert not r.get("isError") and '"number":2' in r["content"][0]["text"]
     r = call("play", {"opponents": ["quickstart"], "format": "Finals"}, 4)
     assert not r.get("isError") and '"game_id":' in r["content"][0]["text"]
+
+
+def test_play_takes_the_seed_as_a_string_over_mcp(env):
+    """The live check of 2026-11-05: a seed passed as a JSON number lost its last digits in the client and
+    the game ran on another map. The schema now asks for a string; a big number is refused with the reason."""
+    user, token = env.user()
+    env.built(user, "bot", 1)
+    tools = rpc(env, token, "tools/list", {}, id_=1).json()["result"]["tools"]
+    seed_schema = next(t for t in tools if t["name"] == "play")["inputSchema"]["properties"]["seed"]
+    assert "integer" not in json.dumps(seed_schema) and "string" in json.dumps(seed_schema)
+
+    def play(seed, id_):
+        args = {"opponents": [], "format": "Finals", "seed": seed}
+        return rpc(env, token, "tools/call", {"name": "play", "arguments": args}, id_=id_).json()["result"]
+
+    r = play(11249517513654704000, 2)
+    assert r.get("isError") and "as a string" in r["content"][0]["text"]
+    for i, (sent, kept) in enumerate([("11249517513654704893", "11249517513654704893"), (7, "7")]):
+        r = play(sent, 3 + i)
+        assert not r.get("isError"), r
+        game_id = json.loads(r["content"][0]["text"])["game_id"]
+        assert str(env.db.game(game_id)[0]["seed"]) == kept
 
 
 def test_every_mcp_wrapper_matches_its_tool_function(env):

@@ -565,6 +565,24 @@ def queue_custom_game(cfg: Config, db: DB, user: dict, fmt: str, seats: list[str
 
 
 # Row shapes ----------------------------------------------------------------------------------------------
+SAFE_INT = 2 ** 53   # above it a JSON number is rounded by JavaScript clients
+
+
+def seed_arg(value) -> str | None:
+    """A seed as play() takes it: a string of digits. The live check of 2026-11-05: Claude Code sent the
+    seed 11249517513654704893 as a JSON number, it arrived as 11249517513654704000, and the game ran on
+    another map. A number above 2**53 may already have lost digits, so it is refused, not played."""
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise AgentError("seed is a string of digits, e.g. \"7\"")
+    if value > SAFE_INT:
+        raise AgentError(f"pass the seed as a string, in quotes, as game() gives it: as a JSON number a seed "
+                         f"above 2^53 loses its last digits on the way, so {value} may not be the seed you "
+                         f"meant")
+    return str(value)
+
+
 def _seed(value) -> str | None:
     """Seeds are unsigned 64-bit; a JSON number above 2**53 loses digits in a JavaScript client (an agent
     that passed one back to play() got another map), so they travel as strings, as the database keeps them."""
@@ -980,6 +998,7 @@ def submit_strategy(ax: Agents, user: dict, name: str, language: str, upload_id:
 def play(ax: Agents, user: dict, opponents: list[str], format: str = "Round1", mine: str | None = None,
          seed: str | int | None = None, fill: str = "quickstart") -> dict:
     db, cfg = ax.db, ax.cfg
+    seed = seed_arg(seed)
     fmt = (format or "").strip()
     if fmt not in SEATS:
         raise AgentError(f"format is one of {', '.join(SEATS)}")
