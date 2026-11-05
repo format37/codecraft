@@ -121,3 +121,20 @@ def test_env_overrides_registration_gpu_and_secure_cookie(tmp_path, monkeypatch)
     assert cfg["auth"]["cookie_secure"] is True
     monkeypatch.setenv("CW_BASE_URL", "http://localhost:8080")
     assert Config.load(tmp_path)["auth"]["cookie_secure"] is False
+
+
+def test_git_submissions_take_known_https_hosts_and_refs_that_cannot_pass_for_options(tmp_path):
+    """Security review, finding 9 and the REF_RE note: any host and port could be probed through git."""
+    cfg, db = make_root(tmp_path)
+    user = dict(db.create_user("u@b.co", "U"))
+    for url in ("https://192.168.0.138/x/y", "http://github.com/a/b", "https://github.com:8443/a/b",
+                "https://example.com/a/b", "https://10.66.0.1/a/b"):
+        with pytest.raises(SubmissionError, match="^git_url must be an https URL on github.com, gitlab.com, "
+                                                  "bitbucket.org or codeberg.org; for another host upload a zip$"):
+            submit(cfg, db, name="g1", language="python", user=user, git_url=url)
+    for ref in ("-x", "--upload-pack=touch /tmp/p", "-"):
+        with pytest.raises(SubmissionError, match="bad git ref"):
+            submit(cfg, db, name="g1", language="python", user=user, git_url="https://github.com/a/b", git_ref=ref)
+    vid = submit(cfg, db, name="g1", language="python", user=user, git_url="https://github.com/a/b",
+                 git_ref="v1.2_rc~1")
+    assert db.version(vid)["source"] == "https://github.com/a/b" and db.strategy("g1") is not None

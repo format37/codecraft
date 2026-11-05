@@ -16,7 +16,7 @@ from .strategies import NAME_RE
 log = logging.getLogger("codecraft.submit")
 
 RESERVED = {"empty", "quickstart", "new", "admin", "me", "api", "static"}
-REF_RE = re.compile(r"^[\w./@^~-]{1,120}$")
+REF_RE = re.compile(r"^[\w.][\w./@^~-]{0,119}$")      # a branch, tag or commit; never an option (-x)
 
 
 class SubmissionError(ValueError):
@@ -105,7 +105,7 @@ def submit(cfg: Config, db: DB, *, name: str, language: str, user: dict | None, 
         if not sub.get("allow_git", True):
             raise SubmissionError("git submissions are disabled")
         try:
-            git_url = check_git_url(git_url)
+            git_url = check_git_url(git_url, sub.get("git_hosts") or [])
         except BuildError as exc:
             raise SubmissionError(str(exc))
         git_ref = (git_ref or "").strip() or None

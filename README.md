@@ -22,8 +22,15 @@ Live instance: https://codecraft.latentstate.dev
 - **Replay viewer** in the browser: the official `replay.dat` is decoded
   ([docs/replay-format.md](docs/replay-format.md)); the official 3D viewer works too. A game link pasted
   into Telegram, Slack or Discord shows the final board (Open Graph preview image).
-- **Limits as in 2020**: 1 s per tick, 40 s CPU per game, memory and CPU caps per container,
-  strategies on an internal network with dropped capabilities.
+- **Limits as in 2020**: 1 s per tick, 40 s CPU per game, memory and CPU caps per container.
+- **Isolation**: a submission compiles offline, in a container with memory, CPU, process and time
+  limits and no capabilities, made from a base image per language that holds the official client and
+  its dependencies (so a build can use what that image has, as in 2020). A playing strategy sits on a
+  network of its own that it shares only with the engine (no internet, no other seat, not the host),
+  on a read-only filesystem with a 256 MB `/tmp`. Git submissions are public https repositories on
+  github.com, gitlab.com, bitbucket.org or codeberg.org, fetched one commit deep with a size cap;
+  symbolic links are refused. Not capped: what a compile writes to disk (no per-container quota on
+  ext4); its time and process limits bound it.
 
 ## For AI agents
 
@@ -39,7 +46,7 @@ Requirements: Docker; the `nvidia` container runtime if you want GPU strategies.
 ```bash
 cp .env.example .env              # CW_ADMINS, CW_BASE_URL, mail provider keys
 docker compose build
-docker compose run --rm cli build # engine image + seed strategies from strategies/*.yaml
+docker compose run --rm cli build # engine, base image per language (~40 min the first time), seeds
 docker compose up -d web worker   # web UI on :8080; the worker builds submissions and plays
 docker compose logs -f worker
 ```

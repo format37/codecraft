@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 import docker
@@ -50,8 +51,19 @@ def cmd_build(args):
     builder = Builder(cfg, client)
     print(f"engine: {builder.build_engine(force=args.force)}")
     gpu_ok = cfg.resolve_gpu(client)
-    names = args.names or [n for n, s in strategies.items() if s.enabled and not s.is_builtin]
     failed = []
+    if not args.names and not args.no_bases:
+        # every language's base image (toolchain + official client): the first submission of a language
+        # would otherwise wait for it (GraalVM takes ~10 minutes); logs in data/build/logs/base-<language>.log
+        for language in cfg.languages(gpu=gpu_ok):
+            started = time.time()
+            try:
+                image = builder.build_base(language, nocache=args.no_cache)
+                print(f"base {language}: {image} ({time.time() - started:.0f} s)", flush=True)
+            except BuildError as exc:
+                failed.append(f"base {language}")
+                print(f"base {language}: BUILD FAILED\n{exc}", file=sys.stderr, flush=True)
+    names = args.names or [n for n, s in strategies.items() if s.enabled and not s.is_builtin]
     for name in names:
         s = strategies.get(name)
         if s is None:
@@ -299,10 +311,11 @@ def main(argv=None):
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("build", help="build the engine image and the seed strategies (strategies/*.yaml)")
-    p.add_argument("names", nargs="*", help="strategies to build (default: all enabled)")
+    p = sub.add_parser("build", help="build the engine image, every language's base image and the seed strategies")
+    p.add_argument("names", nargs="*", help="strategies to build (default: all enabled, after all base images)")
     p.add_argument("--force", action="store_true", help="rebuild even if the image is up to date")
-    p.add_argument("--no-cache", action="store_true", help="docker build without layer cache")
+    p.add_argument("--no-cache", action="store_true", help="rebuild the base images without the layer cache")
+    p.add_argument("--no-bases", action="store_true", help="skip the base images (built on first use anyway)")
     p.set_defaults(func=cmd_build)
 
     p = sub.add_parser("play", help="play one game now")

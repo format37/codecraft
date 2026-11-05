@@ -56,14 +56,24 @@ worker:                             # the `worker` service
   sandbox_games_per_build: 10       # every build (version) plays this many sandbox games, then the worker rests;
                                     # a new version starts a fresh count. 0 = play forever
   builds: true                      # build submitted versions (one at a time)
-  build_timeout_sec: 1200
+
+# A strategy compiles in a container made from its language's base image: no network, these limits, no
+# capabilities. The base image (template or official client Dockerfile) is built once per language with
+# the network; `cw build` warms them all.
+build:
+  memory_mb: 6144                   # GraalVM native-image needs the most
+  cpus: 4.0
+  pids: 1024
+  timeout_sec: 1200                 # hard wall clock per compile, the container is killed after it
+  log_max_mb: 16                    # the build log keeps its last this-many MB
 
 submissions:
   max_zip_mb: 20
   max_files: 2000
   max_unpacked_mb: 200
   languages: null                   # null = every templates/<lang> and clients/<Lang>; or a list, e.g. [python, cpp, java]
-  allow_git: true                   # public http(s) repositories
+  allow_git: true                   # public repositories on git_hosts
+  git_hosts: [github.com, gitlab.com, bitbucket.org, codeberg.org]   # https only, no port; shallow clones
   per_user_queued: 1                # versions waiting/building per user
   per_user_per_day: 20
   custom_games_queued: 3
@@ -93,6 +103,12 @@ web:
   title: CodeCraft
   trusted_proxies: []               # reverse proxies whose X-Forwarded-For/-Proto count, e.g. [10.66.0.1]
                                     # (or CW_TRUSTED_PROXIES=a,b); [] = nobody's, the peer address is the client
+
+docker:
+  prefix: cw                        # container and network names: cw-<game>-engine, cw-<game>-p<slot>, cw-<game>-s<slot>
+  label: codecraft.game
+  seat_subnets: 10.200.0.0/16       # every seat gets its own internal network (a /24 of this) shared only with the
+                                    # engine; pick a range nothing on the host routes
 
 hardening:                          # strategy containers (they already run on an internal network with limits)
   no_new_privileges: true

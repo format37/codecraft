@@ -711,7 +711,11 @@ def whoami(ax: Agents, user: dict) -> dict:
             "limits": {k: limits.get(k) for k in ("tick_timeout_sec", "cpu_time_sec", "memory_mb", "cpus")},
             "limits_about": "per strategy container: tick_timeout_sec of real time to answer each tick, "
                             "cpu_time_sec of CPU for the whole game, memory_mb for the whole container (the "
-                            "2020 rules' 256 MB was for the program alone; a JVM needs the headroom)",
+                            "2020 rules' 256 MB was for the program alone; a JVM needs the headroom). The "
+                            "filesystem is read-only except /tmp (256 MB, counted in memory_mb), the log keeps "
+                            "its last 10 MB, and the only network is the engine's port of your own seat. A "
+                            "build compiles without network: what a language needs beyond its official client "
+                            "is not there",
             "ticks": MAX_TICKS,
             "map_size": 80,
             "sandbox_games_per_build": int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0),

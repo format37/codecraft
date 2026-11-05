@@ -1,4 +1,4 @@
-# CodeCraft platform — kickoff and status (updated 2026-11-05)
+# CodeCraft platform — kickoff and status (updated 2026-11-06)
 
 Entry point for a working session. Read this, then `README.md`, then `config.yaml`.
 
@@ -83,9 +83,10 @@ the new repo.
 Live at https://codecraft.latentstate.dev: the home node (8 cores, 14 GB, docker, **no NVIDIA GPU**
 for now — the GPU is not attached because of the machine's power budget, so `gpu.enabled: auto`
 resolves to false and the CUDA languages are hidden; the RTX 4090 stays on the dev machine) runs
-`web` + `worker` from a clone of the public repo; the web port is published to the home LAN only
-and reached through the existing WireGuard tunnel by the VPS Caddy (`codecraft.latentstate.dev`
-site block, auto-TLS, Cloudflare grey-cloud A record). `.env` on the node: `CW_WEB_PORT`,
+`web` + `worker` from a clone of the public repo; the web port is published on the node's WireGuard
+address only (since 2026-11-06; before, to the home LAN) and reached through that tunnel by the VPS Caddy
+(`codecraft.latentstate.dev` site block, auto-TLS, Cloudflare grey-cloud A record), whose address is the one
+trusted proxy (`CW_TRUSTED_PROXIES`). `.env` on the node: `CW_WEB_PORT`,
 `CW_BASE_URL=https://codecraft.latentstate.dev`, `CW_ADMINS`, `CW_REGISTRATION=open` (invite-only
 during the first hours, open since 2026-11-05 evening), the Resend key + `CW_MAIL_FROM` (domain
 `codecraft.latentstate.dev` verified in Resend), `DOCKER_GID` of the node, `CW_SENTRY_DSN` (Sentry
@@ -134,6 +135,34 @@ score, resource, population, units and buildings per seat and counts built / los
 kills are attributed by replaying each tick's attack events against the health before the tick (the
 first hit that takes a target to zero), which matches the engine's destroy score. Tokens and upload
 tickets are masked in the access log and in Sentry events. `mcp==1.29.0`.
+
+## Phase 3c — hardening (done 2026-11-06)
+
+A review of what uploaded code and the public site can reach on the home node, then two deployed batches
+(commit bb087c4, then the commit that adds this section):
+
+- **Builds**: a strategy compiles in a container made from its language's base image
+  (`codecraft/base-<language>:<hash>`: the template or client Dockerfile with the official client, built once
+  with the network; `cw build` warms all of them), with no network, `build.memory_mb` / `cpus` / `pids`, no
+  capabilities, `no-new-privileges` and a hard `build.timeout_sec`; the container is committed as
+  `codecraft/strategy-<name>:<hash>` (the hash covers the base image, the sources, merge mode and a seed's
+  prebuild). The base images keep Maven offline; the starter builds offline in every language. The build log
+  keeps its last `build.log_max_mb`.
+- **Git**: https on `submissions.git_hosts` only, fetched one commit deep (a short commit id falls back to the
+  whole branches), each file git writes capped at 1.5 x `max_unpacked_mb`, no redirects, a minimal
+  environment; symbolic links are checked out as plain files and refused by name, and git refs cannot start
+  with `-`.
+- **Games**: every TCP seat has an internal network of its own (a /24 of `docker.seat_subnets`, the host
+  without an address on it), the engine joins all of them at fixed addresses and listens for each seat on
+  that seat's network only; players run read-only with a 256 MB `/tmp`, and docker keeps the last 10 MB of a
+  player's or the engine's output. The game folder's `config.json` has the seat tokens masked.
+- **Web**: no Docker socket in `web` (a GPU host sets `CW_GPU_ENABLED=true`), the code mounted read-only and
+  only `data/` writable, the port published on one address (`CW_WEB_PORT=ADDRESS:PORT`), `X-Forwarded-For`
+  honoured from `web.trusted_proxies` only, `game_log` grep as plain text, sign-in `next` kept on the site, at
+  most 20 sign-in codes a day per address, nosniff / frame / referrer / HSTS headers.
+
+Still open: the node's operating system upgrade; quotas per person rather than per account; an optional
+gVisor runtime for player and compile containers; pruning old strategy and base images.
 
 ## Phase 4 — other game mechanics
 

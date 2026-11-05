@@ -1,7 +1,13 @@
-"""Run one game: an isolated docker network, the engine container and one container per strategy."""
+"""Run one game: the engine container and one container per strategy, each strategy on a network of its own.
+
+Every TCP seat gets an internal bridge network shared only with the engine (no route out, no host address on it),
+and the engine listens for that seat on its address in that network only: a strategy reaches its own seat's port
+and nothing else, not the other seats, not the node, not the internet."""
 from __future__ import annotations
 
+import copy
 import io
+import ipaddress
 import json
 import logging
 import re
@@ -12,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import docker
-from docker.types import DeviceRequest, Ulimit
+from docker.types import DeviceRequest, IPAMConfig, IPAMPool, LogConfig, Ulimit
 
 from .config import MAX_TICKS, SEATS, Config
 from .db import DB
@@ -27,6 +33,33 @@ WRAPPER = (
     'echo "[cw] exit=$rc" >&2; exit $rc'
 )
 CPU_RE = re.compile(r"\[cw\] time real=([\d.]+) user=([\d.]+) sys=([\d.]+)")
+# The host gets no address on a game network, so nothing the node serves on 0.0.0.0 answers a player.
+INHIBIT_IPV4 = "com.docker.network.bridge.inhibit_ipv4"
+# What docker keeps of a container's output (players and the engine): the last 10 MB. The [cw] lines are
+# printed last, so they survive the rotation.
+LOG_MAX = "10m"
+PLAYER_TMP_MB = 256          # the writable /tmp of a read-only player container (counted in its memory)
+SUBNET_RETRIES = 4
+
+
+def seat_subnet(base: str, game_id: int, slot: int, attempt: int = 0) -> ipaddress.IPv4Network:
+    """The /24 of a seat's network within `docker.seat_subnets`: number (game_id * 4 + slot) of its /24s,
+    64 further on for each retry after an overlap (a leftover network, or a parallel game 64 ids apart)."""
+    subnets = list(ipaddress.ip_network(base).subnets(new_prefix=24))
+    return subnets[(game_id * 4 + slot + 64 * attempt) % len(subnets)]
+
+
+def redacted(config: dict) -> dict:
+    """The engine config without the seat tokens, for the game's public file list."""
+    shown = copy.deepcopy(config)
+    for player in shown.get("players", []):
+        if isinstance(player, dict) and isinstance(player.get("Tcp"), dict):
+            player["Tcp"]["token"] = "***"
+    return shown
+
+
+def _log_config() -> LogConfig:
+    return LogConfig(type="json-file", config={"max-size": LOG_MAX, "max-file": "1"})
 
 
 @dataclass
@@ -62,6 +95,8 @@ class Seat:
     exit_code: int | None = None
     oom_killed: bool = False
     limits: dict = field(default_factory=dict)
+    network: object = None              # the seat's own network (TCP seats)
+    engine_ip: str | None = None        # the engine's address on it: the engine listens there for this seat
 
     @property
     def strategy(self) -> Strategy | None:
@@ -173,27 +208,27 @@ class GameRunner:
             game_id = self.db.create_game(fmt, seed, tag, kind=kind, created_by=created_by, rated=rated)
         gdir = self.cfg.games_dir / f"{game_id:06d}"
         gdir.mkdir(parents=True, exist_ok=True)
-        engine_config = self._engine_config(fmt, seats, seed)
-        (gdir / "config.json").write_text(json.dumps(engine_config, indent=2))
         names = [re.sub(r"[^\w.@-]", "_", s.name)[:40] for s in seats]
         log.info("game %d: %s %s %s", game_id, kind, fmt, " vs ".join(names))
 
         started = time.time()
         status, error = "error", None
-        network = engine = None
+        engine = None
+        networks: list = []
         name = f"{self.prefix}-{game_id}"
         try:
-            # internal: no route out; inhibit_ipv4: the host gets no address on the bridge, so nothing the
-            # node serves on 0.0.0.0 (sshd and the rest) answers a player
-            network = self.client.networks.create(name, driver="bridge", internal=True,
-                                                  options={"com.docker.network.bridge.inhibit_ipv4": "true"},
-                                                  labels={self.label: str(game_id)})
-            engine = self._start_engine(name, network, engine_config, names, gdir)
+            for seat in seats:
+                if seat.is_tcp:
+                    seat.network, seat.engine_ip = self._seat_network(name, game_id, seat.slot)
+                    networks.append(seat.network)
+            engine_config = self._engine_config(fmt, seats, seed)
+            (gdir / "config.json").write_text(json.dumps(redacted(engine_config), indent=2))
+            engine = self._start_engine(name, seats, engine_config, names)
             if any(s.is_tcp for s in seats):
                 self._wait_for_ports(engine, [s.port for s in seats if s.is_tcp])
                 for seat in seats:
                     if seat.is_tcp:
-                        seat.container = self._start_player(name, network, seat, engine.name)
+                        seat.container = self._start_player(name, seat, engine.name)
             slowest = max([s.limits for s in seats], key=lambda l: (l.get("tick_timeout_sec") or 1.0))
             wall = limits.get("game_wall_timeout_sec") or (
                 MAX_TICKS * (slowest.get("tick_timeout_sec") or 1.0) + (slowest.get("accept_timeout_sec") or 60) + 120)
@@ -220,7 +255,7 @@ class GameRunner:
             log.exception("game %d failed", game_id)
             status, error = "error", f"{type(exc).__name__}: {exc}"
         finally:
-            self._cleanup(engine, seats, network)
+            self._cleanup(engine, seats, networks)
         duration = time.time() - started
 
         rows = self._record(game_id, fmt, status, error, duration, self._seed_from_results(gdir, seed),
@@ -269,7 +304,7 @@ class GameRunner:
                 players.append(seat.strategy.builtin)
             else:
                 players.append({"Tcp": {
-                    "host": "0.0.0.0",
+                    "host": seat.engine_ip,             # the listen address: this seat's network only
                     "port": seat.port,
                     "accept_timeout": seat.limits.get("accept_timeout_sec"),
                     "timeout": seat.limits.get("tick_timeout_sec"),
@@ -277,15 +312,39 @@ class GameRunner:
                 }})
         return {"seed": seed, "game": {"Create": fmt}, "players": players}
 
-    def _start_engine(self, name: str, network, config: dict, names: list[str], gdir: Path):
+    def _seat_network(self, name: str, game_id: int, slot: int):
+        """An internal network for one seat with a fixed subnet, so the engine's address on it is known before
+        the engine starts. -> (network, the engine's address)"""
+        base = str(self.cfg.get("docker", "seat_subnets", default=None) or "10.200.0.0/16")
+        for attempt in range(SUBNET_RETRIES + 1):
+            subnet = seat_subnet(base, game_id, slot, attempt)
+            try:
+                network = self.client.networks.create(
+                    f"{name}-s{slot}", driver="bridge", internal=True, options={INHIBIT_IPV4: "true"},
+                    ipam=IPAMConfig(pool_configs=[IPAMPool(subnet=str(subnet))]), labels={self.label: str(game_id)})
+                return network, str(subnet.network_address + 2)
+            except docker.errors.APIError as exc:
+                if "overlap" not in str(exc).lower() or attempt == SUBNET_RETRIES:
+                    raise
+                log.warning("game %d: seat %d subnet %s is taken, trying another", game_id, slot, subnet)
+
+    def _start_engine(self, name: str, seats: list[Seat], config: dict, names: list[str]):
         eng = self.cfg["engine"]
         command = ["--config", "/game/config.json", "--batch-mode", "--save-results", "/game/results.json",
                    "--save-replay", "/game/replay.dat", "--log-level", "info", "--player-names", *names]
-        engine = self.client.containers.create(
-            eng["image"], command=command, name=f"{name}-engine", network=network.name, working_dir="/game",
-            mem_limit=f"{eng['memory_mb']}m", nano_cpus=int(float(eng["cpus"]) * 1e9),
-            labels={self.label: name},
+        kwargs: dict = dict(
+            command=command, name=f"{name}-engine", working_dir="/game",
+            mem_limit=f"{eng['memory_mb']}m", nano_cpus=int(float(eng["cpus"]) * 1e9), pids_limit=256,
+            log_config=_log_config(), labels={self.label: name},
         )
+        tcp = [s for s in seats if s.is_tcp]
+        if tcp:     # on every seat's network at once, at the address the config names (Docker API 1.44+)
+            kwargs["network"] = tcp[0].network.name
+            kwargs["networking_config"] = {s.network.name: self.client.api.create_endpoint_config(ipv4_address=s.engine_ip)
+                                           for s in tcp}
+        else:       # built-in bots only: nobody to talk to
+            kwargs["network_mode"] = "none"
+        engine = self.client.containers.create(eng["image"], **kwargs)
         engine.put_archive("/game", _tar_bytes({"config.json": json.dumps(config).encode()}))
         engine.start()
         return engine
@@ -307,19 +366,25 @@ class GameRunner:
                 raise RuntimeError(f"engine did not open ports {sorted(pending)} in time: {text[-800:]}")
             time.sleep(0.2)
 
-    def _start_player(self, name: str, network, seat: Seat, engine_host: str):
+    def _start_player(self, name: str, seat: Seat, engine_host: str):
+        """The strategy's container: on its seat's network only (the engine's name resolves to the engine's
+        address there), read-only but for a small /tmp, with the limits of the seat."""
         limits = seat.limits
         strategy = seat.strategy
         cpus = float(limits.get("cpus") or 1.0)
         threads = str(max(1, int(round(cpus))))
         env = {"OMP_NUM_THREADS": threads, "MKL_NUM_THREADS": threads, "OPENBLAS_NUM_THREADS": threads,
-               "NUMBA_NUM_THREADS": threads, "CW_GAME": name, "CW_SLOT": str(seat.slot), **strategy.env}
+               "NUMBA_NUM_THREADS": threads, "CW_GAME": name, "CW_SLOT": str(seat.slot),
+               # the root filesystem is read-only: whatever a runtime writes goes to /tmp
+               "HOME": "/tmp", "TMPDIR": "/tmp", "DOTNET_CLI_HOME": "/tmp", "NUMBA_CACHE_DIR": "/tmp",
+               **strategy.env}
         kwargs: dict = dict(
-            name=f"{name}-p{seat.slot}", network=network.name,
+            name=f"{name}-p{seat.slot}", network=seat.network.name,
             entrypoint=["bash", "-c", WRAPPER, "cw"],
             command=[engine_host, str(seat.port), seat.token],
             environment=env, labels={self.label: name},
             nano_cpus=int(cpus * 1e9), pids_limit=int(limits.get("pids") or 256),
+            read_only=True, tmpfs={"/tmp": f"rw,size={PLAYER_TMP_MB}m,mode=1777"}, log_config=_log_config(),
         )
         hard = self.cfg.get("hardening", default={}) or {}
         if hard.get("no_new_privileges", True):
@@ -388,7 +453,7 @@ class GameRunner:
                 pass
         return fallback
 
-    def _cleanup(self, engine, seats: list[Seat], network) -> None:
+    def _cleanup(self, engine, seats: list[Seat], networks: list) -> None:
         for container in [s.container for s in seats] + [engine]:
             if container is None:
                 continue
@@ -396,7 +461,7 @@ class GameRunner:
                 container.remove(force=True)
             except docker.errors.APIError as exc:
                 log.warning("remove %s: %s", container.name, exc)
-        if network is not None:
+        for network in networks:
             for _ in range(5):
                 try:
                     network.remove()

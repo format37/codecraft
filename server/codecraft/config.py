@@ -38,7 +38,13 @@ DEFAULTS: dict = {
         "sandbox": True,            # play rated sandbox games when no custom game is queued
         "sandbox_games_per_build": 10,  # each build plays this many sandbox games, then rests (0 = endless)
         "builds": True,             # build submitted strategy versions
-        "build_timeout_sec": 1200,
+    },
+    "build": {                      # the compile container of a strategy (no network; see builder.py)
+        "memory_mb": 6144,          # GraalVM native-image is the hungry one
+        "cpus": 4.0,
+        "pids": 1024,
+        "timeout_sec": 1200,        # hard wall clock; was worker.build_timeout_sec (still read as a fallback)
+        "log_max_mb": 16,           # the compile container's log and the stored build log keep this much
     },
     "submissions": {
         "max_zip_mb": 20,
@@ -46,6 +52,7 @@ DEFAULTS: dict = {
         "max_unpacked_mb": 200,
         "languages": None,          # null = every template/ and client/ language; or a list of names
         "allow_git": True,
+        "git_hosts": ["github.com", "gitlab.com", "bitbucket.org", "codeberg.org"],   # https only, no port
         "per_user_queued": 1,       # versions waiting/building at once
         "per_user_per_day": 20,
         "custom_games_queued": 3,   # custom games a user may have waiting at once
@@ -73,7 +80,11 @@ DEFAULTS: dict = {
         "title": "CodeCraft",
         "trusted_proxies": [],      # peers whose X-Forwarded-For/-Proto count (or env CW_TRUSTED_PROXIES); [] = none
     },
-    "docker": {"prefix": "cw", "label": "codecraft.game"},
+    "docker": {
+        "prefix": "cw",
+        "label": "codecraft.game",
+        "seat_subnets": "10.200.0.0/16",   # one /24 per seat network (game.seat_subnet); must not be routed here
+    },
     "hardening": {"no_new_privileges": True, "cap_drop_all": True},
 }
 
@@ -114,10 +125,13 @@ class Config:
         root_path = Path(root or os.environ.get("CW_ROOT") or Path(__file__).resolve().parents[2])
         data = copy.deepcopy(DEFAULTS)
         cfg_file = root_path / "config.yaml"
-        if cfg_file.exists():
-            deep_merge(data, yaml.safe_load(cfg_file.read_text()) or {})
+        given = (yaml.safe_load(cfg_file.read_text()) or {}) if cfg_file.exists() else {}
+        deep_merge(data, copy.deepcopy(given))
         if "loop" in data:  # v0.1 name of the worker section
             deep_merge(data["worker"], data.pop("loop"))
+        legacy_timeout = data["worker"].pop("build_timeout_sec", None)   # before build.timeout_sec
+        if legacy_timeout and "timeout_sec" not in (given.get("build") or {}):
+            data["build"]["timeout_sec"] = legacy_timeout
         env = os.environ
         if env.get("CW_RESEND_API_KEY"):
             data["mail"]["resend_api_key"] = env["CW_RESEND_API_KEY"]

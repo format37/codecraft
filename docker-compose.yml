@@ -3,7 +3,7 @@
 # created by the worker, not by compose); the web service, the one facing the internet, has no socket.
 #
 #   docker compose build
-#   docker compose run --rm cli build          # engine + seed strategy images (strategies/*.yaml)
+#   docker compose run --rm cli build          # engine, every language's base image, seed strategies (strategies/*.yaml)
 #   docker compose up -d web worker            # UI on :8080; worker builds submissions and plays games
 #   docker compose run --rm cli play --format Round2 --players format37-2020 thermit-2020 dragoonxen-2020 quickstart
 #
