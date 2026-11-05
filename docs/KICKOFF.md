@@ -52,7 +52,7 @@ Delivered (`server/codewars/`):
 - `cli.py` — `worker` (alias `loop`), `submit`, `users`, `admin`, `invite`, `replay`, `rename`, plus the
   old commands. `monitoring.py` — Sentry, on when `CW_SENTRY_DSN` is set (errors only, no request bodies,
   addresses and tokens scrubbed), inited in `cli._context` so `web` and `worker` both report. `docker-compose.yml`: services `web`, `worker`, `cli`; `.env` for secrets.
-- 46 tests (`test_web.py` drives the app through FastAPI's TestClient). Verified live: sign-in with a console code, zip submission → built by the worker →
+- 47 tests (`test_web.py` drives the app through FastAPI's TestClient). Verified live: sign-in with a console code, zip submission → built by the worker →
   custom game queued from the web → played; the viewer renders game 15 in Chrome.
 
 Known gaps / small follow-ups:
@@ -101,6 +101,11 @@ disabled, so the authors can take their names when they register (Alex plays fro
 account). Seeds' `enabled` follows the manifest at every worker start, so re-enabling a sparring
 partner means editing its `strategy.yaml`, not only the admin page. With no enabled seed but
 QuickStart, the first user strategy plays its sandbox games against QuickStart fillers.
+
+Starter (2026-11-05 evening): github.com/format37/codecraft-starter, one folder per language (the official
+client + the same ~100-line strategy, ported to all 15 languages and built through the real pipeline);
+the builder takes the folder named after the chosen language when a submission's root holds only docs
+(`builder.language_subdir`, `python-pypy` -> `python/`). Linked from the submit page and the README.
 
 ## Phase 4 — other game mechanics
 

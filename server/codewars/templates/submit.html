@@ -12,12 +12,12 @@
     <select name="language">{% for l in languages %}<option value="{{ l }}">{{ l }}</option>{% endfor %}</select>
     <div class="help">The official 2020 client of that language is used; your files replace its strategy files. <code>python-cuda</code> / <code>cpp-cuda</code> images have CUDA 12.4 (CuPy / nvcc).</div></div>
   <div class="field"><label>Source: zip archive</label><input type="file" name="archive" accept=".zip,application/zip">
-    <div class="help">A single file (e.g. <code>my_strategy.py</code>, <code>MyStrategy.java</code>) replaces the client's one; several files replace the whole client project (keep its <code>compile.sh</code>/<code>run.sh</code> working). Max {{ cfg.submissions.max_zip_mb }} MB.</div></div>
+    <div class="help">A single file (e.g. <code>my_strategy.py</code>, <code>MyStrategy.java</code>) replaces the client's one; several files replace the whole client project (keep its <code>compile.sh</code>/<code>run.sh</code> working). A repository with one folder per language is built from the folder named after the language. Max {{ cfg.submissions.max_zip_mb }} MB.</div></div>
   {% if allow_git %}
   <div class="field"><label>… or a git repository</label>
     <input type="text" name="git_url" placeholder="https://github.com/you/your-strategy" style="width:100%"> 
     <input type="text" name="git_ref" placeholder="branch, tag or commit (optional)" style="margin-top:6px">
-    <div class="help">Public http(s) repositories only.</div></div>
+    <div class="help">Public http(s) repositories only. No strategy yet? Fork the <a href="https://github.com/format37/codecraft-starter">starter</a> (every language, ready to play), or paste its URL as it is.</div></div>
   {% endif %}
   <div class="field">
     {% if gpu_ok %}<label style="font-weight:normal"><input type="checkbox" name="gpu"> needs the GPU (CUDA)</label>{% endif %}

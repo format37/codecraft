@@ -47,6 +47,25 @@ def _hash_tree(root: Path) -> str:
     return h.hexdigest()[:12]
 
 
+# Files that do not make a root a source tree: a multi-language repository keeps only these at its top.
+DOC_FILE_RE = re.compile(r"(?i)^(readme|license|licence|copying|notice|changelog|contributing)(\..*)?$"
+                         r"|\.(md|txt|rst)$|^\.(gitignore|gitattributes|editorconfig)$")
+
+
+def language_subdir(root: Path, language: str) -> Path:
+    """A repository with one directory per language (`python/`, `Cpp/`, `java-graalvm-native/`, as the
+    starter at github.com/format37/codecraft-starter): when the root holds nothing but documentation,
+    the directory named after the chosen language is the source; `python-pypy` falls back to `python/`
+    and `cpp-cuda` to `cpp/`. Any other root is used as it is."""
+    if any(p.is_file() and not DOC_FILE_RE.match(p.name) for p in root.iterdir()):
+        return root
+    dirs = {p.name.lower(): p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")}
+    for key in (language.lower(), language.lower().split("-")[0]):
+        if key in dirs:
+            return dirs[key]
+    return root
+
+
 def check_git_url(url: str) -> str:
     url = (url or "").strip()
     if not GIT_URL_RE.match(url):
@@ -185,6 +204,8 @@ class Builder:
             root = root / src.path
             if not root.is_dir():
                 raise BuildError(f"{strategy.name}: source.path {root} not found")
+        if strategy.language:
+            root = language_subdir(root, strategy.language)
         return root
 
     @staticmethod

@@ -64,6 +64,8 @@ Exactly like the 2020 server: the official client of the language (`clients/<Lan
 files + the client's `compile.sh`; at game time `run.sh host port token`. One file replaces the
 client's strategy file (`my_strategy.py`, `MyStrategy.java`, …); several files replace the whole
 client project; merge mode lays your files over the client (for CUDA kernels + `CMakeLists.txt`).
+A repository with one folder per language is built from the folder named after the chosen language:
+[codecraft-starter](https://github.com/format37/codecraft-starter) has every language ready to submit.
 Base images are overridden in `templates/` where the 2020 ones no longer build, plus `cpp-cuda`
 (nvcc) and `python-cuda` (CuPy / PyTorch) images. Seed strategies in `strategies/` are manifests
 for server-managed bots (see [strategies/README.md](strategies/README.md)); the bundled 2020 contest

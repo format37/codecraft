@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from codewars.builder import Builder, BuildError
+from codewars.builder import Builder, BuildError, language_subdir
 from codewars.config import Config
 from codewars.strategies import load_strategy
 
@@ -79,3 +79,20 @@ def test_unknown_limit_key_is_rejected(tmp_path):
     (sdir / "strategy.yaml").write_text("name: s4\nlanguage: python\nlimits: {ram: 1}\nsource:\n  dir: src\n")
     with pytest.raises(ValueError):
         load_strategy(sdir / "strategy.yaml")
+
+
+def test_a_multi_language_repository_yields_the_directory_of_the_chosen_language(tmp_path):
+    repo = tmp_path / "starter"
+    for d in ("python", "Cpp", "java-graalvm-native", ".github"):
+        (repo / d).mkdir(parents=True)
+        (repo / d / "x").write_text("src\n")
+    for f in ("README.md", "LICENSE", ".gitignore", "CHANGELOG.txt"):
+        (repo / f).write_text("doc\n")
+    assert language_subdir(repo, "python") == repo / "python"
+    assert language_subdir(repo, "cpp") == repo / "Cpp"                      # case does not matter
+    assert language_subdir(repo, "python-pypy") == repo / "python"           # a variant falls back
+    assert language_subdir(repo, "java-graalvm-native") == repo / "java-graalvm-native"
+    assert language_subdir(repo, "rust") == repo                            # no such directory: as it is
+    # a single-language project with a directory that happens to carry a language name is left alone
+    (repo / "main.cpp").write_text("int main() {}\n")
+    assert language_subdir(repo, "cpp") == repo
