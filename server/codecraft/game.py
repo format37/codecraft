@@ -183,7 +183,10 @@ class GameRunner:
         network = engine = None
         name = f"{self.prefix}-{game_id}"
         try:
+            # internal: no route out; inhibit_ipv4: the host gets no address on the bridge, so nothing the
+            # node serves on 0.0.0.0 (sshd and the rest) answers a player
             network = self.client.networks.create(name, driver="bridge", internal=True,
+                                                  options={"com.docker.network.bridge.inhibit_ipv4": "true"},
                                                   labels={self.label: str(game_id)})
             engine = self._start_engine(name, network, engine_config, names, gdir)
             if any(s.is_tcp for s in seats):

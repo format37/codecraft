@@ -115,3 +115,23 @@ def test_bad_email_is_refused(tmp_path):
 def test_mailer_defaults_to_console_without_keys(tmp_path):
     cfg = Config(Config.load(tmp_path).data, tmp_path)
     assert Mailer(cfg).provider == "console"
+
+
+def test_an_address_gets_at_most_twenty_codes_a_day(tmp_path):
+    """Five codes an hour with five guesses each was 25 guesses an hour around the clock."""
+    from codecraft.db import since
+
+    auth, db, mailer = make(tmp_path)
+    for _ in range(19):
+        db.issue_code("alice@example.com", "x", 10)
+    with db.tx() as c:                       # issued over the last day, none in the last hour
+        c.execute("UPDATE login_codes SET created_at=?", (since(2),))
+    auth.request_code("alice@example.com", "1.1.1.1")      # the 20th
+    with db.tx() as c:
+        c.execute("UPDATE login_codes SET created_at=?", (since(2),))
+    with pytest.raises(AuthError) as exc:
+        auth.request_code("alice@example.com", "1.1.1.1")
+    assert exc.value.code == "rate_limited"
+    with db.tx() as c:                       # a day later the address may ask again
+        c.execute("UPDATE login_codes SET created_at=?", (since(25),))
+    auth.request_code("alice@example.com", "1.1.1.1")

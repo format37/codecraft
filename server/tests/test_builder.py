@@ -1,7 +1,9 @@
+import subprocess
 from pathlib import Path
 
 import pytest
 
+from codecraft import builder as builder_module
 from codecraft.builder import Builder, BuildError, git_failure, language_subdir
 from codecraft.config import Config
 from codecraft.strategies import load_strategy
@@ -110,3 +112,106 @@ def test_git_failures_name_the_likely_cause_without_server_paths():
     assert str(e).startswith(f"{url} has no commit, branch or tag 'deadbeef'")
     e = git_failure("git clone x failed:\n\nfatal: unable to access: Could not resolve host\n", url, None)
     assert str(e) == f"git could not fetch {url}\n(git: fatal: unable to access: Could not resolve host)"
+
+
+# Symbolic links (security review, finding 1) ----------------------------------------------------------------
+def seed(root: Path, name: str, source: str) -> Path:
+    sdir = root / "strategies" / name
+    sdir.mkdir(parents=True, exist_ok=True)
+    (sdir / "strategy.yaml").write_text(f"name: {name}\nlanguage: python\nsource:\n{source}")
+    return sdir
+
+
+def test_a_symbolic_link_in_the_source_is_refused_by_name(tmp_path):
+    root = make_root(tmp_path)
+    secret = tmp_path / "secret.env"
+    secret.write_text("CW_RESEND_API_KEY=re_live\n")
+    sdir = seed(root, "s5", "  dir: src\n")
+    (sdir / "src" / "lib").mkdir(parents=True)
+    (sdir / "src" / "my_strategy.py").write_text("mine\n")
+    (sdir / "src" / "lib" / "env.txt").symlink_to(secret)
+    builder = Builder(Config(Config.load(root).data, root), client=None)
+    with pytest.raises(BuildError, match=r"s5: lib/env\.txt is a symbolic link; links are not accepted"):
+        builder._assemble_context(load_strategy(sdir / "strategy.yaml"), tmp_path / "ctx5")
+    (sdir / "src" / "lib" / "env.txt").unlink()
+    (sdir / "src" / "etc").symlink_to(tmp_path, target_is_directory=True)      # a directory link as well
+    with pytest.raises(BuildError, match="etc is a symbolic link"):
+        builder._assemble_context(load_strategy(sdir / "strategy.yaml"), tmp_path / "ctx5b")
+
+
+def test_a_source_directory_that_is_a_link_out_of_the_tree_is_refused(tmp_path):
+    root = make_root(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "my_strategy.py").write_text("someone else's\n")
+    sdir = seed(root, "s6", "  dir: src\n  path: sub\n")
+    (sdir / "src").mkdir()
+    (sdir / "src" / "sub").symlink_to(outside, target_is_directory=True)
+    builder = Builder(Config(Config.load(root).data, root), client=None)
+    with pytest.raises(BuildError, match="symbolic link out of the repository"):
+        builder._assemble_context(load_strategy(sdir / "strategy.yaml"), tmp_path / "ctx6")
+    # a language directory that is a link is not taken for the source
+    repo = tmp_path / "multi"
+    repo.mkdir()
+    (repo / "README.md").write_text("doc\n")
+    (repo / "python").symlink_to(outside, target_is_directory=True)
+    assert language_subdir(repo, "python") == repo
+
+
+def git(repo: Path, *args: str) -> str:
+    return subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+                          check=True, capture_output=True, text=True).stdout
+
+
+def test_a_link_committed_to_git_is_checked_out_as_a_file_and_refused(tmp_path):
+    """The review's reproduction: a repository with env.txt -> /proc/self/environ put the worker's secrets
+    into the build. git now writes the link as a plain file, and the index still names it a link."""
+    root = make_root(tmp_path)
+    url = "https://github.com/someone/leak"
+    repo = root / "data" / "build" / "repos" / "s7"
+    repo.mkdir(parents=True)
+    git(repo, "init", "-q")
+    git(repo, "remote", "add", "origin", url)
+    (repo / "python").mkdir()
+    (repo / "python" / "my_strategy.py").write_text("mine\n")
+    (repo / "python" / "env.txt").symlink_to("/proc/self/environ")
+    (repo / "README.md").write_text("doc\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "leak")
+    sha = git(repo, "rev-parse", "HEAD").strip()
+    (repo / "python" / "env.txt").unlink()            # the checkout below writes it again, as git is told to
+    sdir = seed(root, "s7", f"  git: {url}\n  ref: {sha}\n")
+    builder = Builder(Config(Config.load(root).data, root), client=None)
+    with pytest.raises(BuildError, match=r"s7: env\.txt is a symbolic link"):
+        builder._assemble_context(load_strategy(sdir / "strategy.yaml"), tmp_path / "ctx7")
+    written = repo / "python" / "env.txt"
+    assert written.is_file() and not written.is_symlink() and written.read_text() == "/proc/self/environ"
+    assert builder.last_commit == sha and builder.last_links == {written}
+    # outside the selected folder (another language of a multi-language repository) a link does not matter
+    git(repo, "rm", "-qf", "python/env.txt")    # -f: on disk it is a plain file now, the index says link
+    (repo / "java").mkdir()
+    (repo / "java" / "Link.java").symlink_to("/etc/passwd")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "link elsewhere")
+    sha2 = git(repo, "rev-parse", "HEAD").strip()
+    (sdir / "strategy.yaml").write_text(f"name: s7\nlanguage: python\nsource:\n  git: {url}\n  ref: {sha2}\n")
+    ctx = tmp_path / "ctx7b"
+    ctx.mkdir()
+    builder._assemble_context(load_strategy(sdir / "strategy.yaml"), ctx)
+    assert sorted(p.name for p in (ctx / "src").iterdir()) == ["my_strategy.py"]
+
+
+def test_git_runs_with_links_off_and_without_the_server_secrets(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"], seen["env"] = cmd, kwargs["env"]
+        return subprocess.CompletedProcess(cmd, 0, "abc\n", "")
+
+    monkeypatch.setenv("CW_RESEND_API_KEY", "re_secret")
+    monkeypatch.setenv("CW_SENTRY_DSN", "https://key@sentry.example/1")
+    monkeypatch.setattr(builder_module.subprocess, "run", fake_run)
+    assert builder_module._git(tmp_path, "rev-parse", "HEAD") == "abc\n"
+    assert seen["cmd"][:5] == ["git", "-c", "core.symlinks=false", "-C", str(tmp_path)]
+    assert not [k for k in seen["env"] if k.startswith("CW_")] and seen["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert seen["env"]["GIT_CONFIG_NOSYSTEM"] == "1" and seen["env"]["PATH"]

@@ -1,5 +1,6 @@
-# CodeCraft server. All services share one image and talk to the host docker daemon through its
-# socket; game and build containers are created by the worker, not by compose.
+# CodeCraft server. All services share one image and see the code read-only; only data/ is writable.
+# The worker and the CLI drive the host docker daemon through its socket (game and build containers are
+# created by the worker, not by compose); the web service, the one facing the internet, has no socket.
 #
 #   docker compose build
 #   docker compose run --rm cli build          # engine + seed strategy images (strategies/*.yaml)
@@ -14,9 +15,6 @@ name: codecraft                 # compose project name, independent of the folde
 x-server: &server
   build: ./server
   image: codecraft/server
-  volumes:
-    - /var/run/docker.sock:/var/run/docker.sock
-    - .:/app
   environment:
     CW_ROOT: /app
     CW_RESEND_API_KEY: ${CW_RESEND_API_KEY:-}
@@ -26,26 +24,36 @@ x-server: &server
     CW_SMTP_PASSWORD: ${CW_SMTP_PASSWORD:-}
     CW_REGISTRATION: ${CW_REGISTRATION:-}
     CW_GPU_ENABLED: ${CW_GPU_ENABLED:-}
+    CW_TRUSTED_PROXIES: ${CW_TRUSTED_PROXIES:-}
     CW_SENTRY_DSN: ${CW_SENTRY_DSN:-}
     CW_SENTRY_ENVIRONMENT: ${CW_SENTRY_ENVIRONMENT:-}
   user: "${CW_UID:-1000}:${CW_GID:-1000}"
-  group_add:
-    - "${DOCKER_GID:-999}"
 
 services:
   web:
     <<: *server
     command: ["serve"]
+    volumes:
+      - .:/app:ro
+      - ./data:/app/data
     ports:
-      - "${CW_WEB_PORT:-8080}:8080"
+      - "${CW_WEB_PORT:-8080}:8080"     # CW_WEB_PORT=10.66.0.2:8090 publishes on that address only
     restart: unless-stopped
 
   worker:
     <<: *server
     command: ["worker"]
+    volumes: &docker_volumes
+      - .:/app:ro
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add: &docker_group
+      - "${DOCKER_GID:-999}"
     restart: unless-stopped
     stop_grace_period: 30m        # let running games finish (SIGTERM stops new ones)
 
   cli:
     <<: *server
+    volumes: *docker_volumes
+    group_add: *docker_group
     profiles: ["cli"]

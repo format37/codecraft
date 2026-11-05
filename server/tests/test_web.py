@@ -53,3 +53,68 @@ def test_submit_form_renders_with_a_suggested_name(tmp_path):
     r = client.get("/submit?name=my-bot")
     assert r.status_code == 200 and 'name="name" value="my-bot"' in r.text
     assert client.get("/me").status_code == 200
+
+
+# Hardening (security review, findings 10 and the Low ones) -------------------------------------------------------
+def test_next_stays_on_the_site(tmp_path):
+    from codecraft.web import safe_next
+
+    for good in ("/", "/games/5", "/strategies/x?tab=1", "/a%2F/b"):
+        assert safe_next(good) == good
+    for bad in ("//evil.com", "///evil.com", "/\\evil.com", "https://evil.com", "evil.com", "/\t/evil.com", "", None):
+        assert safe_next(bad) == "/"
+    client, auth, db = make(tmp_path)
+    sign_in(client, auth)
+    assert client.get("/login?next=//evil.com").headers["location"] == "/"
+    assert client.get("/login?next=/games").headers["location"] == "/games"
+    # the code form keeps a sanitised target, and the sign-in itself redirects there
+    client.cookies.clear()
+    r = client.post("/login/code", data={"email": "bob@example.com", "next": "//evil.com"})
+    assert r.status_code == 303 and "next=/&" in r.headers["location"]
+    code = re.search(r"\b(\d{6})\b", auth.mailer.sent[-1][1]).group(1)
+    r = client.post("/login", data={"email": "bob@example.com", "code": code, "next": "///evil.com", "name": "Bob"})
+    assert r.status_code == 303 and r.headers["location"] == "/"
+
+
+def test_security_headers_on_pages_refusals_and_the_agent_routes(tmp_path):
+    client, auth, db = make(tmp_path)
+    expected = {"x-content-type-options": "nosniff", "referrer-policy": "same-origin", "x-frame-options": "DENY"}
+    for r in (client.get("/leaderboard"),
+              client.post("/logout", headers={"origin": "https://evil.example"}),     # the cross-site refusal
+              client.get("/api/v1/whoami"),                                            # no token: 401
+              client.get("/static/does-not-exist.css")):
+        assert {k: r.headers.get(k) for k in expected} == expected, r.status_code
+        assert "strict-transport-security" not in r.headers                 # http base URL: no HSTS
+    cfg = Config(Config.load(tmp_path).data, tmp_path)
+    cfg.data["auth"]["cookie_secure"] = True
+    cfg.resolve_gpu(None)
+    https = TestClient(create_app(cfg, db, auth), follow_redirects=False)
+    assert https.get("/leaderboard").headers["strict-transport-security"] == "max-age=31536000"
+
+
+def test_the_client_address_is_the_peer_unless_a_trusted_proxy_forwards_it(tmp_path):
+    """A sign-in from anywhere used to record (and rate-limit) whatever X-Forwarded-For said."""
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    client, auth, db = make(tmp_path)
+
+    def sign_in_over_http(c, email):
+        c.post("/login/code", data={"email": email}, headers={"x-forwarded-for": "6.6.6.6"})
+        code = re.search(r"\b(\d{6})\b", auth.mailer.sent[-1][1]).group(1)
+        r = c.post("/login", data={"email": email, "code": code, "name": "X"}, headers={"x-forwarded-for": "6.6.6.6"})
+        assert r.status_code == 303 and COOKIE in r.cookies
+        return db.one("SELECT s.ip FROM sessions s JOIN users u ON u.id = s.user_id WHERE u.email=?", email)["ip"]
+
+    assert sign_in_over_http(client, "carol@example.com") == "testclient"
+    # behind the configured proxy (what uvicorn installs for web.trusted_proxies) the forwarded address counts
+    app = client.app
+    proxied = TestClient(ProxyHeadersMiddleware(app, trusted_hosts=["testclient"]), follow_redirects=False)
+    assert sign_in_over_http(proxied, "dave@example.com") == "6.6.6.6"
+    untrusted = TestClient(ProxyHeadersMiddleware(app, trusted_hosts=["10.66.0.1"]), follow_redirects=False)
+    assert sign_in_over_http(untrusted, "erin@example.com") == "testclient"
+
+
+def test_trusted_proxies_come_from_the_config_or_the_environment(tmp_path, monkeypatch):
+    assert Config.load(tmp_path)["web"]["trusted_proxies"] == []
+    monkeypatch.setenv("CW_TRUSTED_PROXIES", " 10.66.0.1, 10.0.0.0/8 ,")
+    assert Config.load(tmp_path)["web"]["trusted_proxies"] == ["10.66.0.1", "10.0.0.0/8"]

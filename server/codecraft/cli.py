@@ -141,8 +141,12 @@ def cmd_serve(args):
     # log would print them.
     monitoring.install_log_redaction()
     logging.getLogger("mcp").setLevel(logging.WARNING)   # two INFO lines per MCP request otherwise
+    # X-Forwarded-For / -Proto count only from the configured reverse proxy (the VPS Caddy on the node):
+    # uvicorn then puts the client's address into request.client, which sessions and the sign-in limits
+    # use. Without a proxy nobody's headers count, so a client cannot claim another address.
+    trusted = cfg["web"]["trusted_proxies"]
     uvicorn.run(create_app(cfg, db), host=args.host or cfg["web"]["host"], port=args.port or int(cfg["web"]["port"]),
-                log_level="info", proxy_headers=True, forwarded_allow_ips="*")
+                log_level="info", proxy_headers=bool(trusted), forwarded_allow_ips=trusted or None)
 
 
 def cmd_ladder(args):

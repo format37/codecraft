@@ -233,8 +233,9 @@ def build(ax: A.Agents) -> FastMCP:
         of its container, player-<slot>.log) in your first slot of the game. slot=<n> picks a slot (your
         strategies' only); slot="engine" gives the engine's log (anyone's game).
         tail_kb: the last KB of the log (1-64, default 16).
-        grep: a case-insensitive regular expression (or plain text); answers the matching lines with
-        their line numbers instead of the tail, at most 200 (e.g. grep="error|exception|traceback")."""
+        grep: plain text, case-insensitive, `|` separates alternatives (not a regular expression);
+        answers the matching lines with their line numbers instead of the tail, at most 200 (e.g.
+        grep="error|exception|traceback")."""
         return await run(ctx, "game_log", game_id=game_id, slot=slot, tail_kb=tail_kb, grep=grep)
 
     # Write -----------------------------------------------------------------------------------------------

@@ -945,16 +945,15 @@ def game_log(ax: Agents, user: dict, game_id: int, slot: int | str | None = None
         raise AgentError(f"no {path.name} for game #{game_id} (status {row['status']})")
     size = path.stat().st_size
     if grep:
-        try:
-            match = re.compile(grep, re.IGNORECASE).search
-        except re.error:
-            needle = grep.lower()
-            match = lambda line: needle in line.lower()  # noqa: E731
+        # Plain text, never a regular expression: Python's engine holds the GIL, and a pattern such as
+        # (a|aa)+$ over a line the caller wrote itself would freeze the whole web process.
+        needles = [n for n in grep.lower().split("|") if n]
         hits, total, n = [], 0, 0
         with path.open("rb") as fh:
             for n, raw in enumerate(fh, 1):
                 line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
-                if match(line):
+                low = line.lower()
+                if any(needle in low for needle in needles):
                     total += 1
                     if len(hits) < MAX_GREP_LINES:
                         hits.append(f"{n}: {line[:500]}")

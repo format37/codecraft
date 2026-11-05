@@ -7,13 +7,14 @@ import gzip
 import json
 import logging
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.convertors import Convertor, register_url_convertor
+from starlette.datastructures import MutableHeaders
 from starlette.requests import ClientDisconnect
 
 from . import agents as A
@@ -57,6 +58,44 @@ def _json_line(body: dict, status: int, headers: dict | None = None) -> Response
                     headers=headers)
 
 
+def safe_next(target: str | None) -> str:
+    """Where to go after signing in: a path on this site, else "/". Refuses what a browser reads as another
+    host (//evil.com, ///evil.com, /\\evil.com), a scheme, and control characters (browsers drop tabs)."""
+    target = target or "/"
+    if (not target.startswith("/") or target.startswith("//") or "\\" in target
+            or any(ord(ch) < 32 or ord(ch) == 127 for ch in target) or urlsplit(target).netloc):
+        return "/"
+    return target
+
+
+class SecurityHeaders:
+    """Headers on every response, the MCP and REST routes and the early refusals included (pure ASGI, so a
+    streamed response is not buffered). HSTS only when the site is served over https."""
+
+    def __init__(self, app, hsts: bool = False):
+        self.app = app
+        self.headers = [("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "same-origin"),
+                        ("X-Frame-Options", "DENY")]
+        if hsts:
+            self.headers.append(("Strict-Transport-Security", "max-age=31536000"))
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                message.setdefault("headers", [])
+                headers = MutableHeaders(scope=message)
+                for name, value in self.headers:
+                    if name not in headers:
+                        headers[name] = value
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
 def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
     auth = auth or Auth(cfg, db)
     title = str(cfg["web"].get("title") or "CodeCraft")
@@ -78,11 +117,16 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
     templates.env.filters["rating"] = lambda v: "-" if v is None else f"{v:.0f}"
     templates.env.filters["build_error"] = A.build_error
     if cfg.get("gpu", "available") is None:
-        try:
-            import docker
-            cfg.resolve_gpu(docker.from_env())
-        except Exception:  # noqa: BLE001
-            cfg.resolve_gpu(None)
+        # The web service has no Docker socket (docker-compose.yml), so `auto` resolves to no GPU here;
+        # a GPU host says CW_GPU_ENABLED=true and the probe is skipped.
+        client = None
+        if cfg["gpu"].get("enabled") == "auto":
+            try:
+                import docker
+                client = docker.from_env()
+            except Exception:  # noqa: BLE001
+                client = None
+        cfg.resolve_gpu(client)
     templates.env.globals.update(title=title, SEATS=SEATS, cfg=cfg.data, registration=auth.registration,
                                  gpu_ok=cfg.gpu_ok)
 
@@ -124,7 +168,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
 
     def need_user(request: Request) -> dict:
         if request.state.user is None:
-            raise HTTPException(303, headers={"Location": f"/login?next={quote(str(request.url.path))}"})
+            raise HTTPException(303, headers={"Location": f"/login?next={quote(safe_next(str(request.url.path)))}"})
         return request.state.user
 
     def need_admin(request: Request) -> dict:
@@ -140,8 +184,9 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
         return bool(user) and strategy_row is not None and (strategy_row["owner_id"] == user["id"] or is_admin(user))
 
     def ip_of(request: Request) -> str:
-        return request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
-            request.client.host if request.client else "?")
+        """The client's address. Behind the configured proxy (web.trusted_proxies) uvicorn has already put
+        the forwarded address here; an X-Forwarded-For from anyone else is ignored."""
+        return request.client.host if request.client else "?"
 
     async def agent_gate(request: Request, call_next, path: str):
         """/mcp/ and /api/v1/: the API token is the credential and the cookie is ignored, so a browser
@@ -191,6 +236,9 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
             if origin and host and origin.split("://", 1)[-1] != host:
                 return PlainTextResponse("cross-site request refused", status_code=403)
         return await call_next(request)
+
+    # Added after the session middleware, so it is the outer one and its refusals get the headers too.
+    app.add_middleware(SecurityHeaders, hsts=bool(cfg["auth"].get("cookie_secure")))
 
     # Public pages ------------------------------------------------------------
     @app.get("/favicon.ico", include_in_schema=False)
@@ -433,8 +481,9 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
     # Accounts -----------------------------------------------------------------
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request, next: str = "/", invite: str = "", email: str = ""):
+        next = safe_next(next)
         if request.state.user:
-            return RedirectResponse(next if next.startswith("/") else "/", status_code=303)
+            return RedirectResponse(next, status_code=303)
         inv = db.invite(invite) if invite else None
         invite_ok = inv is not None and inv["used_by"] is None
         return render(request, "login.html", next=next, invite=invite if invite_ok else "", email=email,
@@ -442,6 +491,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
 
     @app.post("/login/code")
     def login_code(request: Request, email: str = Form(...), next: str = Form("/"), invite: str = Form("")):
+        next = safe_next(next)
         try:
             auth.request_code(email, ip_of(request), invite or None)
         except AuthError as exc:
@@ -453,6 +503,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                    invite: str = Form(""), name: str | None = Form(None)):
         """The code form has no name field: an existing account is signed in at once (also when the mail
         link auto-submits the form); a new address gets the name step, which posts the same code again."""
+        next = safe_next(next)
         try:
             user, token = auth.login(email, code, ip_of(request), request.headers.get("user-agent"),
                                      invite or None, name)
@@ -463,7 +514,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                               invite=invite, suggested=address.split("@")[0][:60])
             return back(f"/login?next={quote(next)}&invite={quote(invite)}&email={quote(email.strip().lower())}&sent=1",
                         err=str(exc))
-        resp = RedirectResponse(next if next.startswith("/") else "/", status_code=303)
+        resp = RedirectResponse(next, status_code=303)
         resp.set_cookie(COOKIE, token, max_age=auth.session_days * 86400, httponly=True,
                         secure=bool(cfg["auth"].get("cookie_secure")), samesite="lax", path="/")
         return resp

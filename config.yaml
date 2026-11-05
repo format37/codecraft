@@ -91,6 +91,8 @@ web:
   host: 0.0.0.0
   port: 8080
   title: CodeCraft
+  trusted_proxies: []               # reverse proxies whose X-Forwarded-For/-Proto count, e.g. [10.66.0.1]
+                                    # (or CW_TRUSTED_PROXIES=a,b); [] = nobody's, the peer address is the client
 
 hardening:                          # strategy containers (they already run on an internal network with limits)
   no_new_privileges: true

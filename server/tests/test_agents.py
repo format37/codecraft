@@ -400,7 +400,7 @@ def test_game_timeline_and_game_log(env):
     assert len(log) < 1200
     hits = env.client.get(f"/api/v1/game_log?game_id={gid}&grep=traceback", headers=h).text
     assert hits.splitlines()[1] == "3001: Traceback: boom"
-    many = env.client.get(f"/api/v1/game_log?game_id={gid}&grep=ok$", headers=h).text.splitlines()
+    many = env.client.get(f"/api/v1/game_log?game_id={gid}&grep=ok", headers=h).text.splitlines()
     assert "3000 of 3001 lines match" in many[0] and "the first 200 shown" in many[0] and len(many) == 201
     assert env.client.get(f"/api/v1/game_log?game_id={gid}&grep=[unclosed", headers=h).status_code == 200
     _, other_token = env.user("bob@example.com", "Bob")
@@ -415,6 +415,33 @@ def test_game_timeline_and_game_log(env):
     queued = env.db.queue_game("Finals", None, user["id"], [{"slot": 0, "strategy": "bot"}, {"slot": 1, "strategy": None}])
     r = env.client.get(f"/api/v1/game_timeline?game_id={queued}", headers=h)
     assert r.status_code == 400 and "wait" in r.json()["error"]
+
+
+def test_game_log_grep_is_plain_text_with_alternatives(env):
+    """Security review, finding 8: a regular expression from the caller ran over a log the caller wrote, and
+    (a|aa)+$ on a long line held the GIL for hours. grep is plain text now; | still separates alternatives."""
+    import time
+    from urllib.parse import quote
+
+    user, token = env.user()
+    env.built(user, "bot", 1)
+    gid = env.finished_game([{"slot": 0, "strategy": "bot", "label": "bot"},
+                             {"slot": 1, "strategy": "quickstart", "label": "quickstart"}])
+    gdir = env.ax.game_dir(gid)
+    gdir.mkdir(parents=True, exist_ok=True)
+    (gdir / "player-0.log").write_text("tick 1 ok\nx.y\nTraceback: boom\n" + "a" * 5000 + "!\nERROR (a|aa)+$\n")
+    h = bearer(token)
+
+    def grep(pattern):
+        return env.client.get(f"/api/v1/game_log?game_id={gid}&grep={quote(pattern)}", headers=h).text.splitlines()
+
+    started = time.monotonic()
+    hits = grep("(a|aa)+$")          # the alternatives "(a" and "aa)+$", taken literally
+    assert time.monotonic() - started < 2
+    assert hits[0].endswith(": 1 of 5 lines match '(a|aa)+$'") and hits[1:] == ["5: ERROR (a|aa)+$"]
+    assert grep(".")[1:] == ["2: x.y"]                                  # a dot is a dot
+    assert grep("error|TRACEBACK")[1:] == ["3: Traceback: boom", "5: ERROR (a|aa)+$"]
+    assert "0 of 5 lines match" in grep("t.ck")[0]
 
 
 # MCP ------------------------------------------------------------------------------------------------------

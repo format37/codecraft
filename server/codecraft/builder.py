@@ -30,16 +30,45 @@ class BuildError(RuntimeError):
     pass
 
 
-def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 600) -> str:
+# Every git command: a symbolic link in a repository is checked out as a plain file holding the link's
+# target, so nothing in a clone points at the server's files (_copy_source refuses links as well).
+GIT_OPTIONS = ("-c", "core.symlinks=false")
+
+
+def _git_env() -> dict[str, str]:
+    """git's whole environment: none of the server's CW_* secrets, no system or user configuration."""
+    return {"PATH": os.environ.get("PATH") or "/usr/local/bin:/usr/bin:/bin", "HOME": "/tmp", "LANG": "C",
+            "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_ALLOW_PROTOCOL": "https:http"}
+
+
+def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 600, env: dict[str, str] | None = None) -> str:
     log.debug("$ %s", " ".join(cmd))
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ALLOW_PROTOCOL": "https:http"}
     try:
-        proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
+        proc = subprocess.run(cmd, cwd=cwd, capture_output=True, encoding="utf-8", errors="replace",
+                              timeout=timeout, env=env)
     except subprocess.TimeoutExpired:
         raise BuildError(f"{' '.join(cmd)} timed out after {timeout}s")
     if proc.returncode != 0:
         raise BuildError(f"{' '.join(cmd)} failed:\n{proc.stdout}\n{proc.stderr}")
     return proc.stdout
+
+
+def _git(repo: Path | None, *args: str, timeout: int = 600) -> str:
+    """Run git (in `repo` unless None) with GIT_OPTIONS and the minimal environment."""
+    cmd = ["git", *GIT_OPTIONS] + (["-C", str(repo)] if repo is not None else []) + list(args)
+    return _run(cmd, timeout=timeout, env=_git_env())
+
+
+def _git_links(repo: Path) -> set[Path]:
+    """The paths the checked-out commit records as symbolic links (mode 120000). With core.symlinks=false
+    they are plain files on disk, so only the index still tells them apart."""
+    links = set()
+    for entry in _git(repo, "ls-files", "--stage", "-z").split("\0"):
+        meta, _, path = entry.partition("\t")
+        if path and meta.split(" ", 1)[0] == "120000":
+            links.add(repo / path)
+    return links
 
 
 def _hash_tree(root: Path) -> str:
@@ -64,7 +93,8 @@ def language_subdir(root: Path, language: str) -> Path:
     and `cpp-cuda` to `cpp/`. Any other root is used as it is."""
     if any(p.is_file() and not DOC_FILE_RE.match(p.name) for p in root.iterdir()):
         return root
-    dirs = {p.name.lower(): p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")}
+    dirs = {p.name.lower(): p for p in root.iterdir()
+            if p.is_dir() and not p.is_symlink() and not p.name.startswith(".")}
     for key in (language.lower(), language.lower().split("-")[0]):
         if key in dirs:
             return dirs[key]
@@ -100,6 +130,7 @@ class Builder:
         self.logs_dir = cfg.build_dir / "logs"
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.last_commit: str | None = None
+        self.last_links: set[Path] = set()      # links recorded in the last git checkout (_git_links)
 
     # Engine --------------------------------------------------------------
     def build_engine(self, force: bool = False) -> str:
@@ -146,7 +177,7 @@ class Builder:
         base_dockerfile, client_dir = self._resolve_language(strategy.language)
         shutil.copytree(client_dir, ctx / "client", ignore=shutil.ignore_patterns(".git", "__pycache__"))
         src_root = self._fetch_source(strategy)
-        self._copy_source(strategy, src_root, ctx / "src")
+        self._copy_source(strategy, src_root, ctx / "src", self.last_links)
         if strategy.overlay:
             overlay = strategy.dir / strategy.overlay
             if not overlay.is_dir():
@@ -193,51 +224,59 @@ class Builder:
 
     def _git_checkout(self, repo: Path, url: str, ref: str | None) -> None:
         try:
-            _run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", f"{ref or 'HEAD'}^{{commit}}"])
+            _git(repo, "rev-parse", "--verify", "--quiet", f"{ref or 'HEAD'}^{{commit}}")
         except BuildError:
-            _run(["git", "-C", str(repo), "fetch", "--quiet", "origin"])
+            _git(repo, "fetch", "--quiet", "origin")
         if ref:
-            _run(["git", "-C", str(repo), "checkout", "--quiet", "--force", ref])
+            _git(repo, "checkout", "--quiet", "--force", ref)
         else:
-            _run(["git", "-C", str(repo), "pull", "--quiet", "--ff-only"])
-        self.last_commit = _run(["git", "-C", str(repo), "rev-parse", "HEAD"]).strip()
+            _git(repo, "pull", "--quiet", "--ff-only")
+        self.last_commit = _git(repo, "rev-parse", "HEAD").strip()
 
     def _fetch_source(self, strategy: Strategy) -> Path:
         src = strategy.source
         self.last_commit = None
+        self.last_links = set()
         if src.dir:
-            root = strategy.source_root()
+            base = root = strategy.source_root()
             if not root.is_dir():
                 raise BuildError(f"{strategy.name}: source dir {root} not found")
         else:
             url = check_git_url(src.git)
             repo = self.cfg.build_dir / "repos" / strategy.name
             if (repo / ".git").is_dir():
-                origin = _run(["git", "-C", str(repo), "remote", "get-url", "origin"]).strip()
+                origin = _git(repo, "remote", "get-url", "origin").strip()
                 if origin != url:
                     shutil.rmtree(repo)
             if not (repo / ".git").is_dir():
                 repo.parent.mkdir(parents=True, exist_ok=True)
                 log.info("%s: cloning %s", strategy.name, url)
                 try:
-                    _run(["git", "clone", "--quiet", url, str(repo)])
+                    _git(None, "clone", "--quiet", url, str(repo))
                 except BuildError as exc:
                     raise git_failure(str(exc).replace(str(repo), "<clone>"), url, src.ref) from None
             try:
                 self._git_checkout(repo, url, src.ref)
+                self.last_links = _git_links(repo)
             except BuildError as exc:
                 raise git_failure(str(exc).replace(str(repo), "<clone>"), url, src.ref) from None
-            root = repo
+            base = root = repo
         if src.path:
             root = root / src.path
             if not root.is_dir():
                 raise BuildError(f"{strategy.name}: source.path {root} not found")
         if strategy.language:
             root = language_subdir(root, strategy.language)
+        # a link on the way to the source directory (a clone made before links were checked out as files)
+        if not root.resolve().is_relative_to(base.resolve()):
+            raise BuildError(f"{strategy.name}: the source directory is a symbolic link out of the repository; "
+                             f"links are not accepted, copy the files instead")
         return root
 
     @staticmethod
-    def _copy_source(strategy: Strategy, root: Path, dst: Path) -> None:
+    def _copy_source(strategy: Strategy, root: Path, dst: Path, links: set[Path] | frozenset = frozenset()) -> None:
+        """Copy the selected files. A symbolic link (on disk, or recorded in git: `links`) is an error: a
+        copy would carry whatever it points at, the server's secrets included, into the build."""
         include = strategy.source.include
         dst.mkdir(parents=True)
         for path in root.rglob("*"):
@@ -246,12 +285,15 @@ class Builder:
                 continue
             if include and not any(fnmatch.fnmatch(str(rel), pat) for pat in include):
                 continue
+            if path.is_symlink() or path in links:
+                raise BuildError(f"{strategy.name}: {rel} is a symbolic link; links are not accepted, "
+                                 f"copy the file instead")
             target = dst / rel
             if path.is_dir():
                 target.mkdir(parents=True, exist_ok=True)
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(path, target)
+                shutil.copy2(path, target, follow_symlinks=False)
         if not any(dst.iterdir()):
             raise BuildError(f"{strategy.name}: no source files selected from {root} (include={include})")
 

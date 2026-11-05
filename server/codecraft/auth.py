@@ -25,6 +25,9 @@ log = logging.getLogger("codecraft.auth")
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 CODE_DIGITS = 6
+# Codes one address may be sent: each takes a few guesses, so these also bound the guesses per day.
+CODES_PER_HOUR = 5
+CODES_PER_DAY = 20
 
 
 class AuthError(Exception):
@@ -171,7 +174,8 @@ class Auth:
         """Mail a code. Silent about whether the address has an account."""
         email = normalize_email(email)
         if not self.code_ip_limiter.allow(ip) or not self.code_email_limiter.allow(email) \
-                or self.db.codes_issued_recently(email, hours=1) >= 5:
+                or self.db.codes_issued_recently(email, hours=1) >= CODES_PER_HOUR \
+                or self.db.codes_issued_recently(email, hours=24) >= CODES_PER_DAY:
             raise AuthError("rate_limited", "too many codes requested, try again later")
         if self.registration == "closed" and self.db.user_by_email(email) is None and email not in self.admins:
             log.info("auth: no code for %s (registration closed)", email)

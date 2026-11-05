@@ -67,7 +67,12 @@ DEFAULTS: dict = {
         "smtp": {"host": None, "port": 587, "user": None, "password": None, "starttls": True},
     },
     "sentry": {"dsn": None, "environment": "production"},   # or env CW_SENTRY_DSN; unset = monitoring off
-    "web": {"host": "0.0.0.0", "port": 8080, "title": "CodeCraft"},
+    "web": {
+        "host": "0.0.0.0",
+        "port": 8080,
+        "title": "CodeCraft",
+        "trusted_proxies": [],      # peers whose X-Forwarded-For/-Proto count (or env CW_TRUSTED_PROXIES); [] = none
+    },
     "docker": {"prefix": "cw", "label": "codecraft.game"},
     "hardening": {"no_new_privileges": True, "cap_drop_all": True},
 }
@@ -132,6 +137,12 @@ class Config:
             data["sentry"]["dsn"] = env["CW_SENTRY_DSN"].strip()
         if env.get("CW_SENTRY_ENVIRONMENT", "").strip():
             data["sentry"]["environment"] = env["CW_SENTRY_ENVIRONMENT"].strip()
+        if env.get("CW_TRUSTED_PROXIES", "").strip():
+            data["web"]["trusted_proxies"] = env["CW_TRUSTED_PROXIES"]
+        proxies = data["web"].get("trusted_proxies") or []
+        if isinstance(proxies, str):
+            proxies = proxies.split(",")
+        data["web"]["trusted_proxies"] = [str(p).strip() for p in proxies if str(p).strip()]
         data["gpu"]["enabled"] = _tri(data["gpu"].get("enabled", "auto"))
         if str(data["auth"].get("cookie_secure", "auto")).lower() == "auto":
             data["auth"]["cookie_secure"] = str(data["auth"].get("base_url") or "").lower().startswith("https")
