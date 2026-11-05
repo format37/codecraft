@@ -1,0 +1,198 @@
+"""Build docker images: the engine and every strategy (official client + strategy source)."""
+from __future__ import annotations
+
+import fnmatch
+import hashlib
+import logging
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+import docker
+
+from .config import Config
+from .strategies import Strategy
+
+log = logging.getLogger("codewars.build")
+
+
+class BuildError(RuntimeError):
+    pass
+
+
+def _run(cmd: list[str], cwd: Path | None = None) -> None:
+    log.debug("$ %s", " ".join(cmd))
+    proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise BuildError(f"{' '.join(cmd)} failed:\n{proc.stdout}\n{proc.stderr}")
+
+
+def _hash_tree(root: Path) -> str:
+    h = hashlib.sha256()
+    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+        h.update(str(path.relative_to(root)).encode())
+        h.update(b"\0")
+        h.update(path.read_bytes())
+        h.update(b"\0")
+    return h.hexdigest()[:12]
+
+
+class Builder:
+    def __init__(self, cfg: Config, client: docker.DockerClient):
+        self.cfg = cfg
+        self.client = client
+        self.logs_dir = cfg.build_dir / "logs"
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Engine --------------------------------------------------------------
+    def build_engine(self, force: bool = False) -> str:
+        image = self.cfg["engine"]["image"]
+        if not force and self._image_exists(image):
+            return image
+        binary = self.cfg.root / self.cfg["engine"]["binary"]
+        if not binary.exists():
+            raise BuildError(f"engine binary not found: {binary}")
+        log.info("building engine image %s", image)
+        self._docker_build(binary.parent, image, "engine", nocache=force)
+        return image
+
+    # Strategies ----------------------------------------------------------
+    def image_name(self, strategy: Strategy, build_hash: str) -> str:
+        return f"codewars/strategy-{strategy.name}:{build_hash}"
+
+    def build_strategy(self, strategy: Strategy, force: bool = False, nocache: bool = False) -> tuple[str, str]:
+        """Returns (image, build_hash). Rebuilds only when the build context changed, unless forced."""
+        if strategy.is_builtin:
+            raise BuildError(f"{strategy.name} is a built-in bot, nothing to build")
+        with tempfile.TemporaryDirectory(prefix=f"cw-build-{strategy.name}-") as tmp:
+            ctx = Path(tmp)
+            self._assemble_context(strategy, ctx)
+            build_hash = _hash_tree(ctx)
+            image = self.image_name(strategy, build_hash)
+            if not force and self._image_exists(image):
+                log.info("%s: image %s is up to date", strategy.name, image)
+                return image, build_hash
+            log.info("%s: building %s", strategy.name, image)
+            self._docker_build(ctx, image, strategy.name, nocache=nocache)
+            return image, build_hash
+
+    def _assemble_context(self, strategy: Strategy, ctx: Path) -> None:
+        base_dockerfile, client_dir = self._resolve_language(strategy.language)
+        shutil.copytree(client_dir, ctx / "client", ignore=shutil.ignore_patterns(".git", "__pycache__"))
+        src_root = self._fetch_source(strategy)
+        self._copy_source(strategy, src_root, ctx / "src")
+        if strategy.overlay:
+            overlay = strategy.dir / strategy.overlay
+            if not overlay.is_dir():
+                raise BuildError(f"{strategy.name}: overlay directory {overlay} not found")
+            shutil.copytree(overlay, ctx / "src", dirs_exist_ok=True)
+        lines = base_dockerfile.read_text().splitlines()
+        lines = [("COPY client /project" if l.strip() == "COPY . /project" else l) for l in lines]
+        merge = strategy.source.merge
+        src_dir = "/project" if merge else "/src"
+        lines += ["", "# --- added by codewars ---", "RUN mkdir -p /output /src"]
+        # merge mode: the strategy's files land on top of the official client and compile.sh is run
+        # with "base", which skips its own copy step (that step replaces the whole client otherwise)
+        lines.append("COPY src /project/" if merge else "COPY src /src")
+        if strategy.prebuild:
+            prebuild = strategy.dir / strategy.prebuild
+            if not prebuild.is_file():
+                raise BuildError(f"{strategy.name}: prebuild script {prebuild} not found")
+            shutil.copy(prebuild, ctx / "cw-prebuild.sh")
+            lines += ["COPY cw-prebuild.sh /cw-prebuild.sh", f"RUN cd {src_dir} && bash /cw-prebuild.sh"]
+        lines += [
+            # compile.sh wipes /project when the source has several files, so keep run.sh outside it
+            f"RUN cp /project/run.sh /cw-run.sh && cd /project && bash compile.sh{' base' if merge else ''}",
+            'ENTRYPOINT ["bash", "/cw-run.sh"]',
+        ]
+        (ctx / "Dockerfile").write_text("\n".join(lines) + "\n")
+
+    def _resolve_language(self, language: str) -> tuple[Path, Path]:
+        """-> (base Dockerfile, official client directory)."""
+        template = self.cfg.templates_dir / language
+        clients = {p.name.lower(): p for p in self.cfg.clients_dir.iterdir() if p.is_dir()}
+        if (template / "Dockerfile").is_file():
+            client_name = language
+            marker = template / "client"
+            if marker.is_file():
+                client_name = marker.read_text().strip()
+            client_dir = clients.get(client_name.lower())
+            if client_dir is None:
+                raise BuildError(f"template {language}: client {client_name!r} not found in {self.cfg.clients_dir}")
+            return template / "Dockerfile", client_dir
+        client_dir = clients.get(language.lower())
+        if client_dir is None or not (client_dir / "Dockerfile").is_file():
+            raise BuildError(f"unknown language {language!r}: no templates/{language}/Dockerfile and no clients/{language}")
+        return client_dir / "Dockerfile", client_dir
+
+    def _fetch_source(self, strategy: Strategy) -> Path:
+        src = strategy.source
+        if src.dir:
+            root = (strategy.dir / src.dir).resolve()
+            if not root.is_dir():
+                raise BuildError(f"{strategy.name}: source dir {root} not found")
+        else:
+            repo = self.cfg.build_dir / "repos" / strategy.name
+            if not (repo / ".git").is_dir():
+                repo.parent.mkdir(parents=True, exist_ok=True)
+                log.info("%s: cloning %s", strategy.name, src.git)
+                _run(["git", "clone", "--quiet", src.git, str(repo)])
+            ref = src.ref or "HEAD"
+            try:
+                _run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+            except BuildError:
+                _run(["git", "-C", str(repo), "fetch", "--quiet", "origin"])
+            if src.ref:
+                _run(["git", "-C", str(repo), "checkout", "--quiet", "--force", src.ref])
+            else:
+                _run(["git", "-C", str(repo), "pull", "--quiet", "--ff-only"])
+            root = repo
+        if src.path:
+            root = root / src.path
+            if not root.is_dir():
+                raise BuildError(f"{strategy.name}: source.path {root} not found")
+        return root
+
+    @staticmethod
+    def _copy_source(strategy: Strategy, root: Path, dst: Path) -> None:
+        include = strategy.source.include
+        dst.mkdir(parents=True)
+        for path in root.rglob("*"):
+            rel = path.relative_to(root)
+            if ".git" in rel.parts or "__pycache__" in rel.parts:
+                continue
+            if include and not any(fnmatch.fnmatch(str(rel), pat) for pat in include):
+                continue
+            target = dst / rel
+            if path.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, target)
+        if not any(dst.iterdir()):
+            raise BuildError(f"{strategy.name}: no source files selected from {root} (include={include})")
+
+    # Docker --------------------------------------------------------------
+    def _image_exists(self, image: str) -> bool:
+        try:
+            self.client.images.get(image)
+            return True
+        except docker.errors.ImageNotFound:
+            return False
+
+    def _docker_build(self, ctx: Path, tag: str, log_name: str, nocache: bool = False) -> None:
+        log_file = self.logs_dir / f"{log_name}.log"
+        error = None
+        with log_file.open("w") as fh:
+            for chunk in self.client.api.build(path=str(ctx), tag=tag, rm=True, nocache=nocache, decode=True):
+                if "stream" in chunk:
+                    fh.write(chunk["stream"])
+                    text = chunk["stream"].rstrip()
+                    if text:
+                        log.info("  %s", text[:200])
+                elif "error" in chunk:
+                    error = chunk.get("errorDetail", {}).get("message") or chunk["error"]
+                    fh.write(f"ERROR: {error}\n")
+        if error:
+            raise BuildError(f"docker build of {tag} failed: {error}\n(see {log_file})")

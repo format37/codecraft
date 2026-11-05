@@ -1,0 +1,13 @@
+<tr>
+  <td><a href="/games/{{ g.id }}">#{{ g.id }}</a></td>
+  <td>{{ g.format }}</td>
+  <td>
+    {% for p in players.get(g.id, []) %}
+      {% if p.strategy %}<a href="/strategies/{{ p.strategy }}">{{ p.strategy }}</a>{% else %}<span class="muted">empty</span>{% endif %}
+      <span class="muted">{{ p.score }}{% if p.place == 1 and g.status == 'finished' %} 🏆{% endif %}{% if p.crashed %} 💥{% endif %}</span>{% if not loop.last %} · {% endif %}
+    {% endfor %}
+  </td>
+  <td>{% if g.status == 'finished' %}<span class="ok">finished</span>{% elif g.status == 'running' %}<span class="tag">running</span>{% else %}<span class="bad">{{ g.status }}</span>{% endif %}</td>
+  <td class="num">{% if g.duration_sec %}{{ '%.0f'|format(g.duration_sec) }}s{% endif %}</td>
+  <td class="muted">{{ g.created_at }}</td>
+</tr>

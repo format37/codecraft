@@ -1,0 +1,13 @@
+# Demo: a C++ strategy with a hand-written CUDA kernel (src/gpu.cu), compiled by nvcc at build time
+# and launched every tick. It computes, for all 80x80 cells, the distance to the nearest enemy and
+# how many enemies can hit the cell; units descend those fields. Not a strong bot - a working example.
+name: cuda-demo-cpp
+title: CUDA demo (C++ / nvcc kernel)
+language: cpp-cuda
+gpu: true
+enabled: false
+source:
+  dir: src
+  merge: true          # these files go on top of the official C++ client (model/, streams, ...)
+limits:
+  memory_mb: 2048      # a CUDA context costs a few hundred MB of host memory

@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}{{ s.name }}{% endblock %}
+{% block content %}
+<h1>{{ s.name }} <span class="muted" style="font-size:15px">{{ s.title }}</span></h1>
+<p>Rating <b>{{ s.rating|rating }}</b> · {{ s.games }} games · {{ s.wins }} wins · {{ s.points }} points · {{ s.crashes }} crashes
+  · {{ s.language or s.builtin }}{% if s.gpu %} <span class="tag">gpu</span>{% endif %}
+  {% if s.image %}· <span class="muted">{{ s.image }} built {{ s.built_at }}</span>{% endif %}</p>
+<table>
+<tr><th>Game</th><th>Format</th><th class="num">Seat</th><th class="num">Score</th><th class="num">Place</th><th class="num">Points</th><th class="num">Rating</th><th class="num">CPU s</th><th>Status</th><th>When (UTC)</th></tr>
+{% for g in games %}
+<tr>
+  <td><a href="/games/{{ g.id }}">#{{ g.id }}</a></td>
+  <td>{{ g.format }}</td>
+  <td class="num">{{ g.slot + 1 }}</td>
+  <td class="num">{{ g.score }}</td>
+  <td class="num">{{ g.place }}</td>
+  <td class="num">{{ g.points }}</td>
+  <td class="num">{% if g.rating_after is not none %}{{ g.rating_before|rating }} → {{ g.rating_after|rating }}{% else %}-{% endif %}</td>
+  <td class="num">{% if g.cpu_sec is not none %}{{ '%.1f'|format(g.cpu_sec) }}{% else %}-{% endif %}</td>
+  <td>{% if g.crashed %}<span class="bad">crashed</span>{% elif g.status != 'finished' %}<span class="bad">{{ g.status }}</span>{% else %}<span class="ok">ok</span>{% endif %}</td>
+  <td class="muted">{{ g.created_at }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

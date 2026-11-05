@@ -1,0 +1,51 @@
+# CodeWars - self-hosted CodeCraft 2020 (Russian AI Cup 2020) sandbox server.
+# Every value here has a default (see server/codewars/config.py); delete a key to fall back to it.
+
+engine:
+  image: codewars/engine:1.3.0
+  binary: engine/aicup2020          # official local runner, used headless (--batch-mode)
+  memory_mb: 512
+  cpus: 1.0
+  startup_timeout_sec: 30           # how long to wait for the engine to open its TCP ports
+
+# Limits for every strategy container ("time configuration").
+# Official 2020 values: 1 s real time per tick, 40 s CPU time per game, 256 MB.
+limits:
+  tick_timeout_sec: 1.0             # engine-enforced: reply budget per tick (real seconds); null = unlimited
+  cpu_time_sec: 40                  # RLIMIT_CPU on the strategy process (CPU seconds per game); null = unlimited
+  memory_mb: 1024                   # docker memory cap; counts the whole container (a -Xmx250m JVM peaks at ~560 MB)
+  cpus: 1.0                         # CPU cores per strategy container
+  pids: 256
+  accept_timeout_sec: 60            # how long the engine waits for a strategy to connect (JVM start-up is slow)
+  game_wall_timeout_sec: null       # hard wall-clock cap per game; null = 1000 ticks * tick_timeout + slack
+
+# Random game format choice in the sandbox loop (weights).
+formats:
+  Round1: 1                         # 4 players, no fog of war, all bases given
+  Round2: 1                         # 4 players, fog of war, builders only
+  Finals: 1                         # 1v1, fog of war
+
+# Tournament points per place (ties share the sum, rounded down), as on cups.online.
+points:
+  Round1: [8, 4, 2, 1]
+  Round2: [8, 4, 2, 1]
+  Finals: [2, 0]
+
+matchmaking:
+  rating_sigma: 200                 # opponents are drawn with weight exp(-|rating diff| / sigma)
+  include_builtin: true             # the built-in QuickStart bot takes part as a regular (rated) player
+  fill_with_builtin: true           # not enough strategies for a seat? use QuickStart (else an Empty seat)
+
+rating:                             # sandbox-style multiplayer Elo
+  initial: 1200
+  k: 32
+  k_min: 16                         # K decays towards k_min as a strategy accumulates games ("inertia")
+  k_half_life_games: 50
+
+loop:
+  parallel_games: 1                 # a 4-player game uses ~5 cores at limits.cpus = 1
+  pause_sec: 5
+
+web:
+  host: 0.0.0.0
+  port: 8080

@@ -1,0 +1,13 @@
+# Demo: the same CUDA C kernel as cuda-demo-cpp, but from Python: `cupy.RawKernel` compiles the
+# kernel source at start-up (NVRTC) and launches it every tick. Single file, drop-in replacement of
+# the official Python client's my_strategy.py.
+name: cuda-demo-py
+title: CUDA demo (Python / CuPy RawKernel)
+language: python-cuda
+gpu: true
+enabled: false
+source:
+  dir: src
+  include: [my_strategy.py]
+limits:
+  memory_mb: 2048      # CuPy + a CUDA context cost a few hundred MB of host memory

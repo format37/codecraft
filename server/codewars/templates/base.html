@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}CodeWars{% endblock %} · CodeWars sandbox</title>
+<style>
+  :root { --bg:#f6f7f9; --fg:#1d2330; --muted:#6b7280; --line:#e2e5ea; --accent:#2457d6; --card:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14171c; --fg:#e6e8ec; --muted:#9aa3b2; --line:#2b313b; --accent:#7ea2ff; --card:#1c2027; } }
+  body { margin:0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card); display:flex; gap:22px; align-items:baseline; }
+  header a { color:var(--fg); text-decoration:none; font-weight:600; }
+  header a.brand { color:var(--accent); font-size:18px; }
+  main { max-width:1100px; margin:0 auto; padding:20px; }
+  h1, h2 { font-weight:650; margin:18px 0 10px; }
+  table { border-collapse:collapse; width:100%; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  th, td { padding:7px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--muted); font-weight:600; font-size:13px; }
+  tr:last-child td { border-bottom:none; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  a { color:var(--accent); }
+  .muted { color:var(--muted); }
+  .tag { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; background:var(--line); }
+  .ok { color:#1f9d55; } .bad { color:#d64545; }
+  pre { background:var(--card); border:1px solid var(--line); padding:10px; overflow:auto; border-radius:6px; }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:24px; } @media (max-width: 900px) { .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="/">CodeWars</a>
+  <a href="/">Leaderboard</a>
+  <a href="/games">Games</a>
+  <span class="muted">CodeCraft 2020 sandbox</span>
+</header>
+<main>{% block content %}{% endblock %}</main>
+</body>
+</html>

@@ -1,0 +1,37 @@
+# CodeWars sandbox server. All services share one image and talk to the host docker daemon
+# through its socket; game containers are created by the server, not by compose.
+#
+#   docker compose build
+#   docker compose run --rm cli build          # engine + strategy images
+#   docker compose up -d web loop              # UI on :8080, games in a loop
+#   docker compose run --rm cli play --format Round2 --players format37 thermit dragoonxen quickstart
+
+x-server: &server
+  build: ./server
+  image: codewars/server
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - .:/app
+  environment:
+    CW_ROOT: /app
+  user: "${CW_UID:-1000}:${CW_GID:-1000}"
+  group_add:
+    - "${DOCKER_GID:-999}"
+
+services:
+  web:
+    <<: *server
+    command: ["serve"]
+    ports:
+      - "${CW_WEB_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  loop:
+    <<: *server
+    command: ["loop"]
+    restart: unless-stopped
+    stop_grace_period: 30m        # let running games finish (SIGTERM stops new ones)
+
+  cli:
+    <<: *server
+    profiles: ["cli"]

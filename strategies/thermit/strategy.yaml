@@ -1,0 +1,7 @@
+name: thermit
+title: ThermIt (Java, 18th in the 2020 finals)
+language: java
+source:
+  git: https://github.com/ThermIt/CodeCraft-2020
+  ref: e90f138edb750651b40df261654ca432ef3b0262
+overlay: overlay

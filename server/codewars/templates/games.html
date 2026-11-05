@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Games{% endblock %}
+{% block content %}
+<h1>Games</h1>
+<table>
+<tr><th>Game</th><th>Format</th><th>Players · score</th><th>Status</th><th class="num">Time</th><th>Created (UTC)</th></tr>
+{% for g in games %}{% include "_game_row.html" %}{% endfor %}
+</table>
+<p>{% if page > 0 %}<a href="/games?page={{ page - 1 }}">← newer</a>{% endif %} {% if games|length == 50 %}<a href="/games?page={{ page + 1 }}">older →</a>{% endif %}</p>
+{% endblock %}

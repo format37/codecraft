@@ -1,0 +1,11 @@
+[package]
+name = "aicup2020"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+model = { path = "model", package = "aicup2020-model" }
+trans = "0.4.0-alpha.3"
+rand = "0.7.3"
+chrono = "0.4.19"
+itertools = "0.9.0"

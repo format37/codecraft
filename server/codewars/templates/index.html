@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% block title %}Leaderboard{% endblock %}
+{% block content %}
+<h1>Leaderboard <span class="muted" style="font-size:14px">{{ stats.finished or 0 }} games played{% if stats.running %}, {{ stats.running }} running{% endif %}</span></h1>
+<table>
+<tr><th>#</th><th>Strategy</th><th>Lang</th><th class="num">Rating</th><th class="num">Games</th><th class="num">Wins</th><th class="num">Avg place</th><th class="num">Points</th><th class="num">Crashes</th><th>Image</th></tr>
+{% for s in leaderboard %}
+<tr>
+  <td class="num">{{ loop.index }}</td>
+  <td><a href="/strategies/{{ s.name }}">{{ s.name }}</a> <span class="muted">{{ s.title }}</span></td>
+  <td>{{ s.language or s.builtin }}{% if s.gpu %} <span class="tag">gpu</span>{% endif %}</td>
+  <td class="num"><b>{{ s.rating|rating }}</b></td>
+  <td class="num">{{ s.games }}</td>
+  <td class="num">{{ s.wins }}</td>
+  <td class="num">{% if s.games %}{{ '%.2f'|format(s.place_sum / s.games) }}{% else %}-{% endif %}</td>
+  <td class="num">{{ s.points }}</td>
+  <td class="num">{% if s.crashes %}<span class="bad">{{ s.crashes }}</span>{% else %}0{% endif %}</td>
+  <td class="muted">{% if s.image %}{{ s.image.split(':')[-1] }}{% elif s.builtin %}built-in{% else %}not built{% endif %}</td>
+</tr>
+{% endfor %}
+</table>
+<h2>Recent games</h2>
+<table>
+<tr><th>Game</th><th>Format</th><th>Players · score</th><th>Status</th><th class="num">Time</th><th>Created (UTC)</th></tr>
+{% for g in recent %}{% include "_game_row.html" %}{% endfor %}
+</table>
+<p class="muted">Limits: {{ cfg.limits.tick_timeout_sec }} s per tick · {{ cfg.limits.cpu_time_sec or '∞' }} s CPU per game · {{ cfg.limits.memory_mb }} MB · {{ cfg.limits.cpus }} CPU</p>
+{% endblock %}
