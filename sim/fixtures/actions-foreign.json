@@ -1,0 +1,124 @@
+{
+ "name": "actions-foreign",
+ "about": "View 0 is answered with orders for the seat's own unit and for the opponent's unit, view 1 with an order for an id that does not exist: the bad entries are dropped one by one (the own order of the same Action is kept), each logs an ERROR line, the seat is not crashed.",
+ "questions": [2],
+ "engine": "aicup2020 1.3.0",
+ "seed": 1,
+ "timeout": 1.0,
+ "accept_timeout": 5.0,
+ "players": [
+  {
+   "puppet": {
+    "script": {
+     "0": {
+      "3": {"move_action": {"target": {"x": 2, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null},
+      "4": {"move_action": {"target": {"x": 17, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     "1": {"999": {"move_action": {"target": {"x": 5, "y": 5}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}}
+    }
+   }
+  },
+  "Empty"
+ ],
+ "state": {
+  "next_id": 5,
+  "map_size": 20,
+  "fog_of_war": false,
+  "entity_properties": "default",
+  "max_tick_count": 4,
+  "max_pathfind_nodes": 1000,
+  "current_tick": 0,
+  "passive_income": 0,
+  "players": {"by_id": {"1": {"id": 1, "index": 0, "score": 0, "resource": 0}, "2": {"id": 2, "index": 1, "score": 0, "resource": 0}}},
+  "entities": {
+   "by_id": {
+    "3": {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+    "4": {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+   }
+  },
+  "entity_actions": {"by_id": {}}
+ },
+ "expected": {
+  "returncode": 0,
+  "results": {"players": [{"crashed": false, "comment": null}, {"crashed": false, "comment": null}], "results": [0, 0], "seed": 1},
+  "log": ["ERROR - Got action for entity not belonging to the player", "ERROR - Got action for non-existent entity"],
+  "puppets": {"0": {"view_ticks": [0, 1, 2, 3], "finished": true}},
+  "ticks": [
+   {
+    "tick": 0,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [],
+    "events": []
+   },
+   {
+    "tick": 1,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 3}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {"move_action": {"target": {"x": 2, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 2,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 4}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {"move_action": {"target": {"x": 2, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 3,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 5}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {"move_action": {"target": {"x": 2, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 4,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 6}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {"move_action": {"target": {"x": 2, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": []
+   }
+  ]
+ }
+}

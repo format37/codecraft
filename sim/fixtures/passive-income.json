@@ -1,0 +1,77 @@
+{
+ "name": "passive-income",
+ "about": "passive_income 3 (0 in every preset): every player's resource grows by 3 per tick, the score does not.",
+ "questions": [10],
+ "engine": "aicup2020 1.3.0",
+ "seed": 1,
+ "players": ["Empty", "Empty"],
+ "state": {
+  "next_id": 5,
+  "map_size": 20,
+  "fog_of_war": false,
+  "entity_properties": "default",
+  "max_tick_count": 3,
+  "max_pathfind_nodes": 1000,
+  "current_tick": 0,
+  "passive_income": 3,
+  "players": {"by_id": {"1": {"id": 1, "index": 0, "score": 0, "resource": 0}, "2": {"id": 2, "index": 1, "score": 0, "resource": 0}}},
+  "entities": {
+   "by_id": {
+    "3": {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+    "4": {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+   }
+  },
+  "entity_actions": {"by_id": {}}
+ },
+ "expected": {
+  "returncode": 0,
+  "results": {"players": [{"crashed": false, "comment": null}, {"crashed": false, "comment": null}], "results": [0, 0], "seed": 1},
+  "log": [],
+  "ticks": [
+   {
+    "tick": 0,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [],
+    "events": []
+   },
+   {
+    "tick": 1,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 3}, {"id": 2, "index": 1, "score": 0, "resource": 3}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [],
+    "events": []
+   },
+   {
+    "tick": 2,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 6}, {"id": 2, "index": 1, "score": 0, "resource": 6}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [],
+    "events": []
+   },
+   {
+    "tick": 3,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 9}, {"id": 2, "index": 1, "score": 0, "resource": 9}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [],
+    "events": []
+   }
+  ]
+ }
+}

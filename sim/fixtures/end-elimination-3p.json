@@ -1,0 +1,116 @@
+{
+ "name": "end-elimination-3p",
+ "about": "Three players: player 1 kills player 3's last entity at tick 2 (the game goes on) and player 2's at tick 4 (the game ends); scores start at 0, 500, 300. No survivor bonus with three players: player 1 ends with its two destroy scores only.",
+ "questions": [12],
+ "engine": "aicup2020 1.3.0",
+ "seed": 1,
+ "players": ["Empty", "Empty", "Empty"],
+ "state": {
+  "next_id": 8,
+  "map_size": 20,
+  "fog_of_war": false,
+  "entity_properties": "default",
+  "max_tick_count": 8,
+  "max_pathfind_nodes": 1000,
+  "current_tick": 0,
+  "passive_income": 0,
+  "players": {"by_id": {"1": {"id": 1, "index": 0, "score": 0, "resource": 0}, "2": {"id": 2, "index": 1, "score": 500, "resource": 0}, "3": {"id": 3, "index": 2, "score": 300, "resource": 0}}},
+  "entities": {
+   "by_id": {
+    "4": {"id": 4, "player_id": 3, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 5}, "health": 10, "active": true},
+    "5": {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 12}, "health": 20, "active": true},
+    "6": {"id": 6, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+    "7": {"id": 7, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 12}, "health": 50, "active": true}
+   }
+  },
+  "entity_actions": {
+   "by_id": {
+    "6": {"entity_id": 6, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": null}, "repair_action": null}},
+    "7": {"entity_id": 7, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+   }
+  }
+ },
+ "expected": {
+  "returncode": 0,
+  "results": {"players": [{"crashed": false, "comment": null}, {"crashed": false, "comment": null}, {"crashed": false, "comment": null}], "results": [200, 500, 300], "seed": 1},
+  "log": [],
+  "ticks": [
+   {
+    "tick": 0,
+    "next_id": 8,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 500, "resource": 0}, {"id": 3, "index": 2, "score": 300, "resource": 0}],
+    "entities": [
+     {"id": 4, "player_id": 3, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 5}, "health": 10, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 12}, "health": 20, "active": true},
+     {"id": 6, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+     {"id": 7, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 12}, "health": 50, "active": true}
+    ],
+    "entity_actions": [
+     {"entity_id": 6, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": null}, "repair_action": null}},
+     {"entity_id": 7, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+    ],
+    "events": []
+   },
+   {
+    "tick": 1,
+    "next_id": 8,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 500, "resource": 0}, {"id": 3, "index": 2, "score": 300, "resource": 0}],
+    "entities": [
+     {"id": 4, "player_id": 3, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 5}, "health": 5, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 12}, "health": 15, "active": true},
+     {"id": 6, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+     {"id": 7, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 12}, "health": 50, "active": true}
+    ],
+    "entity_actions": [
+     {"entity_id": 6, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": null}, "repair_action": null}},
+     {"entity_id": 7, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+    ],
+    "events": [[0, 7, 5], [0, 6, 4]]
+   },
+   {
+    "tick": 2,
+    "next_id": 8,
+    "players": [{"id": 1, "index": 0, "score": 100, "resource": 0}, {"id": 2, "index": 1, "score": 500, "resource": 0}, {"id": 3, "index": 2, "score": 300, "resource": 0}],
+    "entities": [
+     {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 12}, "health": 10, "active": true},
+     {"id": 6, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+     {"id": 7, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 12}, "health": 50, "active": true}
+    ],
+    "entity_actions": [
+     {"entity_id": 6, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": null}, "repair_action": null}},
+     {"entity_id": 7, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+    ],
+    "events": [[0, 7, 5], [0, 6, 4]]
+   },
+   {
+    "tick": 3,
+    "next_id": 8,
+    "players": [{"id": 1, "index": 0, "score": 100, "resource": 0}, {"id": 2, "index": 1, "score": 500, "resource": 0}, {"id": 3, "index": 2, "score": 300, "resource": 0}],
+    "entities": [
+     {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 12}, "health": 5, "active": true},
+     {"id": 6, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+     {"id": 7, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 12}, "health": 50, "active": true}
+    ],
+    "entity_actions": [
+     {"entity_id": 6, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": null}, "repair_action": null}},
+     {"entity_id": 7, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+    ],
+    "events": [[0, 7, 5]]
+   },
+   {
+    "tick": 4,
+    "next_id": 8,
+    "players": [{"id": 1, "index": 0, "score": 200, "resource": 0}, {"id": 2, "index": 1, "score": 500, "resource": 0}, {"id": 3, "index": 2, "score": 300, "resource": 0}],
+    "entities": [
+     {"id": 6, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+     {"id": 7, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 12}, "health": 50, "active": true}
+    ],
+    "entity_actions": [
+     {"entity_id": 6, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": null}, "repair_action": null}},
+     {"entity_id": 7, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+    ],
+    "events": [[0, 7, 5]]
+   }
+  ]
+ }
+}

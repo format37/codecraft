@@ -1,0 +1,36 @@
+{
+ "name": "end-over-at-start",
+ "about": "Only player 1 owns entities at the start: the official engine writes no results.json and exits 0.",
+ "questions": [12],
+ "engine": "aicup2020 1.3.0",
+ "seed": 1,
+ "players": ["Empty", "Empty"],
+ "state": {
+  "next_id": 4,
+  "map_size": 20,
+  "fog_of_war": false,
+  "entity_properties": "default",
+  "max_tick_count": 4,
+  "max_pathfind_nodes": 1000,
+  "current_tick": 0,
+  "passive_income": 0,
+  "players": {"by_id": {"1": {"id": 1, "index": 0, "score": 0, "resource": 0}, "2": {"id": 2, "index": 1, "score": 0, "resource": 0}}},
+  "entities": {"by_id": {"3": {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true}}},
+  "entity_actions": {"by_id": {}}
+ },
+ "expected": {
+  "returncode": 0,
+  "results": null,
+  "log": [],
+  "ticks": [
+   {
+    "tick": 0,
+    "next_id": 4,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [{"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true}],
+    "entity_actions": [],
+    "events": []
+   }
+  ]
+ }
+}

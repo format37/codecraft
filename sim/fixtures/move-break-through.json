@@ -1,0 +1,1183 @@
+{
+ "name": "move-break-through",
+ "about": "A wall across the map at x = 10: player 2's Walls in rows 0..9, resources in rows 10..19. With break_through, a melee unit (row 4) walks up to the wall, destroys the Wall in its way (10 ticks, +10 destroy score) and walks through; a builder (row 14) mines its way into the resources. Without break_through (row 7) the unit waits at the reachable cell closest to its target, and takes the breach once it is free of units (pathfinding sees units where they stand at the start of the tick).",
+ "questions": [5],
+ "engine": "aicup2020 1.3.0",
+ "seed": 1,
+ "players": ["Empty", "Empty"],
+ "state": {
+  "next_id": 26,
+  "map_size": 20,
+  "fog_of_war": false,
+  "entity_properties": "default",
+  "max_tick_count": 24,
+  "max_pathfind_nodes": 1000,
+  "current_tick": 0,
+  "passive_income": 0,
+  "players": {"by_id": {"1": {"id": 1, "index": 0, "score": 0, "resource": 0}, "2": {"id": 2, "index": 1, "score": 0, "resource": 0}}},
+  "entities": {
+   "by_id": {
+    "3": {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+    "4": {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+    "5": {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+    "6": {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+    "7": {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 50, "active": true},
+    "8": {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+    "9": {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+    "10": {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+    "11": {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+    "12": {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+    "13": {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+    "14": {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+    "15": {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+    "16": {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+    "17": {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 30, "active": true},
+    "18": {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+    "19": {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+    "20": {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+    "21": {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+    "22": {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+    "23": {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 4}, "health": 50, "active": true},
+    "24": {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 7}, "health": 50, "active": true},
+    "25": {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 14}, "health": 10, "active": true}
+   }
+  },
+  "entity_actions": {
+   "by_id": {
+    "23": {
+     "entity_id": 23,
+     "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+    },
+    "24": {
+     "entity_id": 24,
+     "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+    },
+    "25": {
+     "entity_id": 25,
+     "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+    }
+   }
+  }
+ },
+ "expected": {
+  "returncode": 0,
+  "results": {"players": [{"crashed": false, "comment": null}, {"crashed": false, "comment": null}], "results": [30, 0], "seed": 1},
+  "log": [],
+  "ticks": [
+   {
+    "tick": 0,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 30, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 1,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 30, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 6, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 6, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 2,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 30, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 7, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 7, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 7, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 3,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 30, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 8, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 8, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 8, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 4,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 30, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 5,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 1, "resource": 1}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 45, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 29, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 23, 7], [0, 25, 17]]
+   },
+   {
+    "tick": 6,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 2, "resource": 2}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 40, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 28, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17], [0, 23, 7]]
+   },
+   {
+    "tick": 7,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 3, "resource": 3}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 35, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 27, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17], [0, 23, 7]]
+   },
+   {
+    "tick": 8,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 4, "resource": 4}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 30, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 26, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17], [0, 23, 7]]
+   },
+   {
+    "tick": 9,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 5, "resource": 5}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 25, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 25, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17], [0, 23, 7]]
+   },
+   {
+    "tick": 10,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 6, "resource": 6}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 20, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 24, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17], [0, 23, 7]]
+   },
+   {
+    "tick": 11,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 7, "resource": 7}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 15, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 23, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 23, 7], [0, 25, 17]]
+   },
+   {
+    "tick": 12,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 8, "resource": 8}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 10, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 22, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17], [0, 23, 7]]
+   },
+   {
+    "tick": 13,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 9, "resource": 9}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 4}, "health": 5, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 21, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 23, 7], [0, 25, 17]]
+   },
+   {
+    "tick": 14,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 20, "resource": 10}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 20, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17], [0, 23, 7]]
+   },
+   {
+    "tick": 15,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 21, "resource": 11}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 19, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 10, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   },
+   {
+    "tick": 16,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 22, "resource": 12}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 18, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 11, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   },
+   {
+    "tick": 17,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 23, "resource": 13}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 17, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 12, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 7}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   },
+   {
+    "tick": 18,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 24, "resource": 14}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 16, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 13, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 6}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   },
+   {
+    "tick": 19,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 25, "resource": 15}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 15, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 14, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   },
+   {
+    "tick": 20,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 26, "resource": 16}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 14, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 15, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 4}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   },
+   {
+    "tick": 21,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 27, "resource": 17}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 13, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 15, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 10, "y": 4}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   },
+   {
+    "tick": 22,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 28, "resource": 18}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 12, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 15, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 11, "y": 4}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   },
+   {
+    "tick": 23,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 29, "resource": 19}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 11, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 15, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 12, "y": 4}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   },
+   {
+    "tick": 24,
+    "next_id": 26,
+    "players": [{"id": 1, "index": 0, "score": 30, "resource": 20}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 0}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 2}, "health": 50, "active": true},
+     {"id": 6, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 3}, "health": 50, "active": true},
+     {"id": 8, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 5}, "health": 50, "active": true},
+     {"id": 9, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 6}, "health": 50, "active": true},
+     {"id": 10, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 7}, "health": 50, "active": true},
+     {"id": 11, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 8}, "health": 50, "active": true},
+     {"id": 12, "player_id": 2, "entity_type": "Wall", "position": {"x": 10, "y": 9}, "health": 50, "active": true},
+     {"id": 13, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 10}, "health": 30, "active": true},
+     {"id": 14, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 11}, "health": 30, "active": true},
+     {"id": 15, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 12}, "health": 30, "active": true},
+     {"id": 16, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 13}, "health": 30, "active": true},
+     {"id": 17, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 14}, "health": 10, "active": true},
+     {"id": 18, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 15}, "health": 30, "active": true},
+     {"id": 19, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 16}, "health": 30, "active": true},
+     {"id": 20, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 17}, "health": 30, "active": true},
+     {"id": 21, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 18}, "health": 30, "active": true},
+     {"id": 22, "player_id": null, "entity_type": "Resource", "position": {"x": 10, "y": 19}, "health": 30, "active": true},
+     {"id": 23, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 15, "y": 4}, "health": 50, "active": true},
+     {"id": 24, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 13, "y": 4}, "health": 50, "active": true},
+     {"id": 25, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 9, "y": 14}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 23,
+      "action": {"move_action": {"target": {"x": 15, "y": 4}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 24,
+      "action": {"move_action": {"target": {"x": 15, "y": 7}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {
+      "entity_id": 25,
+      "action": {"move_action": {"target": {"x": 15, "y": 14}, "find_closest_position": true, "break_through": true}, "build_action": null, "attack_action": null, "repair_action": null}
+     }
+    ],
+    "events": [[0, 25, 17]]
+   }
+  ]
+ }
+}
