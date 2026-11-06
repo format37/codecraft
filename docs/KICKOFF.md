@@ -165,9 +165,13 @@ The node moved to an LTS release the same day. Its first reboot showed that the 
 WireGuard address, needs `net.ipv4.ip_nonlocal_bind=1` on the host: the interface comes up after Docker, and
 Docker cannot publish a port on an address that does not exist yet, so the web service had started without it.
 
-Still open: quotas per person rather than per account; gVisor for player
-and compile containers (`docker.runtime: runsc` is ready, off until runsc is installed on the node and every
-language passes under it); pruning old strategy and base images.
+gVisor runs every strategy and every compile on the node since the same day (`CW_DOCKER_RUNTIME=runsc`, commit
+0cc931d): the starter in all 15 languages compiles offline under it and plays the seed-7 game to the runc
+scores, the probe reaches nothing, and the price is CPU time (about +10-25% for most starters, x3.5 for D's).
+Players now dial the engine at its address on the seat network, since gVisor's network stack does not reach
+Docker's embedded DNS.
+
+Still open: quotas per person rather than per account; pruning old strategy and base images.
 
 ## Phase 4 — other game mechanics
 
