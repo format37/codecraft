@@ -110,7 +110,8 @@ docker:
   seat_subnets: 10.200.0.0/16       # every seat gets its own internal network (a /24 of this) shared only with the
                                     # engine; pick a range nothing on the host routes
   runtime: null                     # player and compile containers: e.g. runsc (gVisor, registered in daemon.json with
-                                    # --overlay2=none); null = the daemon's default. A GPU seat always uses the default
+                                    # --overlay2=none), or env CW_DOCKER_RUNTIME; null = the daemon's default. A GPU
+                                    # seat always uses the default. gVisor's own threads count in limits.pids (~30)
 
 hardening:                          # strategy containers (they already run on an internal network with limits)
   no_new_privileges: true

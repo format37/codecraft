@@ -715,7 +715,10 @@ def whoami(ax: Agents, user: dict) -> dict:
                             "filesystem is read-only except /tmp (256 MB, counted in memory_mb), the log keeps "
                             "its last 10 MB, and the only network is the engine's port of your own seat. A "
                             "build compiles without network: what a language needs beyond its official client "
-                            "is not there",
+                            "is not there"
+                            + (". Strategies and builds run under gVisor, a kernel in user space between them and "
+                               "the host: ordinary programs do not notice it, but uname and /proc describe gVisor "
+                               "rather than the host" if cfg.get("docker", "runtime") == "runsc" else ""),
             "ticks": MAX_TICKS,
             "map_size": 80,
             "sandbox_games_per_build": int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0),

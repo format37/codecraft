@@ -89,9 +89,10 @@ def test_a_player_is_read_only_on_its_seat_network_with_a_bounded_log(tmp_path):
     seat = tcp_seat(2, "10.200.210.2")
     seat.network = MagicMock()
     seat.network.name = "cw-52-s2"
-    gr._start_player("cw-52", seat, "cw-52-engine")
+    gr._start_player("cw-52", seat)
     kw = client.containers.create.call_args.kwargs
-    assert kw["network"] == "cw-52-s2" and kw["command"] == ["cw-52-engine", "31003", "tok2"]
+    # the engine's address, not its name: no DNS in a game (gVisor's network stack bypasses Docker's resolver)
+    assert kw["network"] == "cw-52-s2" and kw["command"] == ["10.200.210.2", "31003", "tok2"]
     assert kw["read_only"] is True and kw["tmpfs"] == {"/tmp": "rw,size=256m,mode=1777"}
     assert kw["log_config"]["Config"] == {"max-size": "10m", "max-file": "1"}
     assert {k: kw["environment"][k] for k in ("HOME", "TMPDIR", "DOTNET_CLI_HOME", "NUMBA_CACHE_DIR")} == \
@@ -106,9 +107,16 @@ def test_docker_runtime_applies_to_players_but_not_to_a_gpu_seat(tmp_path):
     gr.cfg.data["docker"]["runtime"] = "runsc"
     seat = tcp_seat(0, "10.200.208.2")
     seat.network = MagicMock()
-    gr._start_player("cw-52", seat, "cw-52-engine")
+    gr._start_player("cw-52", seat)
     assert client.containers.create.call_args.kwargs["runtime"] == "runsc"
     seat.spec.strategy.gpu = True
-    gr._start_player("cw-52", seat, "cw-52-engine")
+    gr._start_player("cw-52", seat)
     kw = client.containers.create.call_args.kwargs
     assert "runtime" not in kw and kw["device_requests"]
+
+
+def test_cw_docker_runtime_sets_the_runtime(tmp_path, monkeypatch):
+    monkeypatch.setenv("CW_DOCKER_RUNTIME", " runsc ")
+    assert Config.load(tmp_path).get("docker", "runtime") == "runsc"
+    monkeypatch.setenv("CW_DOCKER_RUNTIME", "")
+    assert Config.load(tmp_path).get("docker", "runtime") is None

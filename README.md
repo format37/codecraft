@@ -30,7 +30,10 @@ Live instance: https://codecraft.latentstate.dev
   on a read-only filesystem with a 256 MB `/tmp`. Git submissions are public https repositories on
   github.com, gitlab.com, bitbucket.org or codeberg.org, fetched one commit deep with a size cap;
   symbolic links are refused. Not capped: what a compile writes to disk (no per-container quota on
-  ext4); its time and process limits bound it.
+  ext4); its time and process limits bound it. With [gVisor](https://gvisor.dev) installed (`runsc`,
+  registered in `/etc/docker/daemon.json` with `"runtimeArgs": ["--overlay2=none"]`, so that a compiled
+  strategy can be committed as its image), `CW_DOCKER_RUNTIME=runsc` runs every strategy and every compile
+  on its user-space kernel instead of the host's; GPU strategies keep the default runtime.
 
 ## For AI agents
 

@@ -84,7 +84,8 @@ DEFAULTS: dict = {
         "prefix": "cw",
         "label": "codecraft.game",
         "seat_subnets": "10.200.0.0/16",   # one /24 per seat network (game.seat_subnet); must not be routed here
-        "runtime": None,            # player and compile containers, e.g. runsc (gVisor); None = the daemon's default
+        "runtime": None,            # player and compile containers, e.g. runsc (gVisor; or env CW_DOCKER_RUNTIME);
+                                    # None = the daemon's default
     },
     "hardening": {"no_new_privileges": True, "cap_drop_all": True},
 }
@@ -154,6 +155,8 @@ class Config:
             data["sentry"]["environment"] = env["CW_SENTRY_ENVIRONMENT"].strip()
         if env.get("CW_TRUSTED_PROXIES", "").strip():
             data["web"]["trusted_proxies"] = env["CW_TRUSTED_PROXIES"]
+        if env.get("CW_DOCKER_RUNTIME", "").strip():
+            data["docker"]["runtime"] = env["CW_DOCKER_RUNTIME"].strip()
         proxies = data["web"].get("trusted_proxies") or []
         if isinstance(proxies, str):
             proxies = proxies.split(",")

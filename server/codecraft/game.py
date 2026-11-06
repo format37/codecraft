@@ -228,7 +228,7 @@ class GameRunner:
                 self._wait_for_ports(engine, [s.port for s in seats if s.is_tcp])
                 for seat in seats:
                     if seat.is_tcp:
-                        seat.container = self._start_player(name, seat, engine.name)
+                        seat.container = self._start_player(name, seat)
             slowest = max([s.limits for s in seats], key=lambda l: (l.get("tick_timeout_sec") or 1.0))
             wall = limits.get("game_wall_timeout_sec") or (
                 MAX_TICKS * (slowest.get("tick_timeout_sec") or 1.0) + (slowest.get("accept_timeout_sec") or 60) + 120)
@@ -366,9 +366,10 @@ class GameRunner:
                 raise RuntimeError(f"engine did not open ports {sorted(pending)} in time: {text[-800:]}")
             time.sleep(0.2)
 
-    def _start_player(self, name: str, seat: Seat, engine_host: str):
-        """The strategy's container: on its seat's network only (the engine's name resolves to the engine's
-        address there), read-only but for a small /tmp, with the limits of the seat."""
+    def _start_player(self, name: str, seat: Seat):
+        """The strategy's container: on its seat's network only, dialling the engine at its fixed address there
+        (an address, not the engine's name: gVisor's network stack never reaches Docker's embedded DNS),
+        read-only but for a small /tmp, with the limits of the seat."""
         limits = seat.limits
         strategy = seat.strategy
         cpus = float(limits.get("cpus") or 1.0)
@@ -381,7 +382,7 @@ class GameRunner:
         kwargs: dict = dict(
             name=f"{name}-p{seat.slot}", network=seat.network.name,
             entrypoint=["bash", "-c", WRAPPER, "cw"],
-            command=[engine_host, str(seat.port), seat.token],
+            command=[seat.engine_ip, str(seat.port), seat.token],
             environment=env, labels={self.label: name},
             nano_cpus=int(cpus * 1e9), pids_limit=int(limits.get("pids") or 256),
             read_only=True, tmpfs={"/tmp": f"rw,size={PLAYER_TMP_MB}m,mode=1777"}, log_config=_log_config(),

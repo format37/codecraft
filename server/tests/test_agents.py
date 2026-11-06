@@ -160,6 +160,17 @@ def test_the_path_token_is_cut_out_before_the_mcp_app_and_the_limiter_answers_42
 
 
 # REST ------------------------------------------------------------------------------------------------------
+def test_whoami_mentions_gvisor_only_when_the_server_runs_it(env):
+    user, token = env.user()
+
+    def about():
+        return env.client.post("/api/v1/whoami", headers=bearer(token)).json()["server"]["limits_about"]
+
+    assert "gVisor" not in about()
+    env.ax.cfg.data["docker"]["runtime"] = "runsc"
+    assert "gVisor" in about()
+
+
 def test_rest_dispatcher_read_tools_errors_and_get_with_query_params(env):
     user, token = env.user()
     vids = env.built(user, "bot", 2)
