@@ -161,7 +161,11 @@ A review of what uploaded code and the public site can reach on the home node, t
   honoured from `web.trusted_proxies` only, `game_log` grep as plain text, sign-in `next` kept on the site, at
   most 20 sign-in codes a day per address, nosniff / frame / referrer / HSTS headers.
 
-Still open: the node's operating system upgrade; quotas per person rather than per account; gVisor for player
+The node moved to an LTS release the same day. Its first reboot showed that the web port, published on the
+WireGuard address, needs `net.ipv4.ip_nonlocal_bind=1` on the host: the interface comes up after Docker, and
+Docker cannot publish a port on an address that does not exist yet, so the web service had started without it.
+
+Still open: quotas per person rather than per account; gVisor for player
 and compile containers (`docker.runtime: runsc` is ready, off until runsc is installed on the node and every
 language passes under it); pruning old strategy and base images.
 

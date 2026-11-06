@@ -59,7 +59,10 @@ lines of the web and the worker; no request bodies, addresses and tokens scrubbe
 need `CW_GPU_ENABLED=true` on a host with the `nvidia` docker runtime (the web service has no Docker socket, so
 the default `gpu.enabled: auto` cannot see the GPU there); without it the CUDA languages and the GPU option are
 simply absent. Behind a reverse proxy, publish the port on the address the proxy uses (`CW_WEB_PORT=ADDRESS:PORT`)
-and name the proxy in `CW_TRUSTED_PROXIES`, so the client addresses in sessions and rate limits are real. Everything else lives in
+and name the proxy in `CW_TRUSTED_PROXIES`, so the client addresses in sessions and rate limits are real. If that
+address can come up after Docker starts (a WireGuard or other VPN interface), set `net.ipv4.ip_nonlocal_bind=1` on
+the host (a file in `/etc/sysctl.d`): Docker cannot publish a port on an address that does not exist yet, and
+after a reboot the web service would run without its port. Everything else lives in
 [config.yaml](config.yaml): limits, formats, rating, GPU policy (`gpu.max_per_game`), sandbox
 size (`worker.sandbox_games_per_build`), quotas.
 
