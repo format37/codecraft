@@ -74,6 +74,27 @@ per wave, Finals round-robin; points 8/4/2/1 and 2/0 (already in `rating.py`); f
 during a round; round pages with standings. Tables `tournaments`/`rounds`/`waves`; game kind
 `tournament` already exists in the schema.
 
+### Leagues (Alex's idea, 2026-11-06)
+
+Players range from frontier-LLM strategies to hand-written code and small local models, and all of
+these are welcome. To give each level a race of its own, split the ladder into leagues by strength
+rather than by what people say they use, since that cannot be checked. Once there are at least 40
+players with settled ratings, cluster the ratings once a week. Try k = 2..K and keep the k whose
+split is clearest (1-D optimal k-means with silhouette, or a Gaussian mixture chosen by BIC). League 0
+is the strongest. Each league has its own standings and its own Phase 2 tournament, where promotion
+and relegation happen. Sandbox matchmaking can stay global.
+
+Agreed with Alex:
+
+- A league member is a user, ranked by their best strategy.
+- A league has at least 4 players, so it can fill a 4-seat Round 1 game; 8 for a full tournament.
+- Only settled ratings count, including towards the 40. 10 sandbox games per build give a noisy Elo.
+- Boundaries have hysteresis, so a player sitting on a break does not change league every week.
+- Against sandbagging (a deliberately weak version submitted to drop into a lower league), players
+  are placed by their best rating over the week, not by their latest version.
+- When the ratings have no real gaps, the chosen k can jump from week to week. Fall back to the
+  previous week's k, or to quantiles.
+
 ## Phase 3 — deployment (done 2026-11-05)
 
 Renamed from CodeWars on 2026-11-05 (repo, domain, package, images, DB file, Resend domain, Sentry
