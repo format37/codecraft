@@ -82,6 +82,34 @@
     ],
     "events": []
    }
-  ]
+  ],
+  "alternatives": {
+   "1": [
+    {
+     "tick": 1,
+     "next_id": 8,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 10}, {"id": 2, "index": 1, "score": 0, "resource": 60}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+      {"id": 4, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 10}, "health": 10, "active": true},
+      {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true},
+      {"id": 6, "player_id": 1, "entity_type": "House", "position": {"x": 3, "y": 10}, "health": 5, "active": false}
+     ],
+     "events": []
+    },
+    {
+     "tick": 1,
+     "next_id": 8,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 10}, {"id": 2, "index": 1, "score": 0, "resource": 60}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+      {"id": 4, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 10}, "health": 10, "active": true},
+      {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true},
+      {"id": 6, "player_id": 1, "entity_type": "House", "position": {"x": 3, "y": 2}, "health": 5, "active": false}
+     ],
+     "events": []
+    }
+   ]
+  }
  }
 }

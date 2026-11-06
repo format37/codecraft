@@ -9,16 +9,20 @@ against these files.
 from __future__ import annotations
 
 import json
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from codecraft_sim.model import (DEFAULT_PROPERTIES, EntityProperties, EntityType, Event, Model, action_json,
-                                 entity_json, model_from_json, model_json, player_json, properties_json, view_json)
+from codecraft_sim.model import (DEFAULT_PROPERTIES, EntityProperties, EntityType, Event, Model, action_from_json,
+                                 action_json, entity_from_json, entity_json, model_from_json, model_json,
+                                 player_from_json, player_json, properties_json, view_json)
 
 from . import loadfrom
 from .puppet import Puppet
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+WORKERS = os.cpu_count() or 4       # oracle runs in parallel (each is one process of the binary)
 ENGINE_VERSION = "aicup2020 1.3.0"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 # engine log lines worth keeping in a fixture: everything but the port bookkeeping (ports are random)
@@ -56,6 +60,21 @@ def _is_default(props: dict[EntityType, EntityProperties]) -> bool:
     return dict(props) == DEFAULT_PROPERTIES
 
 
+def model_at(fx: dict, i: int) -> Model:
+    """The model of a fixture's snapshot `i` (`expected.ticks[i]`), ready to play the turn that led to snapshot
+    `i + 1`: its stored actions are those of snapshot `i + 1`, i.e. every order the players had given by then
+    (an order answered to the view of tick t is stored in the delta of tick t + 1 and drives that turn)."""
+    m = state_from_json(fx["state"])
+    ticks = fx["expected"]["ticks"]
+    s = ticks[i]
+    m.current_tick, m.next_id = s["tick"], s["next_id"]
+    m.players = {d["id"]: player_from_json(d) for d in s["players"]}
+    m.entities = {d["id"]: entity_from_json(d) for d in s["entities"]}
+    acts = ticks[i + 1 if i + 1 < len(ticks) else i]["entity_actions"]
+    m.entity_actions = {d["entity_id"]: action_from_json(d["action"]) for d in acts}
+    return m
+
+
 def notable_log(log: str) -> list[str]:
     out = []
     for line in ANSI_RE.sub("", log).splitlines():
@@ -65,8 +84,9 @@ def notable_log(log: str) -> list[str]:
     return out
 
 
-def record(sc) -> dict:
-    """Run a scenario (oracle.scenarios.Scenario) on the official engine and return the fixture."""
+def record(sc, with_alternatives: bool = True) -> dict:
+    """Run a scenario (oracle.scenarios.Scenario) on the official engine and return the fixture; with
+    `with_alternatives`, every outcome of the turns that depend on the seed too (see `alternatives`)."""
     model, players = sc.build()
     run = loadfrom.run(model, players, seed=sc.seed, timeout=sc.timeout, accept_timeout=sc.accept_timeout)
     if run.replay is None and run.results is not None:
@@ -97,7 +117,63 @@ def record(sc) -> dict:
         expected["puppets"] = puppets
     expected["ticks"] = [snapshot(m, ev) for m, ev in zip(run.states, run.events)]
     fx["expected"] = expected
+    if with_alternatives:
+        alts = alternatives(fx)
+        if alts:
+            expected["alternatives"] = alts
     return fx
+
+
+def outcome(snap: dict) -> dict:
+    """A snapshot as an outcome of its turn: without the stored actions, which a turn does not change."""
+    return {k: v for k, v in snap.items() if k != "entity_actions"}
+
+
+def outcome_key(snap: dict) -> str:
+    return json.dumps(outcome(snap), sort_keys=True)
+
+
+def turn_outcomes(m: Model, seeds) -> list[dict]:
+    """The snapshot after one turn of `m` on the official engine, for each seed (all seats Empty: the stored
+    actions drive every entity). Runs the seeds in parallel."""
+    m = m.copy()
+    m.max_tick_count = m.current_tick + 1
+
+    def one(seed: int) -> dict:
+        r = loadfrom.run(m, ["Empty"] * len(m.players), seed=seed)
+        if len(r.states) != 2:
+            raise RuntimeError(f"the turn from tick {m.current_tick} was not played; log:\n{r.log}")
+        return snapshot(r.states[1], r.events[1])
+
+    with ThreadPoolExecutor(WORKERS) as pool:
+        return list(pool.map(one, seeds))
+
+
+def alternatives(fx: dict, min_seeds: int = 32, patience: int = 30, max_seeds: int = 20000) -> dict[str, list[dict]]:
+    """Every outcome the official engine gives for the turns of a fixture that it plays differently from seed to
+    seed: {"<tick>": [outcome, ...]} keyed by the tick the turn leads to, each turn played alone from the recorded
+    state before it (`model_at`); an outcome is a snapshot without `entity_actions` (a turn never changes them).
+    Turns with a single outcome are left out. Seeds are tried until `patience` x the outcomes seen so far bring
+    nothing new; the recorded outcome must be among those found."""
+    ticks = fx["expected"]["ticks"]
+    out = {}
+    for i in range(len(ticks) - 1):
+        m = model_at(fx, i)
+        seen: dict[str, dict] = {}
+        last_new = seed = 0
+        while seed < max_seeds and (seed < min_seeds or seed - last_new < patience * len(seen)):
+            batch = range(seed + 1, seed + 1 + WORKERS * 4)
+            for s, snap in zip(batch, turn_outcomes(m, batch)):
+                key = outcome_key(snap)
+                if key not in seen:
+                    seen[key], last_new = outcome(snap), s
+            seed = batch[-1]
+        if outcome_key(ticks[i + 1]) not in seen:
+            raise RuntimeError(f"{fx['name']}: the recorded tick {ticks[i + 1]['tick']} is not among the "
+                               f"{len(seen)} outcomes of {seed} seeds of its turn played alone")
+        if len(seen) > 1:
+            out[str(ticks[i + 1]["tick"])] = [seen[k] for k in sorted(seen)]
+    return out
 
 
 def compare(fx: dict, fresh: dict) -> list[str]:

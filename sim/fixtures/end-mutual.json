@@ -5,6 +5,7 @@
  "engine": "aicup2020 1.3.0",
  "seed": 1,
  "players": ["Empty", "Empty"],
+ "random": "the order of the two attacks (the events list)",
  "state": {
   "next_id": 5,
   "map_size": 20,
@@ -58,6 +59,12 @@
     ],
     "events": [[0, 3, 4], [0, 4, 3]]
    }
-  ]
+  ],
+  "alternatives": {
+   "1": [
+    {"tick": 1, "next_id": 5, "players": [{"id": 1, "index": 0, "score": 300, "resource": 0}, {"id": 2, "index": 1, "score": 400, "resource": 0}], "entities": [], "events": [[0, 3, 4], [0, 4, 3]]},
+    {"tick": 1, "next_id": 5, "players": [{"id": 1, "index": 0, "score": 300, "resource": 0}, {"id": 2, "index": 1, "score": 400, "resource": 0}], "entities": [], "events": [[0, 4, 3], [0, 3, 4]]}
+   ]
+  }
  }
 }

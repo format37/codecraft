@@ -4,6 +4,7 @@ question (the numbers are the rule questions listed in sim/fixtures/README.md).
     python -m oracle.scenarios list                 # the scenarios and their questions
     python -m oracle.scenarios record [NAME...]     # run them on the oracle, (re)write sim/fixtures/NAME.json
     python -m oracle.scenarios check [NAME...]      # run them again and compare with the stored fixtures
+    python -m oracle.scenarios alternatives [NAME...]   # (re)find every outcome of the turns that depend on the seed
     python -m oracle.scenarios show NAME            # a fixture tick by tick, as a human reads it
 
 Run from sim/ (or with sim/ on PYTHONPATH). Map 20x20 unless said otherwise; player 1 = seat 0 in the corner
@@ -65,7 +66,8 @@ def two_builders(ticks: int, **kw) -> tuple[State, int, int]:
 @scenario("actions-timing", [2], "A puppet sends a move at view tick 0, another at 3, an empty Action at 6 and an "
           "all-None EntityAction at 7. The action answered to view t is stored in the delta of tick t+1 and moves "
           "the unit in that same tick; an empty Action keeps the stored actions; an all-None EntityAction replaces "
-          "the stored one (an update, not a removal) and the unit stops.")
+          "the stored one (an update, not a removal) and the unit stops.",
+          random="which first step the unit takes among those of equally short paths, a new draw every tick")
 def _():
     s, a, b = two_builders(10)
     return s, [Puppet({0: {a: move((2, 10))}, 3: {a: move((10, 2))}, 6: {}, 7: {a: NOTHING}}), "Empty"]
@@ -126,8 +128,9 @@ def _():
 
 # Movement ------------------------------------------------------------------------------------------------------
 @scenario("move-free", [5], "A builder walks from (1, 1) to (10, 10) on an empty map. The path is planned anew "
-          "every tick and only its first step taken: the steps form an irregular staircase, the official A*'s "
-          "tie-break among equally short paths.")
+          "every tick and only its first step taken; among the equally short paths the engine draws one at random "
+          "every tick, so the steps form an irregular staircase (two possible steps from each cell on the way).",
+          random="which first step the unit takes among those of equally short paths, a new draw every tick")
 def _():
     s = State(ticks=20)
     a = s.add("BuilderUnit", 1, (1, 1))
@@ -137,7 +140,9 @@ def _():
 
 
 @scenario("move-free-other-ways", [5], "Four builders each walk to a cell 6 columns and 6 rows away, one per "
-          "diagonal direction: the tie-break per direction.")
+          "diagonal direction: in every direction each step is one of the two that start a shortest path, drawn "
+          "at random.",
+          random="which of the two first steps of the shortest paths each builder takes, every tick")
 def _():
     s = State(ticks=13)
     for start, target in (((9, 9), (3, 3)), ((10, 9), (16, 3)), ((9, 10), (3, 16)), ((10, 10), (16, 16))):
@@ -155,7 +160,8 @@ def _():
 
 @scenario("move-occupied-target", [4, 5], "Target cell holds a resource, find_closest_position true for one builder "
           "and false for the other: both walk next to it and then mine it with no attack order (the next cell of "
-          "the path holds an entity that is not theirs, so it is attacked).")
+          "the path holds an entity that is not theirs, so it is attacked).",
+          random="which first step each unit takes among those of equally short paths")
 def _():
     s = State(ticks=12)
     s.add("Resource", None, (10, 2))
@@ -180,7 +186,8 @@ def _():
 
 
 @scenario("move-detour", [5], "A wall of resources with one gap between the unit and its target: the path goes "
-          "through the gap.")
+          "through the gap.",
+          random="which first step the unit takes among those of equally short paths, a new draw every tick")
 def _():
     s = State(ticks=32)
     s.resources([(10, y) for y in range(0, 20) if y != 15])
@@ -203,7 +210,8 @@ def _():
 
 @scenario("move-train", [1, 5], "Three units in a column all walk the same way. Pathfinding sees every entity, own "
           "units included, at its cell at the start of the tick: the front unit steps forward, the two behind it "
-          "step sideways around the unit ahead.")
+          "step sideways around the unit ahead.",
+          random="which way each unit behind steps around the unit ahead")
 def _():
     s = State(ticks=3)
     for y in (5, 6, 7):
@@ -250,7 +258,8 @@ def _():
           "rows 10..19. With break_through, a melee unit (row 4) walks up to the wall, destroys the Wall in its way "
           "(10 ticks, +10 destroy score) and walks through; a builder (row 14) mines its way into the resources. "
           "Without break_through (row 7) the unit waits at the reachable cell closest to its target, and takes the "
-          "breach once it is free of units (pathfinding sees units where they stand at the start of the tick).")
+          "breach once it is free of units (pathfinding sees units where they stand at the start of the tick).",
+          random="the order of the attacks (the events list), and the choice among equally short paths")
 def _():
     s = State(ticks=24)
     for y in range(10):
@@ -287,7 +296,8 @@ def _():
 
 
 @scenario("attack-range-metric", [3, 4], "Ranged units (range 5) against targets at Manhattan distance 5 (straight "
-          "and diagonal) and 6: the range is Manhattan, inclusive.")
+          "and diagonal) and 6: the range is Manhattan, inclusive.",
+          random="the order of the attacks (the events list)")
 def _():
     s = State(ticks=2)
     pairs = [((2, 2), (7, 2)), ((2, 6), (5, 8)), ((2, 12), (8, 12)), ((2, 16), (6, 18))]   # d = 5, 5, 6, 6
@@ -298,7 +308,8 @@ def _():
 
 
 @scenario("attack-range-to-building", [3, 4], "A ranged unit 5 cells from the nearest cell of a 5x5 base (9 from "
-          "its corner) and another 6 from the nearest cell: the distance to a building is to its nearest cell.")
+          "its corner) and another 6 from the nearest cell: the distance to a building is to its nearest cell.",
+          random="the order of the attacks (the events list)")
 def _():
     s = State(ticks=2)
     base = s.add("MeleeBase", 2, (10, 10))         # cells 10..14 x 10..14
@@ -322,7 +333,8 @@ def _():
 
 
 @scenario("attack-auto", [4], "Melee units with auto_attack: one with pathfind_range 10 and an enemy 6 cells away "
-          "(walks there and hits), one with pathfind_range 3 (does nothing), one with valid_targets [Wall] only.")
+          "(walks there and hits), one with pathfind_range 3 (does nothing), one with valid_targets [Wall] only.",
+          random="the choice among equally short paths while a unit hunts")
 def _():
     s = State(ticks=10)
     s.add("BuilderUnit", 2, (10, 3))
@@ -440,7 +452,8 @@ def _():
 
 
 @scenario("mine-last-hp", [11], "Two builders hit a resource with 1 hp in the same tick: 1 resource and 1 score in "
-          "all (only health above 0 is collected), both hits are events.")
+          "all (only health above 0 is collected), both hits are events.",
+          random="the order of the two hits (the events list)")
 def _():
     s = State(ticks=2)
     r = s.add("Resource", None, (10, 10), health=1)
@@ -516,7 +529,8 @@ def _():
 
 
 @scenario("build-house-cost-count", [6], "Building cost with buildings of the type already there: a second House "
-          "costs 50 and a third Wall 10, as the first ones. Only unit costs grow with the count.")
+          "costs 50 and a third Wall 10, as the first ones. Only unit costs grow with the count.",
+          random="the order of the builds, and so which new entity gets which id")
 def _():
     s = State(players=3, ticks=1, resource=100)
     s.add("House", 1, (10, 10))
@@ -639,7 +653,8 @@ def _():
           "to the right of the second. Every PlayerView is rotated so the seat sees its corner at (0, 0): seat 1 "
           "by 180 degrees, seat 2 by 90 ((x, y) -> (y, N - x - size)), seat 3 by 270 ((x, y) -> (N - y - size, x)); "
           "move targets and build positions are turned back on receipt (with the built entity's size), and the "
-          "replay stores them in global coordinates.", record_views=True)
+          "replay stores them in global coordinates.", record_views=True,
+          random="the order of the builds, and so which House gets which id")
 def _():
     n = 20
     s = State(map_size=n, players=4, ticks=3, resource=100)
@@ -702,7 +717,8 @@ def _():
 
 @scenario("end-elimination-3p", [12], "Three players: player 1 kills player 3's last entity at tick 2 (the game goes "
           "on) and player 2's at tick 4 (the game ends); scores start at 0, 500, 300. No survivor bonus with three "
-          "players: player 1 ends with its two destroy scores only.")
+          "players: player 1 ends with its two destroy scores only.",
+          random="the order of the attacks (the events list)")
 def _():
     s = State(players=3, ticks=8, score=[0, 500, 300])
     b3 = s.add("BuilderUnit", 3, (6, 5))
@@ -714,7 +730,8 @@ def _():
 
 @scenario("end-mutual", [1, 12], "Two players whose last units (5 hp each) attack each other: the unit hit first "
           "still attacks (health is checked on the target, not the attacker), both score the destroy score, nobody "
-          "is left and the game ends at tick 1 without a bonus.")
+          "is left and the game ends at tick 1 without a bonus.",
+          random="the order of the two attacks (the events list)")
 def _():
     s = State(ticks=4, score=[100, 200])
     a = s.add("MeleeUnit", 1, (5, 5), health=5)
@@ -730,6 +747,262 @@ def _():
     s = State(ticks=4)
     s.add("BuilderUnit", 1, (2, 2))
     return s, E2
+
+
+# Finer points, settled while writing rules.py ---------------------------------------------------------------
+@scenario("attack-named-before-auto", [4], "A ranged unit whose attack order names a target in range and also has "
+          "an auto_attack, with another enemy in range: it always hits the named target.")
+def _():
+    s = State(ticks=2)
+    r, t = s.add("RangedUnit", 1, (5, 5)), s.add("MeleeUnit", 2, (8, 5))
+    s.add("MeleeUnit", 2, (5, 8))
+    s.order(r, attack(t, auto_range=0))
+    return s, E2
+
+
+@scenario("attack-named-out-of-range-auto", [4], "Two ranged units whose attack order names a target out of range "
+          "(one far away, one an id that does not exist) and also has an auto_attack: each hits the enemy within "
+          "its range instead.")
+def _():
+    s = State(ticks=2)
+    a, b = s.add("RangedUnit", 1, (2, 2)), s.add("RangedUnit", 1, (15, 15))
+    s.add("MeleeUnit", 2, (2, 5))
+    far = s.add("MeleeUnit", 2, (15, 12))
+    s.order(a, attack(far, auto_range=0))
+    s.order(b, attack(999, auto_range=0))
+    return s, E2
+
+
+@scenario("attack-named-out-of-range-hunts", [4], "A melee unit whose attack order names a target out of range and "
+          "has an auto_attack (pathfind_range 10), with an enemy builder 6 cells away: it hunts the builder, as an "
+          "auto_attack alone would.")
+def _():
+    s = State(ticks=3)
+    m, far = s.add("MeleeUnit", 1, (5, 10)), s.add("MeleeUnit", 2, (18, 1))
+    s.add("BuilderUnit", 2, (11, 10))
+    s.order(m, attack(far, auto_range=10))
+    return s, E2
+
+
+@scenario("attack-auto-ranged-reach", [4], "Ranged units (attack range 5) with an auto_attack, each with an enemy 8 "
+          "cells away on an open field: the one with pathfind_range 7 hunts it, the one with 6 does not. The reach is "
+          "counted to a cell next to the enemy (7 steps), not to a cell within attack range (3 steps).")
+def _():
+    s = State(map_size=30, ticks=3)
+    a, b = s.add("RangedUnit", 1, (5, 5)), s.add("RangedUnit", 1, (5, 25))
+    s.add("BuilderUnit", 2, (13, 5))
+    s.add("BuilderUnit", 2, (13, 25))
+    s.order(a, attack(auto_range=7))
+    s.order(b, attack(auto_range=6))
+    return s, E2
+
+
+@scenario("attack-auto-over-move", [4, 5], "A melee unit with an auto_attack (pathfind_range 10) and a move order "
+          "the other way, an enemy builder 6 cells away: it hunts the builder and ignores the move order.")
+def _():
+    s = State(ticks=3)
+    m = s.add("MeleeUnit", 1, (5, 10))
+    s.add("BuilderUnit", 2, (11, 10))
+    s.order(m, combine(attack(auto_range=10), move((0, 10))))
+    return s, E2
+
+
+@scenario("attack-auto-dead-target", [1, 4], "Two ranged units auto-attack, with a 5 hp builder and a melee unit in "
+          "range of both: an enemy already at 0 health in the tick can still be picked, so both may hit the "
+          "builder (one killing blow, 100 destroy score) or split.",
+          random="which enemy each unit hits, and the attack order")
+def _():
+    s = State(ticks=2)
+    a, b = s.add("RangedUnit", 1, (5, 5)), s.add("RangedUnit", 1, (5, 7))
+    s.add("BuilderUnit", 2, (8, 6), health=5)
+    s.add("MeleeUnit", 2, (9, 6))
+    s.order(a, attack(auto_range=0))
+    s.order(b, attack(auto_range=0))
+    return s, E2
+
+
+@scenario("repair-enemy", [7], "A builder repairs another player's inactive House: a repair is not limited to the "
+          "builder's own player (+1 per tick, no score for anyone).")
+def _():
+    s, a, b = two_builders(3)
+    s.order(a, repair(s.add("House", 2, (3, 2), health=45, active=False)))
+    return s, E2
+
+
+@scenario("repair-full-target", [7], "Two builders ordered to repair a full-health House and to move: the one next "
+          "to the House stays (repairing a target at full health still takes its turn), the one too far from it "
+          "walks.")
+def _():
+    s, a, b = two_builders(3)
+    h = s.add("House", 1, (3, 2))
+    s.order(a, combine(repair(h), move((2, 12))))
+    s.order(s.add("BuilderUnit", 1, (10, 2)), combine(repair(h), move((10, 12))))
+    return s, E2
+
+
+@scenario("repair-dead-target", [1, 7], "A builder repairs its player's melee unit (5 hp) while an enemy kills it "
+          "in the same tick: attacks come first and only a target with health above 0 is repaired, so the unit "
+          "dies; the builder, whose repair failed, follows its move order.")
+def _():
+    s = State(ticks=2)
+    m, e = s.add("MeleeUnit", 1, (10, 10), health=5), s.add("MeleeUnit", 2, (11, 10))
+    s.order(e, attack(m))
+    s.order(s.add("BuilderUnit", 1, (9, 10)), combine(repair(m), move((9, 15))))
+    s.add("BuilderUnit", 2, (18, 18))
+    return s, E2
+
+
+@scenario("order-attack-blocks-repair", [1, 7], "A builder with an attack order (an adjacent resource) and a repair "
+          "order (a damaged melee unit next to it): it mines and does not repair.")
+def _():
+    s = State(ticks=2)
+    b, r = s.add("BuilderUnit", 1, (5, 5)), s.add("Resource", None, (6, 5))
+    s.order(b, combine(attack(r), repair(s.add("MeleeUnit", 1, (4, 5), health=40))))
+    s.add("BuilderUnit", 2, (18, 18))
+    return s, E2
+
+
+@scenario("order-build-before-repair", [1, 7], "A builder builds a House while another, next to the site, repairs "
+          "the id the House is going to get: repairs come after builds, so the House ends its first tick at 6 hp.")
+def _():
+    s = State(ticks=2, resource=100)
+    a, c = s.add("BuilderUnit", 1, (4, 5)), s.add("BuilderUnit", 1, (8, 6))
+    s.add("BuilderUnit", 2, (18, 18))
+    s.order(a, build("House", (5, 5)))
+    s.order(c, repair(s.model.next_id))
+    return s, E2
+
+
+@scenario("order-repair-before-move", [1, 7], "A builder repairs a damaged melee unit that walks away in the same "
+          "tick: repairs come before movement, so the unit gets +1 that tick and none afterwards.")
+def _():
+    s = State(ticks=3)
+    b, m = s.add("BuilderUnit", 1, (5, 5)), s.add("MeleeUnit", 1, (6, 5), health=40)
+    s.order(b, repair(m))
+    s.order(m, move((15, 5)))
+    s.add("BuilderUnit", 2, (18, 18))
+    return s, E2
+
+
+@scenario("build-same-site", [6], "Two builders of one player build a House on the same site in the same tick: one "
+          "House; the other attempt fails on the site the first one took. Both attempts use up an id, then and "
+          "every tick after (next_id 6, 8, 10).")
+def _():
+    s = State(ticks=2, resource=200)
+    a, c = s.add("BuilderUnit", 1, (4, 5)), s.add("BuilderUnit", 1, (8, 6))
+    s.add("BuilderUnit", 2, (18, 18))
+    s.order(a, build("House", (5, 5)))
+    s.order(c, build("House", (5, 5)))
+    return s, E2
+
+
+@scenario("build-then-move", [1, 6], "A builder with a build and a move order does not move in the tick its build "
+          "succeeds, and walks once the build fails (the site is taken); another one, without money, walks at "
+          "once. Every attempt uses up an id, so the House is id 5 or 6.",
+          random="which builder's attempt comes first, and so the House's id")
+def _():
+    s = State(ticks=2, resource=[100, 0])
+    s.order(s.add("BuilderUnit", 1, (2, 2)), combine(build("House", (3, 2)), move((2, 12))))
+    s.order(s.add("BuilderUnit", 2, (12, 2)), combine(build("House", (13, 2)), move((12, 12))))
+    return s, E2
+
+
+@scenario("build-no-attempt", [6], "Build orders that are not attempts: a melee unit (no build properties), a House, "
+          "an inactive BuilderBase, a builder ordered to build a BuilderUnit (not among its options). Nothing is "
+          "built and next_id stays: only an order for a type the entity may build uses up an id.")
+def _():
+    s = State(ticks=2, resource=100)
+    s.order(s.add("MeleeUnit", 1, (2, 2)), build("House", (3, 2)))
+    s.order(s.add("House", 1, (2, 8)), build("House", (5, 8)))
+    s.order(s.add("BuilderBase", 1, (10, 2), health=100, active=False), build("BuilderUnit", (15, 2)))
+    s.order(s.add("BuilderUnit", 1, (2, 14)), build("BuilderUnit", (3, 14)))
+    s.add("House", 1, (10, 10))
+    s.add("BuilderUnit", 2, (18, 18))
+    return s, E2
+
+
+@scenario("passive-income-after-builds", [1, 10], "passive_income 3 and 47 resource: a House (50) is not built in "
+          "the first tick, as the income comes after the builds, but in the second (resource 47, 50, 3).")
+def _():
+    s = State(ticks=3, resource=47, passive_income=3)
+    s.order(s.add("BuilderUnit", 1, (2, 2)), build("House", (3, 2)))
+    s.add("BuilderUnit", 2, (18, 18))
+    return s, E2
+
+
+@scenario("move-dying-unit", [1, 5], "A unit killed in the tick still moves on its order, and the unit that wants "
+          "its cell steps in behind it in the same tick.")
+def _():
+    s = State(ticks=2)
+    d, f = s.add("MeleeUnit", 1, (5, 5), health=5), s.add("MeleeUnit", 1, (5, 4))
+    e = s.add("MeleeUnit", 2, (4, 5))
+    s.order(d, move((5, 10)))
+    s.order(f, move((5, 5)))
+    s.order(e, attack(d))
+    return s, E2
+
+
+@scenario("move-dead-blocks", [1, 5], "A unit killed in the tick that does not move keeps its cell until the end of "
+          "the tick: the unit waiting for the cell gets in the next tick.")
+def _():
+    s = State(ticks=2)
+    d, f = s.add("MeleeUnit", 1, (5, 5), health=5), s.add("MeleeUnit", 1, (5, 4))
+    e = s.add("MeleeUnit", 2, (4, 5))
+    s.order(f, move((5, 5)))
+    s.order(e, attack(d))
+    return s, E2
+
+
+@scenario("inactive-does-nothing", [4, 6], "An inactive builder (5/10 hp) with a move order and an inactive Turret "
+          "(50/100) with an attack order on an enemy in range: neither acts.")
+def _():
+    s = State(ticks=2)
+    s.order(s.add("BuilderUnit", 1, (2, 2), health=5, active=False), move((2, 10)))
+    t = s.add("Turret", 1, (10, 10), health=50, active=False)
+    s.order(t, attack(s.add("MeleeUnit", 2, (12, 10))))
+    return s, E2
+
+
+@scenario("end-inactive-only", [12], "Player 2's only entity is an inactive House: the game goes on, an inactive "
+          "entity keeps its player in the game.")
+def _():
+    s = State(ticks=3)
+    s.add("BuilderUnit", 1, (2, 2))
+    s.add("House", 2, (15, 15), health=5, active=False)
+    return s, E2
+
+
+def _breach(unit: str, hp: int, gap: int) -> tuple:
+    """A unit next to a wall of resources (x = 10 on a 30x30 map), sent across it with break_through: the cell in
+    front of it holds a resource of `hp`, the wall's gap is `gap` rows away (a detour of 2 x gap steps)."""
+    s = State(map_size=30, ticks=1)
+    u = s.add(unit, 1, (9, 10))
+    for y in range(30):
+        if y != 10 + gap:
+            s.add("Resource", None, (10, y), health=hp if y == 10 else 30)
+    s.add("BuilderUnit", 2, (28, 28))
+    s.order(u, move((20, 10), break_through=True))
+    return s, E2
+
+
+@scenario("move-break-through-cost-tie", [5], "With break_through, entering a blocker's cell costs the hits it takes "
+          "to destroy it, ceil(health / damage), in place of 1: a melee unit (5 damage) before a 12 hp resource "
+          "(3 hits) with the wall's gap 1 row away (2 more steps) finds both ways equally short and takes either.",
+          random="whether the unit attacks the resource or steps towards the gap")
+def _():
+    return _breach("MeleeUnit", 12, 1)
+
+
+@scenario("move-break-through-cost-chop", [5], "A builder (1 damage) before a 10 hp resource (10 hits) with the "
+          "wall's gap 6 rows away (12 more steps): breaking through is shorter, it mines the resource.")
+def _():
+    return _breach("BuilderUnit", 10, 6)
+
+
+@scenario("move-break-through-cost-walk", [5], "A builder (1 damage) before a 10 hp resource (10 hits) with the "
+          "wall's gap 4 rows away (8 more steps): the detour is shorter, it walks towards the gap.")
+def _():
+    return _breach("BuilderUnit", 10, 4)
 
 
 # CLI ---------------------------------------------------------------------------------------------------------------
@@ -824,8 +1097,19 @@ def main(argv: list[str]) -> int:
             print(show(fixture_io.load(n)))
         return 0
     failed = 0
+    if cmd == "alternatives":
+        for sc in _select(names):
+            fx = fixture_io.load(sc.name)
+            alts = fixture_io.alternatives(fx)
+            fx["expected"].pop("alternatives", None)
+            if alts:
+                fx["expected"]["alternatives"] = alts
+            fixture_io.write(fx)
+            print(f"{sc.name}: " + (", ".join(f"tick {t}: {len(v)}" for t, v in alts.items()) or "deterministic"),
+                  flush=True)
+        return 0
     for sc in _select(names):
-        fresh = fixture_io.record(sc)
+        fresh = fixture_io.record(sc, with_alternatives=cmd == "record")
         if cmd == "record":
             path = fixture_io.write(fresh)
             print(f"recorded {path.name}: {len(fresh['expected']['ticks'])} states")

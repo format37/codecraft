@@ -6,9 +6,10 @@ edited by hand: the scenario that makes a fixture lives in `sim/oracle/scenarios
 
 ```
 cd sim
-python3 -m oracle.scenarios record NAME     # (re)write fixtures/NAME.json from the official engine
-python3 -m oracle.scenarios check           # run every scenario again and compare with its file
-python3 -m oracle.scenarios show NAME       # the fixture tick by tick, as a human reads it
+python3 -m oracle.scenarios record NAME         # (re)write fixtures/NAME.json from the official engine
+python3 -m oracle.scenarios check               # run every scenario again and compare with its file
+python3 -m oracle.scenarios alternatives NAME   # (re)find every outcome of its turns that depend on the seed
+python3 -m oracle.scenarios show NAME           # the fixture tick by tick, as a human reads it
 ```
 
 ## Format
@@ -29,7 +30,8 @@ python3 -m oracle.scenarios show NAME       # the fixture tick by tick, as a hum
   "results": <results.json> | null,
   "log": ["ERROR - Got action for entity not belonging to the player"],
   "puppets": {"0": {"view_ticks": [0, 1, 2], "finished": true, "views": [<PlayerView>, ...]}},
-  "ticks": [<Snapshot>, ...]
+  "ticks": [<Snapshot>, ...],
+  "alternatives": {"<tick>": [<Outcome>, ...]}
  }
 }
 ```
@@ -42,9 +44,10 @@ python3 -m oracle.scenarios show NAME       # the fixture tick by tick, as a hum
   Misbehaviour: `crash_at` (close the connection instead of answering that view), `sleep_at` (tick -> seconds to
   wait before answering), `garbage_at` (answer with an unknown message tag), `token` (send this instead of the
   configured token), `connect: false` (never connect).
-- `random`: present when the outcome depends on the engine's random numbers (attack order, build order, movement
-  conflicts, the choice of an auto-attack target). The recording is the outcome of one seed of the official
-  engine: another engine is right if it ends in one of the outcomes the rules allow, which the field names.
+- `random`: present when the outcome depends on the engine's random numbers (the order of the attacks and so the
+  events list, the order of the builds and so the new entities' ids, movement conflicts, the target of an
+  auto-attack, the choice among equally short paths): what is random, in words. The recording is the outcome of
+  one seed; `expected.alternatives` lists every outcome.
 - `state`: the starting `Model` in the engine's serde JSON, as fed to `{"LoadFrom": ...}`, except that
   `"entity_properties": "default"` stands for the table of `docs/doc-en.md` (`DEFAULT_PROPERTIES` in
   `codecraft_sim/model.py`). Collections are `{"by_id": {"<id>": value}}`; enum values are strings; the attack
@@ -58,6 +61,11 @@ python3 -m oracle.scenarios show NAME       # the fixture tick by tick, as a hum
   `{"tick", "next_id", "players": [...], "entities": [...], "entity_actions": [{"entity_id", "action"}],
   "events": [[0, attacker, target], ...]}`, players, entities and actions sorted by id. `events` are those of the
   tick that produced the snapshot, in the engine's processing order.
+- `expected.alternatives`: for each turn the official engine plays differently from seed to seed, keyed by the tick
+  the turn leads to, every outcome it gives. The turn is replayed alone from the recorded snapshot before it (all
+  seats Empty, the stored actions of the snapshot after it as the orders), seed after seed, until 30 x the
+  outcomes seen so far bring nothing new. An outcome is a snapshot without `entity_actions` (a turn never changes
+  them). A turn that is not listed has a single outcome, the recorded one.
 
 ## Rule questions
 
@@ -76,6 +84,12 @@ python3 -m oracle.scenarios show NAME       # the fixture tick by tick, as a hum
 
 ## Reading a fixture against another engine
 
-Load `state`, play the `players` (a puppet's script becomes that seat's answers), run until the game ends, and
-compare every snapshot. Where `random` is absent everything must match exactly. Where it is present, compare
-what the rules fix (totals, who could have done what) rather than the exact list.
+Turn by turn, for the rules: build the state before each turn (`state`, with the snapshot's players, entities,
+`next_id` and tick, and the stored actions of the next snapshot as the orders: `fixture.model_at`), play the turn
+with many seeds, and compare each outcome with the next snapshot without its `entity_actions`. Every outcome must
+be the recorded one or, when the turn has alternatives, one of them; and every alternative should come out for
+some seed, or the engine is less random than the official one. `tests/test_rules.py` does this for ours.
+
+Whole games, for the game loop and the protocol: load `state`, play the `players` (a puppet's script becomes that
+seat's answers) until the game ends, and compare `results`, `log`, `puppets` and the snapshots, allowing the
+alternatives turn by turn.

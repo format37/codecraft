@@ -1,0 +1,173 @@
+{
+ "name": "build-then-move",
+ "about": "A builder with a build and a move order does not move in the tick its build succeeds, and walks once the build fails (the site is taken); another one, without money, walks at once. Every attempt uses up an id, so the House is id 5 or 6.",
+ "questions": [1, 6],
+ "engine": "aicup2020 1.3.0",
+ "seed": 1,
+ "players": ["Empty", "Empty"],
+ "random": "which builder's attempt comes first, and so the House's id",
+ "state": {
+  "next_id": 5,
+  "map_size": 20,
+  "fog_of_war": false,
+  "entity_properties": "default",
+  "max_tick_count": 2,
+  "max_pathfind_nodes": 1000,
+  "current_tick": 0,
+  "passive_income": 0,
+  "players": {"by_id": {"1": {"id": 1, "index": 0, "score": 0, "resource": 100}, "2": {"id": 2, "index": 1, "score": 0, "resource": 0}}},
+  "entities": {
+   "by_id": {
+    "3": {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+    "4": {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 12, "y": 2}, "health": 10, "active": true}
+   }
+  },
+  "entity_actions": {
+   "by_id": {
+    "3": {
+     "entity_id": 3,
+     "action": {
+      "move_action": {"target": {"x": 2, "y": 12}, "find_closest_position": true, "break_through": false},
+      "build_action": {"entity_type": "House", "position": {"x": 3, "y": 2}},
+      "attack_action": null,
+      "repair_action": null
+     }
+    },
+    "4": {
+     "entity_id": 4,
+     "action": {
+      "move_action": {"target": {"x": 12, "y": 12}, "find_closest_position": true, "break_through": false},
+      "build_action": {"entity_type": "House", "position": {"x": 13, "y": 2}},
+      "attack_action": null,
+      "repair_action": null
+     }
+    }
+   }
+  }
+ },
+ "expected": {
+  "returncode": 0,
+  "results": {"players": [{"crashed": false, "comment": null}, {"crashed": false, "comment": null}], "results": [0, 0], "seed": 1},
+  "log": [],
+  "ticks": [
+   {
+    "tick": 0,
+    "next_id": 5,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 100}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 12, "y": 2}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {
+       "move_action": {"target": {"x": 2, "y": 12}, "find_closest_position": true, "break_through": false},
+       "build_action": {"entity_type": "House", "position": {"x": 3, "y": 2}},
+       "attack_action": null,
+       "repair_action": null
+      }
+     },
+     {
+      "entity_id": 4,
+      "action": {
+       "move_action": {"target": {"x": 12, "y": 12}, "find_closest_position": true, "break_through": false},
+       "build_action": {"entity_type": "House", "position": {"x": 13, "y": 2}},
+       "attack_action": null,
+       "repair_action": null
+      }
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 1,
+    "next_id": 7,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 50}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 12, "y": 3}, "health": 10, "active": true},
+     {"id": 5, "player_id": 1, "entity_type": "House", "position": {"x": 3, "y": 2}, "health": 5, "active": false}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {
+       "move_action": {"target": {"x": 2, "y": 12}, "find_closest_position": true, "break_through": false},
+       "build_action": {"entity_type": "House", "position": {"x": 3, "y": 2}},
+       "attack_action": null,
+       "repair_action": null
+      }
+     },
+     {
+      "entity_id": 4,
+      "action": {
+       "move_action": {"target": {"x": 12, "y": 12}, "find_closest_position": true, "break_through": false},
+       "build_action": {"entity_type": "House", "position": {"x": 13, "y": 2}},
+       "attack_action": null,
+       "repair_action": null
+      }
+     }
+    ],
+    "events": []
+   },
+   {
+    "tick": 2,
+    "next_id": 9,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 50}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 3}, "health": 10, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 12, "y": 4}, "health": 10, "active": true},
+     {"id": 5, "player_id": 1, "entity_type": "House", "position": {"x": 3, "y": 2}, "health": 5, "active": false}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {
+       "move_action": {"target": {"x": 2, "y": 12}, "find_closest_position": true, "break_through": false},
+       "build_action": {"entity_type": "House", "position": {"x": 3, "y": 2}},
+       "attack_action": null,
+       "repair_action": null
+      }
+     },
+     {
+      "entity_id": 4,
+      "action": {
+       "move_action": {"target": {"x": 12, "y": 12}, "find_closest_position": true, "break_through": false},
+       "build_action": {"entity_type": "House", "position": {"x": 13, "y": 2}},
+       "attack_action": null,
+       "repair_action": null
+      }
+     }
+    ],
+    "events": []
+   }
+  ],
+  "alternatives": {
+   "1": [
+    {
+     "tick": 1,
+     "next_id": 7,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 50}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 12, "y": 3}, "health": 10, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "House", "position": {"x": 3, "y": 2}, "health": 5, "active": false}
+     ],
+     "events": []
+    },
+    {
+     "tick": 1,
+     "next_id": 7,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 50}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 12, "y": 3}, "health": 10, "active": true},
+      {"id": 6, "player_id": 1, "entity_type": "House", "position": {"x": 3, "y": 2}, "health": 5, "active": false}
+     ],
+     "events": []
+    }
+   ]
+  }
+ }
+}

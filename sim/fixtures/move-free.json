@@ -1,10 +1,11 @@
 {
  "name": "move-free",
- "about": "A builder walks from (1, 1) to (10, 10) on an empty map. The path is planned anew every tick and only its first step taken: the steps form an irregular staircase, the official A*'s tie-break among equally short paths.",
+ "about": "A builder walks from (1, 1) to (10, 10) on an empty map. The path is planned anew every tick and only its first step taken; among the equally short paths the engine draws one at random every tick, so the steps form an irregular staircase (two possible steps from each cell on the way).",
  "questions": [5],
  "engine": "aicup2020 1.3.0",
  "seed": 1,
  "players": ["Empty", "Empty"],
+ "random": "which first step the unit takes among those of equally short paths, a new draw every tick",
  "state": {
   "next_id": 5,
   "map_size": 20,
@@ -371,6 +372,316 @@
     ],
     "events": []
    }
-  ]
+  ],
+  "alternatives": {
+   "1": [
+    {
+     "tick": 1,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 1, "y": 2}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 1,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 1}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "2": [
+    {
+     "tick": 2,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 1, "y": 3}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 2,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "3": [
+    {
+     "tick": 3,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 1, "y": 4}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 3,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 3}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "4": [
+    {
+     "tick": 4,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 1, "y": 5}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 4,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 4}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "5": [
+    {
+     "tick": 5,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 1, "y": 6}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 5,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 5}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "6": [
+    {
+     "tick": 6,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 6}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 6,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 3, "y": 5}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "7": [
+    {
+     "tick": 7,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 3, "y": 6}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 7,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 4, "y": 5}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "8": [
+    {
+     "tick": 8,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 3, "y": 7}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 8,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 4, "y": 6}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "9": [
+    {
+     "tick": 9,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 3, "y": 8}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 9,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 4, "y": 7}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "10": [
+    {
+     "tick": 10,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 4, "y": 8}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 10,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 7}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "11": [
+    {
+     "tick": 11,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 4, "y": 9}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 11,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "12": [
+    {
+     "tick": 12,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 9}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 12,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 8}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "13": [
+    {
+     "tick": 13,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 9}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 13,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 7, "y": 8}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ],
+   "14": [
+    {
+     "tick": 14,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 10}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 14,
+     "next_id": 5,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 7, "y": 9}, "health": 10, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ]
+  }
  }
 }

@@ -104,6 +104,32 @@
     ],
     "events": []
    }
-  ]
+  ],
+  "alternatives": {
+   "1": [
+    {
+     "tick": 1,
+     "next_id": 6,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 10, "y": 10}, "health": 50, "active": true},
+      {"id": 4, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 11, "y": 10}, "health": 50, "active": true},
+      {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    },
+    {
+     "tick": 1,
+     "next_id": 6,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 10}, "health": 50, "active": true},
+      {"id": 4, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 10, "y": 10}, "health": 50, "active": true},
+      {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 18}, "health": 10, "active": true}
+     ],
+     "events": []
+    }
+   ]
+  }
  }
 }

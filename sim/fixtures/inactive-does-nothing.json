@@ -1,0 +1,96 @@
+{
+ "name": "inactive-does-nothing",
+ "about": "An inactive builder (5/10 hp) with a move order and an inactive Turret (50/100) with an attack order on an enemy in range: neither acts.",
+ "questions": [4, 6],
+ "engine": "aicup2020 1.3.0",
+ "seed": 1,
+ "players": ["Empty", "Empty"],
+ "state": {
+  "next_id": 6,
+  "map_size": 20,
+  "fog_of_war": false,
+  "entity_properties": "default",
+  "max_tick_count": 2,
+  "max_pathfind_nodes": 1000,
+  "current_tick": 0,
+  "passive_income": 0,
+  "players": {"by_id": {"1": {"id": 1, "index": 0, "score": 0, "resource": 0}, "2": {"id": 2, "index": 1, "score": 0, "resource": 0}}},
+  "entities": {
+   "by_id": {
+    "3": {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 5, "active": false},
+    "4": {"id": 4, "player_id": 1, "entity_type": "Turret", "position": {"x": 10, "y": 10}, "health": 50, "active": false},
+    "5": {"id": 5, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 12, "y": 10}, "health": 50, "active": true}
+   }
+  },
+  "entity_actions": {
+   "by_id": {
+    "3": {
+     "entity_id": 3,
+     "action": {"move_action": {"target": {"x": 2, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+    },
+    "4": {"entity_id": 4, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+   }
+  }
+ },
+ "expected": {
+  "returncode": 0,
+  "results": {"players": [{"crashed": false, "comment": null}, {"crashed": false, "comment": null}], "results": [0, 0], "seed": 1},
+  "log": [],
+  "ticks": [
+   {
+    "tick": 0,
+    "next_id": 6,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 5, "active": false},
+     {"id": 4, "player_id": 1, "entity_type": "Turret", "position": {"x": 10, "y": 10}, "health": 50, "active": false},
+     {"id": 5, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 12, "y": 10}, "health": 50, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {"move_action": {"target": {"x": 2, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {"entity_id": 4, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+    ],
+    "events": []
+   },
+   {
+    "tick": 1,
+    "next_id": 6,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 5, "active": false},
+     {"id": 4, "player_id": 1, "entity_type": "Turret", "position": {"x": 10, "y": 10}, "health": 50, "active": false},
+     {"id": 5, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 12, "y": 10}, "health": 50, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {"move_action": {"target": {"x": 2, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {"entity_id": 4, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+    ],
+    "events": []
+   },
+   {
+    "tick": 2,
+    "next_id": 6,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 5, "active": false},
+     {"id": 4, "player_id": 1, "entity_type": "Turret", "position": {"x": 10, "y": 10}, "health": 50, "active": false},
+     {"id": 5, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 12, "y": 10}, "health": 50, "active": true}
+    ],
+    "entity_actions": [
+     {
+      "entity_id": 3,
+      "action": {"move_action": {"target": {"x": 2, "y": 10}, "find_closest_position": true, "break_through": false}, "build_action": null, "attack_action": null, "repair_action": null}
+     },
+     {"entity_id": 4, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 5, "auto_attack": null}, "repair_action": null}}
+    ],
+    "events": []
+   }
+  ]
+ }
+}

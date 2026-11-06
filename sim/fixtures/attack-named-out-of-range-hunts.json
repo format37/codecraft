@@ -1,0 +1,94 @@
+{
+ "name": "attack-named-out-of-range-hunts",
+ "about": "A melee unit whose attack order names a target out of range and has an auto_attack (pathfind_range 10), with an enemy builder 6 cells away: it hunts the builder, as an auto_attack alone would.",
+ "questions": [4],
+ "engine": "aicup2020 1.3.0",
+ "seed": 1,
+ "players": ["Empty", "Empty"],
+ "state": {
+  "next_id": 6,
+  "map_size": 20,
+  "fog_of_war": false,
+  "entity_properties": "default",
+  "max_tick_count": 3,
+  "max_pathfind_nodes": 1000,
+  "current_tick": 0,
+  "passive_income": 0,
+  "players": {"by_id": {"1": {"id": 1, "index": 0, "score": 0, "resource": 0}, "2": {"id": 2, "index": 1, "score": 0, "resource": 0}}},
+  "entities": {
+   "by_id": {
+    "3": {"id": 3, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 10}, "health": 50, "active": true},
+    "4": {"id": 4, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 18, "y": 1}, "health": 50, "active": true},
+    "5": {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 11, "y": 10}, "health": 10, "active": true}
+   }
+  },
+  "entity_actions": {
+   "by_id": {
+    "3": {"entity_id": 3, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": {"pathfind_range": 10, "valid_targets": []}}, "repair_action": null}}
+   }
+  }
+ },
+ "expected": {
+  "returncode": 0,
+  "results": {"players": [{"crashed": false, "comment": null}, {"crashed": false, "comment": null}], "results": [0, 0], "seed": 1},
+  "log": [],
+  "ticks": [
+   {
+    "tick": 0,
+    "next_id": 6,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 10}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 18, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 11, "y": 10}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {"entity_id": 3, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": {"pathfind_range": 10, "valid_targets": []}}, "repair_action": null}}
+    ],
+    "events": []
+   },
+   {
+    "tick": 1,
+    "next_id": 6,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 6, "y": 10}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 18, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 11, "y": 10}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {"entity_id": 3, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": {"pathfind_range": 10, "valid_targets": []}}, "repair_action": null}}
+    ],
+    "events": []
+   },
+   {
+    "tick": 2,
+    "next_id": 6,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 7, "y": 10}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 18, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 11, "y": 10}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {"entity_id": 3, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": {"pathfind_range": 10, "valid_targets": []}}, "repair_action": null}}
+    ],
+    "events": []
+   },
+   {
+    "tick": 3,
+    "next_id": 6,
+    "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+    "entities": [
+     {"id": 3, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 8, "y": 10}, "health": 50, "active": true},
+     {"id": 4, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 18, "y": 1}, "health": 50, "active": true},
+     {"id": 5, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 11, "y": 10}, "health": 10, "active": true}
+    ],
+    "entity_actions": [
+     {"entity_id": 3, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 4, "auto_attack": {"pathfind_range": 10, "valid_targets": []}}, "repair_action": null}}
+    ],
+    "events": []
+   }
+  ]
+ }
+}

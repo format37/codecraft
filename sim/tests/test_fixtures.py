@@ -1,5 +1,5 @@
 """The fixture files: well formed, one per scenario, and (where the official engine runs) still what the engine
-does. The Python engine's own fixture tests come with rules.py (step 3 of the kickoff)."""
+does. Our engine's rules are checked against them in test_rules.py."""
 from __future__ import annotations
 
 import pytest
@@ -8,7 +8,7 @@ from oracle import fixture as fixture_io
 from oracle.puppet import Puppet
 from oracle.scenarios import SCENARIOS
 
-from conftest import needs_engine
+from conftest import SLOW, needs_engine
 
 FIXTURES = fixture_io.all_fixtures()
 NAMES = [fx["name"] for fx in FIXTURES]
@@ -43,10 +43,29 @@ def test_fixture_is_well_formed(fx):
         assert len(exp["results"]["results"]) == len(model.players)
         final = {p["index"]: p["score"] for p in ticks[-1]["players"]}
         assert exp["results"]["results"] == [final[i] for i in range(len(model.players))]
+    by_tick = {str(t["tick"]): t for t in ticks}
+    for tick, outcomes in exp.get("alternatives", {}).items():
+        assert tick in by_tick and tick != str(ticks[0]["tick"])
+        keys = [fixture_io.outcome_key(o) for o in outcomes]
+        assert len(outcomes) > 1 and len(set(keys)) == len(keys)
+        assert all("entity_actions" not in o for o in outcomes)
+        assert fixture_io.outcome_key(by_tick[tick]) in keys, "the recorded outcome is one of the alternatives"
 
 
 @needs_engine
 @pytest.mark.parametrize("name", NAMES)
 def test_fixture_still_matches_the_official_engine(name):
-    fresh = fixture_io.record(SCENARIOS[name])
+    fresh = fixture_io.record(SCENARIOS[name], with_alternatives=False)
     assert fixture_io.compare(fixture_io.load(name), fresh) == []
+
+
+@needs_engine
+@pytest.mark.skipif(not SLOW, reason="SIM_SLOW=1: replays every turn of every fixture on the official engine")
+@pytest.mark.parametrize("name", NAMES)
+def test_alternatives_still_match_the_official_engine(name):
+    fx = fixture_io.load(name)
+    fresh = fixture_io.alternatives(fx)
+    stored = fx["expected"].get("alternatives", {})
+    assert sorted(fresh) == sorted(stored)
+    for tick in stored:
+        assert sorted(map(fixture_io.outcome_key, fresh[tick])) == sorted(map(fixture_io.outcome_key, stored[tick]))

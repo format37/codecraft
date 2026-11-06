@@ -92,6 +92,232 @@
     ],
     "events": [[0, 5, 3], [0, 8, 6]]
    }
-  ]
+  ],
+  "alternatives": {
+   "1": [
+    {
+     "tick": 1,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 45, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 10, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 10, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 5, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 5, 3], [0, 8, 7]]
+    },
+    {
+     "tick": 1,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 45, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 10, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 10, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 5, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 8, 7], [0, 5, 3]]
+    },
+    {
+     "tick": 1,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 45, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 10, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 5, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 10, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 5, 3], [0, 8, 6]]
+    },
+    {
+     "tick": 1,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 45, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 10, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 5, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 10, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 8, 6], [0, 5, 3]]
+    },
+    {
+     "tick": 1,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 50, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 5, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 10, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 5, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 5, 4], [0, 8, 7]]
+    },
+    {
+     "tick": 1,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 50, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 5, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 10, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 5, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 8, 7], [0, 5, 4]]
+    },
+    {
+     "tick": 1,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 50, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 5, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 5, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 10, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 5, 4], [0, 8, 6]]
+    },
+    {
+     "tick": 1,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 50, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 5, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 5, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 10, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 8, 6], [0, 5, 4]]
+    }
+   ],
+   "2": [
+    {
+     "tick": 2,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 100, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 40, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 10, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 10, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 5, 3], [0, 8, 7]]
+    },
+    {
+     "tick": 2,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 100, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 40, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 10, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 10, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 8, 7], [0, 5, 3]]
+    },
+    {
+     "tick": 2,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 40, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 10, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 5, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 5, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 5, 3], [0, 8, 6]]
+    },
+    {
+     "tick": 2,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 40, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 10, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 5, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 5, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 8, 6], [0, 5, 3]]
+    },
+    {
+     "tick": 2,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 100, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 45, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 5, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 10, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 5, 4], [0, 8, 7]]
+    },
+    {
+     "tick": 2,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 100, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 45, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 5, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 10, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 8, 7], [0, 5, 4]]
+    },
+    {
+     "tick": 2,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 45, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 5, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 5, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 5, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 5, 4], [0, 8, 6]]
+    },
+    {
+     "tick": 2,
+     "next_id": 9,
+     "players": [{"id": 1, "index": 0, "score": 0, "resource": 0}, {"id": 2, "index": 1, "score": 0, "resource": 0}],
+     "entities": [
+      {"id": 3, "player_id": 2, "entity_type": "MeleeUnit", "position": {"x": 9, "y": 5}, "health": 45, "active": true},
+      {"id": 4, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 8}, "health": 5, "active": true},
+      {"id": 5, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 5, "y": 5}, "health": 10, "active": true},
+      {"id": 6, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 15, "y": 18}, "health": 5, "active": true},
+      {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 18, "y": 15}, "health": 5, "active": true},
+      {"id": 8, "player_id": 1, "entity_type": "RangedUnit", "position": {"x": 15, "y": 15}, "health": 10, "active": true}
+     ],
+     "events": [[0, 8, 6], [0, 5, 4]]
+    }
+   ]
+  }
  }
 }
