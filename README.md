@@ -22,7 +22,11 @@ Live instance: https://codecraft.latentstate.dev
 - **Replay viewer** in the browser: the official `replay.dat` is decoded
   ([docs/replay-format.md](docs/replay-format.md)); the official 3D viewer works too. A game link pasted
   into Telegram, Slack or Discord shows the final board (Open Graph preview image).
-- **Limits as in 2020**: 1 s per tick, 40 s CPU per game, memory and CPU caps per container.
+- **Limits as in 2020**: 1 s per tick, 40 s CPU per game, memory and CPU caps per container. The live
+  instance runs strategies under gVisor, where every system call costs extra CPU: the Python, Ruby and
+  JavaScript starters spend 10-25% more, but the official D client reads each value of the game state with
+  its own `socket.receive`, so a D strategy spends about 3.5 times as much (the D starter: 19 s of its 40).
+  A buffered `SocketStream` (`source/app.d`) should save most of that.
 - **Isolation**: a submission compiles offline, in a container with memory, CPU, process and time
   limits and no capabilities, made from a base image per language that holds the official client and
   its dependencies (so a build can use what that image has, as in 2020). A playing strategy sits on a
