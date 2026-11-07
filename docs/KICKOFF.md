@@ -1,4 +1,4 @@
-# CodeCraft platform — kickoff and status (updated 2026-11-06)
+# CodeCraft platform — kickoff and status (updated 2026-11-07)
 
 Entry point for a working session. Read this, then `README.md`, then `config.yaml`.
 
@@ -202,12 +202,47 @@ Beyond-All-Reason-style metal/energy economy) another, with its own engine (any 
 the orchestrator contract matters: TCP players, results file, replay). GPU fractions per player
 (CUDA MPS / time slicing) belong here too.
 
+## Our own engine — `sim/` (in progress, 2026-11-06/07)
+
+The official engine is a closed binary nobody can patch, port or study; so we write our own: **the same rules,
+not bit-exact** (our own maps and random draws), with the official runner's command line, config, log lines,
+`results.json`, replay format and TCP protocol, so that the server, the web, the timeline, the MCP tools and the 15
+client packages stay as they are. Python first, as the executable spec (and the future Kaggle environment), then a
+C++ clone of it for the ladder. Decisions (Alex): no need to reproduce the official maps; maps symmetric for four
+seats; written from the rules and tested against the binary, reading its machine code only to settle a dispute.
+
+Done (`sim/`, see [sim/README.md](../sim/README.md)): the state, the wire codec and the replay writer (byte-exact
+on every stored official replay); the rules of a tick; the player views (fog of war, every seat in its own frame);
+the game loop with TCP seats, timeouts and crashes; the presets and a map generator; QuickStart; the Docker image
+`codecraft/sim`. How it is checked:
+
+- 92 fixtures recorded from the official binary run from hand-made states (`LoadFrom`), one per rule question,
+  with every outcome the binary gives where it draws at random; our rules reproduce each outcome set exactly;
+- every turn of the 92 distinct stored official games (75 110 turns) replays exactly when our rules make the
+  record's random choices, and every one of those games played from its first state ends with its official
+  scores; the pathfinder was read off the binary's machine code to get there;
+- 12 460 views the binary sent to recording players equal ours;
+- every fixture played by our engine as a whole, in place of the binary (TCP seats, crashes, log lines,
+  results), gives what the binary gave; the 15 starter languages played it with `./cw play`.
+
+What differs from the official engine, by design: the maps (ours are the same under the eight symmetries of the
+square, so every seat sees the same field from its corner; the official ones only under a half turn), the
+QuickStart bot (ours is the starter strategy of
+[codecraft-starter](https://github.com/format37/codecraft-starter); the official bot is closed, so the
+`quickstart` rating will drift), and the random draws (the same seed gives another game than the official engine;
+our engine replays its own games exactly). Speed: a game takes 1.5 to 3 minutes in pure Python, 2.5 to 5 times the
+official engine's, hence the C++ clone.
+
+Using it: `engine: {image: codecraft/sim:0.1.0, context: sim}` in `config.yaml` (or `CW_ENGINE_IMAGE` and
+`CW_ENGINE_CONTEXT` in `.env`), then `./cw build`; the official image stays selectable the same way. Next: the
+C++ clone (checked to play exactly the Python engine's games), then the ladder switches to it.
+
 ## Kaggle
 
 A Kaggle "simulation competition" (e.g. Lux AI, Halite) needs the game as a `kaggle-environments`
 Python environment with an interpreter running inside Kaggle's episodes; the closed Rust engine
-cannot be used there. So Kaggle = own engine (phase 4) ported to that interface, plus public
-replays. Not before the private server has been used for a while.
+cannot be used there. Our own engine (`sim/`, Python, standard library only, no I/O in its core) can be
+wrapped in that interface, plus public replays. Not before the private server has been used for a while.
 
 ## Conventions
 
