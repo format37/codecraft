@@ -1,7 +1,9 @@
-// codecraft-sim-cpp: our CodeCraft 2020 engine in C++, with the official runner's command line (batch mode only):
+// codecraft-sim-cpp: our CodeCraft 2020 engine in C++, with the official runner's command line:
 //   codecraft-sim-cpp --config /game/config.json --batch-mode --save-results /game/results.json
 //       --save-replay /game/replay.dat --log-level info --player-names a b c d
-// It plays exactly the games of the Python engine (sim/codecraft_sim), seed for seed.
+// It plays exactly the games of the Python engine (sim/codecraft_sim), seed for seed. Without --batch-mode it is the
+// local runner: the game is shown live in the browser (http://127.0.0.1:31000/) with the official GUI's debug
+// interface for the TCP clients; without --config the viewer asks for one.
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -17,8 +19,9 @@
 #endif
 
 int main(int argc, char** argv) {
-    std::string config_path, save_results, save_replay, log_level = "info";
-    bool replay_mode = false, client_gen = false;
+    std::string config_path, save_results, save_replay, replay_path, log_level = "info";
+    bool replay_mode = false, client_gen = false, batch = false;
+    cc::LiveOptions live;
     const std::set<std::string> ignored_with_value = {"--repeat", "--lang", "--client-gen-options",
                                                      "--client-gen-host-from-docker", "--client-gen-test-mode"};
     for (int k = 1; k < argc; k++) {
@@ -34,23 +37,44 @@ int main(int argc, char** argv) {
             printf("codecraft-sim-cpp %s\n", SIM_VERSION);
             return 0;
         } else if (a == "-h" || a == "--help") {
-            printf("codecraft-sim-cpp %s: the CodeCraft 2020 game engine (our own), batch mode\n"
-                   "  --config FILE --batch-mode --save-results FILE --save-replay FILE --log-level LEVEL\n"
-                   "  --player-names NAME...\n", SIM_VERSION);
+            printf("codecraft-sim-cpp %s: the CodeCraft 2020 game engine (our own)\n"
+                   "  --config FILE           the game: seed, preset or state, seats (the official runner's config)\n"
+                   "  --batch-mode            no viewer: play and exit (the server's way)\n"
+                   "  --save-results FILE --save-replay FILE --log-level LEVEL --player-names NAME...\n"
+                   "Without --batch-mode the game is shown live in the browser, with the debug interface of the\n"
+                   "official GUI for TCP clients; without --config the viewer asks for one:\n"
+                   "  --viewer-port PORT      the viewer's port on 127.0.0.1 (default 31000; 0 = any free one)\n"
+                   "  --viewer-speed TPS      ticks per second at the start (default 10; 0 = as fast as it goes)\n"
+                   "  --no-browser            do not open the browser\n"
+                   "  --viewer-exit           exit when the game is over (default: wait for the next game)\n"
+                   "  --replay FILE           watch a replay file (--save-replay, Ctrl-S) in the viewer\n",
+                   SIM_VERSION);
             return 0;
         } else if (a == "--config") {
             config_path = value();
-        } else if (a == "--batch-mode" || a == "--client-gen-preserve-files") {
+        } else if (a == "--batch-mode") {
+            batch = true;
+        } else if (a == "--viewer-port") {
+            live.port = atoi(value().c_str());
+        } else if (a == "--viewer-speed") {
+            live.speed = atof(value().c_str());
+        } else if (a == "--no-browser") {
+            live.open_browser = false;
+        } else if (a == "--viewer-exit") {
+            live.exit_when_over = true;
+        } else if (a == "--client-gen-preserve-files") {
         } else if (a == "--save-results") {
             save_results = value();
         } else if (a == "--save-replay") {
             save_replay = value();
         } else if (a == "--log-level") {
             log_level = value();
-        } else if (a == "--player-names" || a == "--client-gen-language") {
+        } else if (a == "--player-names") {
+            while (k + 1 < argc && strncmp(argv[k + 1], "--", 2) != 0) live.names.push_back(argv[++k]);
+        } else if (a == "--client-gen-language") {
             while (k + 1 < argc && strncmp(argv[k + 1], "--", 2) != 0) k++;
         } else if (a == "--replay") {
-            value();
+            replay_path = value();
             replay_mode = true;
         } else if (a == "--client-gen") {
             value();
@@ -63,14 +87,18 @@ int main(int argc, char** argv) {
         }
     }
     cc::Log log(log_level);
-    if (replay_mode || client_gen) {
-        log.error("panicked at 'this engine has no GUI and no client generator'");
+    if (client_gen || (replay_mode && batch)) {
+        log.error("panicked at 'this engine has no client generator, and plays replays only with the viewer'");
         return cc::PANIC;
     }
-    if (config_path.empty()) {
+    if (config_path.empty() && batch) {
         log.error("panicked at 'Batch mode can only be used with --config option'");
         return cc::PANIC;
     }
+    live.save_results = save_results;
+    live.save_replay = save_replay;
+    if (replay_mode) return cc::run_replay(replay_path, live, log);
+    if (config_path.empty()) return cc::run_live(nullptr, live, log);
     cc::Json config;
     try {
         std::ifstream f(config_path);
@@ -83,5 +111,6 @@ int main(int argc, char** argv) {
         log.error(std::string("panicked at 'Could not load config: ") + e.what() + "'");
         return cc::PANIC;
     }
+    if (!batch) return cc::run_live(&config, live, log);
     return cc::run(config, save_results, save_replay, log);
 }

@@ -90,8 +90,8 @@ def make_seat(spec, log: Log) -> Seat:
         return QuickStartPlayer()
     if kind == "Tcp":
         try:
-            return TcpPlayer(value["host"], value["port"], value.get("accept_timeout"), value.get("timeout"),
-                             value["token"], log)
+            return TcpPlayer(value.get("host"), value["port"], value.get("accept_timeout"), value.get("timeout"),
+                             value.get("token"), log)
         except (KeyError, TypeError, ValueError) as exc:
             raise ConfigError(f"bad Tcp player {value!r}: {exc}") from None
     raise ConfigError(f"unknown player `{kind}`, expected `Tcp`, `QuickStart` or `Empty`")

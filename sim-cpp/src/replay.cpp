@@ -63,8 +63,15 @@ static void write_delta(Writer& w, const std::map<int32_t, T>& prev, const std::
     }
 }
 
-ReplayWriter::ReplayWriter(const std::string& path) : f_(fopen(path.c_str(), "wb")) {
+ReplayWriter::ReplayWriter(const std::string& path, bool keep) : keep_(keep) {
+    if (path.empty()) return;
+    f_ = fopen(path.c_str(), "wb");
     if (!f_) throw std::runtime_error("cannot write the replay " + path);
+}
+
+void ReplayWriter::put(const std::string& data) {
+    if (f_) fwrite(data.data(), 1, data.size(), f_);
+    if (keep_) kept_ += data;
 }
 
 ReplayWriter::~ReplayWriter() { close(); }
@@ -79,7 +86,7 @@ void ReplayWriter::close() {
 void ReplayWriter::start(const Model& m) {
     Writer w;
     write_model(w, m);
-    fwrite(w.buf.data(), 1, w.buf.size(), f_);
+    put(w.buf);
     prev_ = m;
 }
 
@@ -104,7 +111,7 @@ void ReplayWriter::tick(const std::vector<Event>& events, const Model& m) {
         wr.i32(id);
         write_entity_action(wr, a);
     });
-    fwrite(w.buf.data(), 1, w.buf.size(), f_);
+    put(w.buf);
     prev_.next_id = m.next_id;
     prev_.current_tick = m.current_tick;
     prev_.players = m.players;
@@ -112,4 +119,211 @@ void ReplayWriter::tick(const std::vector<Event>& events, const Model& m) {
     prev_.entity_actions = m.entity_actions;
 }
 
+ReplayReader::ReplayReader(std::string data) : data_(std::move(data)) { initial_ = model(); }
+
+int32_t ReplayReader::i32() {
+    if (pos_ + 4 > data_.size()) throw std::runtime_error("the replay ends in the middle of a value");
+    uint32_t v = 0;
+    for (int k = 3; k >= 0; k--) v = (v << 8) | static_cast<unsigned char>(data_[pos_ + static_cast<size_t>(k)]);
+    pos_ += 4;
+    return static_cast<int32_t>(v);
+}
+
+bool ReplayReader::boolean() {
+    if (pos_ >= data_.size()) throw std::runtime_error("the replay ends in the middle of a value");
+    unsigned char b = static_cast<unsigned char>(data_[pos_++]);
+    if (b > 1) throw std::runtime_error("bad bool in the replay");
+    return b == 1;
+}
+
+int32_t ReplayReader::count() {
+    int32_t n = i32();
+    if (n < 0 || static_cast<size_t>(n) > data_.size()) throw std::runtime_error("bad count in the replay");
+    return n;
+}
+
+std::vector<EntityType> ReplayReader::types() {
+    std::vector<EntityType> out;
+    for (int32_t k = count(); k > 0; k--) {
+        int32_t t = i32();
+        if (t < 0 || t >= TYPE_COUNT) throw std::runtime_error("bad entity type in the replay");
+        out.push_back(static_cast<EntityType>(t));
+    }
+    return out;
+}
+
+Properties ReplayReader::properties() {
+    Properties props;
+    for (int32_t k = count(); k > 0; k--) {
+        int32_t t = i32();
+        if (t < 0 || t >= TYPE_COUNT) throw std::runtime_error("bad entity type in the replay");
+        EntityProperties p;
+        p.size = i32();
+        p.build_score = i32();
+        p.destroy_score = i32();
+        p.can_move = boolean();
+        p.population_provide = i32();
+        p.population_use = i32();
+        p.max_health = i32();
+        p.initial_cost = i32();
+        p.sight_range = i32();
+        p.resource_per_health = i32();
+        if (boolean()) {
+            BuildProperties b;
+            b.options = types();
+            if (boolean()) b.init_health = i32();
+            p.build = b;
+        }
+        if (boolean()) {
+            AttackProperties a;
+            a.attack_range = i32();
+            a.damage = i32();
+            a.collect_resource = boolean();
+            p.attack = a;
+        }
+        if (boolean()) {
+            RepairProperties r;
+            r.valid_targets = types();
+            r.power = i32();
+            p.repair = r;
+        }
+        props.set(static_cast<EntityType>(t), p);
+    }
+    return props;
+}
+
+Player ReplayReader::player() {
+    Player p;
+    p.id = i32();
+    p.index = i32();
+    p.score = i32();
+    p.resource = i32();
+    return p;
+}
+
+Entity ReplayReader::entity() {
+    Entity e;
+    e.id = i32();
+    if (boolean()) e.player_id = i32();
+    int32_t t = i32();
+    if (t < 0 || t >= TYPE_COUNT) throw std::runtime_error("bad entity type in the replay");
+    e.entity_type = static_cast<EntityType>(t);
+    e.position.x = i32();
+    e.position.y = i32();
+    e.health = i32();
+    e.active = boolean();
+    return e;
+}
+
+EntityAction ReplayReader::action() {
+    EntityAction a;
+    if (boolean()) {
+        MoveAction m;
+        m.target.x = i32();
+        m.target.y = i32();
+        m.find_closest_position = boolean();
+        m.break_through = boolean();
+        a.move_action = m;
+    }
+    if (boolean()) {
+        BuildAction b;
+        int32_t t = i32();
+        if (t < 0 || t >= TYPE_COUNT) throw std::runtime_error("bad entity type in the replay");
+        b.entity_type = static_cast<EntityType>(t);
+        b.position.x = i32();
+        b.position.y = i32();
+        a.build_action = b;
+    }
+    if (boolean()) {
+        AttackAction t;
+        if (boolean()) t.target = i32();
+        if (boolean()) {
+            AutoAttack aa;
+            aa.pathfind_range = i32();
+            aa.valid_targets = types();
+            t.auto_attack = aa;
+        }
+        a.attack_action = t;
+    }
+    if (boolean()) a.repair_action = RepairAction{i32()};
+    return a;
+}
+
+Model ReplayReader::model() {
+    Model m;
+    m.next_id = i32();
+    m.map_size = i32();
+    m.fog_of_war = boolean();
+    m.props = properties();
+    m.max_tick_count = i32();
+    m.max_pathfind_nodes = i32();
+    m.current_tick = i32();
+    m.passive_income = i32();
+    for (int32_t k = count(); k > 0; k--) {
+        i32();
+        Player p = player();
+        m.players[p.id] = p;
+    }
+    for (int32_t k = count(); k > 0; k--) {
+        i32();
+        Entity e = entity();
+        m.entities[e.id] = e;
+    }
+    for (int32_t k = count(); k > 0; k--) {
+        i32();
+        int32_t id = i32();
+        m.entity_actions[id] = action();
+    }
+    return m;
+}
+
+bool ReplayReader::next(Model& m, std::vector<Event>& events) {
+    if (pos_ >= data_.size()) return false;
+    events.clear();
+    for (int32_t k = count(); k > 0; k--) {
+        Event e;
+        e.tag = i32();
+        e.a = i32();
+        e.b = i32();
+        events.push_back(e);
+    }
+    m.next_id = i32();
+    m.map_size = i32();
+    m.fog_of_war = boolean();
+    m.max_tick_count = i32();
+    m.max_pathfind_nodes = i32();
+    m.current_tick = i32();
+    m.passive_income = i32();
+    for (int32_t k = count(); k > 0; k--) {             // players: added, removed, updated
+        Player p = player();
+        m.players[p.id] = p;
+    }
+    for (int32_t k = count(); k > 0; k--) m.players.erase(i32());
+    for (int32_t k = count(); k > 0; k--) {
+        int32_t id = i32();
+        m.players[id] = player();
+    }
+    for (int32_t k = count(); k > 0; k--) {             // entities
+        Entity e = entity();
+        m.entities[e.id] = e;
+    }
+    for (int32_t k = count(); k > 0; k--) m.entities.erase(i32());
+    for (int32_t k = count(); k > 0; k--) {
+        int32_t id = i32();
+        m.entities[id] = entity();
+    }
+    for (int32_t k = count(); k > 0; k--) {             // stored orders: (entity id, order)
+        int32_t id = i32();
+        m.entity_actions[id] = action();
+    }
+    for (int32_t k = count(); k > 0; k--) m.entity_actions.erase(i32());
+    for (int32_t k = count(); k > 0; k--) {
+        i32();
+        int32_t id = i32();
+        m.entity_actions[id] = action();
+    }
+    return true;
+}
+
 }  // namespace cc
+

@@ -195,4 +195,139 @@ Model model_from_json(const Json& d) {
     return m;
 }
 
+static Json vec_json(Vec2 v) {
+    Json j = Json::object();
+    j.add("x", Json::integer(v.x)).add("y", Json::integer(v.y));
+    return j;
+}
+
+static Json types_json(const std::vector<EntityType>& types) {
+    Json j = Json::array();
+    for (EntityType t : types) j.push(Json::string(TYPE_NAMES[static_cast<int>(t)]));
+    return j;
+}
+
+static Json opt_int(const std::optional<int32_t>& v) { return v ? Json::integer(*v) : Json::null(); }
+
+static Json properties_to_json(const EntityProperties& p) {
+    Json j = Json::object();
+    j.add("size", Json::integer(p.size)).add("build_score", Json::integer(p.build_score));
+    j.add("destroy_score", Json::integer(p.destroy_score)).add("can_move", Json::boolean(p.can_move));
+    j.add("population_provide", Json::integer(p.population_provide));
+    j.add("population_use", Json::integer(p.population_use)).add("max_health", Json::integer(p.max_health));
+    j.add("initial_cost", Json::integer(p.initial_cost)).add("sight_range", Json::integer(p.sight_range));
+    j.add("resource_per_health", Json::integer(p.resource_per_health));
+    if (p.build) {
+        Json b = Json::object();
+        b.add("options", types_json(p.build->options)).add("init_health", opt_int(p.build->init_health));
+        j.add("build", b);
+    } else {
+        j.add("build", Json::null());
+    }
+    if (p.attack) {
+        Json a = Json::object();
+        a.add("range", Json::integer(p.attack->attack_range)).add("damage", Json::integer(p.attack->damage));
+        a.add("collect_resource", Json::boolean(p.attack->collect_resource));
+        j.add("attack", a);
+    } else {
+        j.add("attack", Json::null());
+    }
+    if (p.repair) {
+        Json r = Json::object();
+        r.add("valid_targets", types_json(p.repair->valid_targets)).add("power", Json::integer(p.repair->power));
+        j.add("repair", r);
+    } else {
+        j.add("repair", Json::null());
+    }
+    return j;
+}
+
+static Json action_to_json(const EntityAction& a) {
+    Json j = Json::object();
+    if (a.move_action) {
+        Json m = Json::object();
+        m.add("target", vec_json(a.move_action->target));
+        m.add("find_closest_position", Json::boolean(a.move_action->find_closest_position));
+        m.add("break_through", Json::boolean(a.move_action->break_through));
+        j.add("move_action", m);
+    } else {
+        j.add("move_action", Json::null());
+    }
+    if (a.build_action) {
+        Json b = Json::object();
+        b.add("entity_type", Json::string(TYPE_NAMES[static_cast<int>(a.build_action->entity_type)]));
+        b.add("position", vec_json(a.build_action->position));
+        j.add("build_action", b);
+    } else {
+        j.add("build_action", Json::null());
+    }
+    if (a.attack_action) {
+        Json t = Json::object();
+        t.add("target", opt_int(a.attack_action->target));
+        if (a.attack_action->auto_attack) {
+            Json aa = Json::object();
+            aa.add("pathfind_range", Json::integer(a.attack_action->auto_attack->pathfind_range));
+            aa.add("valid_targets", types_json(a.attack_action->auto_attack->valid_targets));
+            t.add("auto_attack", aa);
+        } else {
+            t.add("auto_attack", Json::null());
+        }
+        j.add("attack_action", t);
+    } else {
+        j.add("attack_action", Json::null());
+    }
+    if (a.repair_action) {
+        Json r = Json::object();
+        r.add("target", Json::integer(a.repair_action->target));
+        j.add("repair_action", r);
+    } else {
+        j.add("repair_action", Json::null());
+    }
+    return j;
+}
+
+Json model_to_json(const Model& m) {
+    Json j = Json::object();
+    j.add("next_id", Json::integer(m.next_id)).add("map_size", Json::integer(m.map_size));
+    j.add("fog_of_war", Json::boolean(m.fog_of_war));
+    Json props = Json::object();
+    for (const auto& kv : m.props.list)
+        props.add(TYPE_NAMES[static_cast<int>(kv.first)], properties_to_json(kv.second));
+    j.add("entity_properties", props);
+    j.add("max_tick_count", Json::integer(m.max_tick_count));
+    j.add("max_pathfind_nodes", Json::integer(m.max_pathfind_nodes));
+    j.add("current_tick", Json::integer(m.current_tick)).add("passive_income", Json::integer(m.passive_income));
+    Json players = Json::object(), entities = Json::object(), actions = Json::object();
+    for (const auto& kv : m.players) {
+        Json p = Json::object();
+        p.add("id", Json::integer(kv.second.id)).add("index", Json::integer(kv.second.index));
+        p.add("score", Json::integer(kv.second.score)).add("resource", Json::integer(kv.second.resource));
+        players.add(std::to_string(kv.first), p);
+    }
+    for (const auto& kv : m.entities) {
+        const Entity& e = kv.second;
+        Json o = Json::object();
+        o.add("id", Json::integer(e.id)).add("player_id", opt_int(e.player_id));
+        o.add("entity_type", Json::string(TYPE_NAMES[static_cast<int>(e.entity_type)]));
+        o.add("position", vec_json(e.position)).add("health", Json::integer(e.health));
+        o.add("active", Json::boolean(e.active));
+        entities.add(std::to_string(kv.first), o);
+    }
+    for (const auto& kv : m.entity_actions) {
+        Json o = Json::object();
+        o.add("entity_id", Json::integer(kv.first)).add("action", action_to_json(kv.second));
+        actions.add(std::to_string(kv.first), o);
+    }
+    Json by = Json::object();
+    by.add("by_id", players);
+    j.add("players", by);
+    by = Json::object();
+    by.add("by_id", entities);
+    j.add("entities", by);
+    by = Json::object();
+    by.add("by_id", actions);
+    j.add("entity_actions", by);
+    return j;
+}
+
 }  // namespace cc

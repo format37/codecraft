@@ -46,7 +46,7 @@ void Seat::crash(const std::string& error, Log& log) {
 Action QuickStartPlayer::get_action(const PlayerView& view) { return quickstart_action(view); }
 
 TcpPlayer::TcpPlayer(std::string host, int port, std::optional<double> accept_timeout, std::optional<double> timeout,
-                     std::string token, Log& log)
+                     std::optional<std::string> token, Log& log)
     : host_(std::move(host)), token_(std::move(token)), port_(port), accept_timeout_(accept_timeout),
       timeout_(timeout), log_(log) {}
 
@@ -120,7 +120,7 @@ void TcpPlayer::start() {
         failure = NO_CONNECTION;
         return;
     }
-    if (token != token_) {
+    if (token_ && token != *token_) {
         ::close(conn);
         failure = TOKEN_MISMATCH;
         return;
@@ -142,53 +142,103 @@ void TcpPlayer::send_all(const std::string& data) {
     }
 }
 
-// A DebugMessage carries a DebugCommand, read and thrown away (clients/Python/model/debug_*.py)
-static void skip_vertex(SocketReader& r) {
-    if (r.boolean()) {
-        r.f32();
-        r.f32();
-    }
-    for (int k = 0; k < 6; k++) r.f32();
+void TcpPlayer::set_debug(DebugHost* host, int seat, int map_size) {
+    debug_ = host;
+    seat_ = seat;
+    map_size_ = map_size;
 }
 
-static void skip_debug_command(SocketReader& r) {
-    int32_t tag = r.i32();
-    if (tag == 0) {                         // Add(DebugData)
-        int32_t data = r.i32();
-        if (data == 0) {                    // Log(text)
-            r.string();
-        } else if (data == 1) {             // Primitives(vertices, primitive_type)
-            int32_t n = r.count();
-            for (int32_t k = 0; k < n; k++) skip_vertex(r);
-            r.i32();
-        } else if (data == 2) {             // PlacedText(vertex, text, alignment, size)
-            skip_vertex(r);
-            r.string();
-            r.f32();
-            r.f32();
-        } else {
-            throw IoError("IO error: Unexpected tag " + std::to_string(data));
-        }
-    } else if (tag == 2) {                  // SetAutoFlush(enable)
-        r.boolean();
-    } else if (tag != 1 && tag != 3) {      // Clear, Flush
-        throw IoError("IO error: Unexpected tag " + std::to_string(tag));
+// The next message's tag. With the viewer, the drawings done so far are handed over when the client goes quiet
+// (it may stop at a breakpoint in the middle of its turn: what it drew until then is shown, as in the official GUI).
+int32_t TcpPlayer::next_tag() {
+    if (debug_ && !unsent_.empty() && !reader_->buffered()) {
+        pollfd p{sock_, POLLIN, 0};
+        if (poll(&p, 1, 30) == 0) hand_over();
     }
+    return reader_->i32();
+}
+
+void TcpPlayer::hand_over() {
+    if (!debug_ || unsent_.empty()) return;
+    debug_->debug_ops(seat_, unsent_layer_, std::move(unsent_));
+    unsent_.clear();
+}
+
+void TcpPlayer::apply(int layer, DebugOp op) {
+    if (!unsent_.empty() && unsent_layer_ != layer) hand_over();
+    unsent_layer_ = layer;
+    unsent_.push_back(std::move(op));
+}
+
+// Add and Clear go to `layer` at once, or with autoflush off wait for Flush (and then still go to the layer of the
+// tick they were sent in: the official GUI shows a late-flushed drawing on that tick).
+void TcpPlayer::debug_command(const DebugCommand& c, int layer) {
+    if (c.tag == DebugCommand::Add || c.tag == DebugCommand::Clear) {
+        DebugOp op;
+        op.clear = c.tag == DebugCommand::Clear;
+        if (!op.clear) {
+            op.data = c.data;
+            for (DebugVertex& v : op.data.vertices)
+                if (v.world) point_from_view(seat_, v.x, v.y, map_size_);
+        }
+        if (autoflush_) apply(layer, std::move(op));
+        else pending_.emplace_back(layer, std::move(op));
+        return;
+    }
+    if (c.tag == DebugCommand::SetAutoFlush) autoflush_ = c.enable;
+    if (c.tag == DebugCommand::Flush || (c.tag == DebugCommand::SetAutoFlush && c.enable)) {
+        for (auto& kv : pending_) apply(kv.first, std::move(kv.second));
+        pending_.clear();
+    }
+}
+
+void TcpPlayer::send_debug_state() {
+    hand_over();
+    Writer w;
+    write_debug_state(w, debug_->debug_input(), seat_, map_size_);
+    send_all(w.buf);
 }
 
 Action TcpPlayer::get_action(const PlayerView& view) {
     Writer w;
-    write_get_action(w, view, false);
+    write_get_action(w, view, debug_ != nullptr);
     send_all(w.buf);
     SocketReader& r = *reader_;
     while (true) {
-        int32_t tag = r.i32();
-        if (tag == ACTION_MESSAGE) return read_action(r);
-        if (tag == DEBUG_MESSAGE) skip_debug_command(r);
-        else if (tag == DEBUG_UPDATE_DONE)
+        int32_t tag = next_tag();
+        if (tag == ACTION_MESSAGE) {
+            Action a = read_action(r);
+            hand_over();
+            return a;
+        }
+        if (tag == DEBUG_MESSAGE) {
+            DebugCommand c = read_debug_command(r);        // without the viewer: read and ignored
+            if (debug_) debug_command(c, view.current_tick);
+        } else if (tag == DEBUG_UPDATE_DONE) {
             throw IoError("IO error: Unexpected debug update done message in get_action");
-        else if (tag == REQUEST_DEBUG_STATE)
-            throw IoError("IO error: Requested debug state with no debug interface available");
+        } else if (tag == REQUEST_DEBUG_STATE) {
+            if (!debug_) throw IoError("IO error: Requested debug state with no debug interface available");
+            send_debug_state();
+        } else {
+            throw IoError("IO error: Unexpected tag " + std::to_string(tag));
+        }
+    }
+}
+
+void TcpPlayer::debug_update(const PlayerView& view) {
+    Writer w;
+    write_debug_update(w, view);
+    send_all(w.buf);
+    SocketReader& r = *reader_;
+    while (true) {
+        int32_t tag = next_tag();
+        if (tag == DEBUG_UPDATE_DONE) {
+            hand_over();
+            return;
+        }
+        if (tag == DEBUG_MESSAGE) debug_command(read_debug_command(r), -1);
+        else if (tag == REQUEST_DEBUG_STATE) send_debug_state();
+        else if (tag == ACTION_MESSAGE) throw IoError("IO error: Unexpected action message in debug update");
         else throw IoError("IO error: Unexpected tag " + std::to_string(tag));
     }
 }

@@ -2,6 +2,7 @@
 // byte, string = i32 length + UTF-8, Option = bool tag + value, Vec = i32 count + items, enums = i32 tags.
 #pragma once
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <utility>
 #include <vector>
@@ -19,6 +20,12 @@ struct Writer {
         buf.append(b, 4);
     }
     void boolean(bool v) { buf += static_cast<char>(v ? 1 : 0); }
+    void f32(float v) {
+        int32_t i;
+        static_assert(sizeof i == sizeof v, "float is 32 bits");
+        memcpy(&i, &v, sizeof i);
+        i32(i);
+    }
     void string(const std::string& s) {
         i32(static_cast<int32_t>(s.size()));
         buf += s;
@@ -40,6 +47,8 @@ public:
     bool boolean();
     int32_t count();
     std::string string();
+    bool buffered() const { return pos_ < len_; }    // bytes already read from the socket and not yet taken
+    int fd() const { return fd_; }
 
 private:
     int fd_;
@@ -56,6 +65,7 @@ void write_entity_action(Writer& w, const EntityAction& a);
 void write_player_view(Writer& w, const PlayerView& v);
 void write_get_action(Writer& w, const PlayerView& v, bool debug_available = false);
 void write_finish(Writer& w);
+void write_debug_update(Writer& w, const PlayerView& v);
 Action read_action(SocketReader& r);
 
 constexpr int32_t DEBUG_MESSAGE = 0, ACTION_MESSAGE = 1, DEBUG_UPDATE_DONE = 2, REQUEST_DEBUG_STATE = 3;

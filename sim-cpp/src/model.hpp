@@ -163,5 +163,6 @@ EntityProperties properties_from_json(const Json& j);
 EntityAction action_from_json(const Json& j);
 Vec2 vec_from_json(const Json& j);
 Model model_from_json(const Json& j);
+Json model_to_json(const Model& m);     // as sim/codecraft_sim/model.py model_json: a LoadFrom state file
 
 }  // namespace cc

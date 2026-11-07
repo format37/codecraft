@@ -314,6 +314,7 @@ void escape(std::string& out, const std::string& s) {
 
 void dump(std::string& out, const Json& v, int indent, int level) {
     auto newline = [&](int lv) {
+        if (indent < 0) return;                         // compact: one line
         out += '\n';
         out.append(static_cast<size_t>(indent * lv), ' ');
     };
@@ -353,7 +354,7 @@ void dump(std::string& out, const Json& v, int indent, int level) {
                 if (k) out += ',';
                 newline(level + 1);
                 escape(out, v.obj[k].first);
-                out += ": ";
+                out += indent < 0 ? ":" : ": ";
                 dump(out, v.obj[k].second, indent, level + 1);
             }
             newline(level);

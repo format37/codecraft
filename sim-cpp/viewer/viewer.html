@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CodeCraft runner</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #0a0e13; --map: #111821; --panel: rgba(15, 21, 29, 0.93); --fg: #e6edf3; --muted: #8b98a5;
+    --line: #26323f; --accent: #4c8dff; --bad: #ff6b6b; --ok: #3ecf8e;
+  }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden;
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button, select, input, textarea { font: inherit; color: var(--fg); background: #1a2430; border: 1px solid var(--line);
+    border-radius: 5px; }
+  button { padding: 4px 10px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  select, input { padding: 3px 6px; }
+  #map { position: absolute; left: 0; top: 0; width: 100%; height: calc(100% - 46px); display: block;
+    cursor: crosshair; }
+  #bar { position: absolute; left: 0; right: 0; bottom: 0; height: 46px; display: flex; align-items: center; gap: 10px;
+    padding: 0 12px; background: var(--panel); border-top: 1px solid var(--line); box-sizing: border-box; }
+  #play { width: 40px; font-size: 15px; padding: 2px 0; }
+  #tick { font-variant-numeric: tabular-nums; min-width: 118px; }
+  #slider { flex: 1; min-width: 80px; accent-color: var(--accent); }
+  #cell { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 92px; }
+  #top { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); pointer-events: none;
+    background: rgba(10, 14, 19, 0.72); border-radius: 6px; padding: 4px 12px; font-variant-numeric: tabular-nums;
+    white-space: nowrap; max-width: calc(100% - 640px); overflow: hidden; }
+  #logs { position: absolute; top: 8px; left: 10px; max-width: 32%; max-height: 45%; overflow: hidden;
+    pointer-events: none; font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap;
+    text-shadow: 0 0 3px #000, 0 0 2px #000; }
+  #side { position: absolute; top: 8px; right: 8px; width: 290px; max-height: calc(100% - 70px); overflow: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+    box-sizing: border-box; }
+  #side.hidden > :not(.head) { display: none; }
+  #side h3 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); }
+  #side .head { display: flex; justify-content: space-between; align-items: center; }
+  #side .head b { font-size: 14px; }
+  .seat { display: grid; grid-template-columns: 14px 1fr auto; gap: 2px 8px; align-items: center; padding: 4px 0;
+    border-bottom: 1px solid var(--line); }
+  .seat:last-child { border-bottom: 0; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; }
+  .muted { color: var(--muted); }
+  .bad { color: var(--bad); }
+  .ok { color: var(--ok); }
+  .small { font-size: 12px; }
+  label.chk { display: flex; align-items: center; gap: 6px; margin: 3px 0; cursor: pointer; }
+  #banner { position: absolute; left: 50%; top: 104px; transform: translateX(-50%); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; max-width: 70%; text-align: center; }
+  #banner button { margin: 8px 4px 0; }
+  #toast { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); background: var(--panel);
+    border: 1px solid var(--accent); border-radius: 6px; padding: 8px 14px; max-width: 80%; word-break: break-all; }
+  #config { position: absolute; inset: 0; background: rgba(5, 8, 12, 0.88); display: flex; align-items: center;
+    justify-content: center; }
+  #config .card { background: #121a23; border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px;
+    width: min(620px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto; box-sizing: border-box; }
+  #config h2 { margin: 0 0 4px; font-size: 18px; }
+  #config .row { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+  #config .row > span:first-child { width: 70px; color: var(--muted); }
+  #config textarea { width: 100%; height: 180px; box-sizing: border-box; font: 12px ui-monospace, monospace;
+    padding: 6px; }
+  #config .seatrow { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+  #config .error { color: var(--bad); margin: 8px 0; white-space: pre-wrap; }
+  #help { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px 20px; }
+  #help td { padding: 2px 10px 2px 0; }
+  kbd { background: #1f2a36; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<canvas id="map"></canvas>
+<div id="logs"></div>
+<div id="top"></div>
+<div id="side">
+  <div class="head"><b>CodeCraft</b><button id="hide" class="small" title="hide or show this panel">–</button></div>
+  <div id="seed" class="muted small"></div>
+  <h3>Players</h3>
+  <div id="seats"></div>
+  <h3>Show</h3>
+  <label class="chk"><input type="checkbox" id="optAttacks" checked> attacks</label>
+  <label class="chk"><input type="checkbox" id="optMoves"> move targets (all units)</label>
+  <label class="chk"><input type="checkbox" id="optGrid" checked> grid</label>
+  <div id="debugOpts"></div>
+  <h3>Selected</h3>
+  <div id="info" class="small muted">click an entity</div>
+</div>
+<div id="bar">
+  <button id="play" title="play / pause (P)">❚❚</button>
+  <span id="tick">tick 0</span>
+  <input id="slider" type="range" min="0" max="0" value="0">
+  <select id="speed" title="view speed, ticks per second">
+    <option value="1">1 t/s</option><option value="2">2 t/s</option><option value="5">5 t/s</option>
+    <option value="10" selected>10 t/s</option><option value="20">20 t/s</option><option value="50">50 t/s</option>
+    <option value="100">100 t/s</option><option value="0">max</option>
+  </select>
+  <span id="cell"></span>
+  <button id="saveReplay" title="save the replay so far (Ctrl-S)">Save replay</button>
+  <button id="saveState" title="save the state of the tick shown, for LoadFrom (Ctrl-E)">Save state</button>
+  <button id="helpBtn" title="keys">?</button>
+</div>
+<div id="banner" hidden></div>
+<div id="toast" hidden></div>
+<div id="help" hidden>
+  <b>Keys and mouse</b>
+  <table class="small">
+    <tr><td><kbd>P</kbd></td><td>pause / play</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd></td>
+      <td>a tick back / forward (pauses; → at the newest tick plays one)</td></tr>
+    <tr><td><kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd></td><td>10 ticks</td></tr>
+    <tr><td><kbd>Home</kbd></td><td>fit the map</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>save the replay so far</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>save the state of the tick shown (a LoadFrom file)</td></tr>
+    <tr><td>wheel</td><td>zoom</td></tr>
+    <tr><td>right drag, <kbd>Shift</kbd>+drag</td><td>move the camera</td></tr>
+    <tr><td>click</td><td>select an entity</td></tr>
+  </table>
+  <p class="small muted">Your strategy gets the mouse, the keys held and the camera through
+    <code>debug_interface.get_state()</code>; what it draws shows on the tick it drew it for.</p>
+</div>
+<div id="config" hidden>
+  <div class="card">
+    <h2>New game</h2>
+    <div class="muted small">Seats on TCP wait for your strategy: run it, it connects to 127.0.0.1 and the port.</div>
+    <div class="row"><span>Game</span>
+      <select id="cfgGame">
+        <option value="Round1">Round 1 (no fog, bases given)</option>
+        <option value="Round2">Round 2 (fog, a builder base)</option>
+        <option value="Finals">Finals (fog, a builder base)</option>
+        <option value="LoadFrom">from a state file</option>
+        <option value="Custom" hidden>custom (from the config below)</option>
+      </select>
+      <input id="cfgState" placeholder="/path/to/state.json" size="28" hidden>
+    </div>
+    <div class="row"><span>Seed</span><input id="cfgSeed" placeholder="random" size="24">
+      <a href="#" id="cfgLastSeed" class="small" hidden></a></div>
+    <div class="row"><span>Players</span><button id="cfgAdd" class="small">+ seat</button>
+      <button id="cfgDel" class="small">− seat</button></div>
+    <div id="cfgSeats"></div>
+    <div id="cfgError" class="error" hidden></div>
+    <div class="row"><button id="cfgStart">Start</button></div>
+    <details>
+      <summary class="small muted">config JSON (the official runner's format; paste one to use it as is)</summary>
+      <textarea id="cfgJson" spellcheck="false"></textarea>
+      <div class="row"><button id="cfgStartJson">Start with this JSON</button></div>
+    </details>
+  </div>
+</div>
+<script>
+(() => {
+  "use strict";
+  const TYPES = ["WALL", "HOUSE", "BUILDER_BASE", "BUILDER_UNIT", "MELEE_BASE", "MELEE_UNIT", "RANGED_BASE",
+    "RANGED_UNIT", "RESOURCE", "TURRET"];
+  const LETTER = { WALL: "W", HOUSE: "H", BUILDER_BASE: "B", MELEE_BASE: "M", RANGED_BASE: "R", TURRET: "T" };
+  const COLORS = ["#2f7df6", "#e5484d", "#30a46c", "#f5a524"];
+  const KEYFRAME = 25;
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("map"), ctx = canvas.getContext("2d");
+
+  let G = null;                        // the game shown: what "init" said, and every tick since
+  let cache = null;                    // the last state rebuilt for a past tick
+  const view = { tick: 0, playing: true, speed: 10, follow: true, selected: null };
+  const cam = { x: 40, y: 40, scale: 8, fitted: false };
+  const mouse = { x: -1, y: -1, inside: false };
+  const pressed = new Set();
+  let W = 0, H = 0, dirty = true, lastSeed = null, playAcc = 0, playLast = 0;
+
+  const prefs = load("cc-runner-prefs", { speed: 10, attacks: true, moves: false, grid: true, side: true });
+  function load(key, fallback) {
+    try { return Object.assign({}, fallback, JSON.parse(localStorage.getItem(key) || "{}")); }
+    catch (e) { return fallback; }
+  }
+  function save() { try { localStorage.setItem("cc-runner-prefs", JSON.stringify(prefs)); } catch (e) { /* none */ } }
+
+  async function post(path, body) {
+    try {
+      const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}) });
+      return r.ok ? await r.json() : { message: "the runner said " + r.status };
+    } catch (e) { return { message: "the runner is not answering" }; }
+  }
+
+  // The runner's events ------------------------------------------------------------------------------------------
+  const es = new EventSource("/events");
+  es.addEventListener("init", (e) => onInit(JSON.parse(e.data)));
+  es.addEventListener("tick", (e) => onTick(JSON.parse(e.data)));
+  es.addEventListener("dbg", (e) => onDebug(JSON.parse(e.data)));
+  es.addEventListener("seat", (e) => onSeat(JSON.parse(e.data)));
+  es.addEventListener("over", (e) => onOver(JSON.parse(e.data)));
+  es.addEventListener("config", (e) => onConfig(JSON.parse(e.data)));
+  es.onerror = () => { if (G) banner("The runner is gone (stopped?): this page will reconnect when it is back."); };
+  es.onopen = () => { if (G && !G.over && G.waiting === 0) banner(null); };
+
+  function emptyState() { return { players: new Map(), entities: new Map(), actions: new Map(), events: [] }; }
+  function clone(s) {
+    return { players: new Map([...s.players].map(([k, v]) => [k, v.slice()])),
+      entities: new Map([...s.entities].map(([k, v]) => [k, v.slice()])), actions: new Map(s.actions),
+      events: s.events };
+  }
+  function applyTick(s, d) {
+    (d.p || []).forEach((p) => s.players.set(p[0], p.slice()));
+    (d.r || []).forEach((id) => s.entities.delete(id));
+    (d.a || []).forEach((e) => s.entities.set(e[0], e.slice()));
+    (d.u || []).forEach((e) => s.entities.set(e[0], e.slice()));
+    (d.actr || []).forEach((id) => s.actions.delete(id));
+    Object.entries(d.act || {}).forEach(([id, a]) => s.actions.set(+id, a));
+    s.events = d.ev || [];
+  }
+
+  function onInit(d) {
+    $("config").hidden = true;
+    const s = emptyState();
+    d.players.forEach((p) => s.players.set(p[0], p.slice()));
+    d.entities.forEach((e) => s.entities.set(e[0], e.slice()));
+    Object.entries(d.actions || {}).forEach(([id, a]) => s.actions.set(+id, a));
+    const sizeChanged = !G || G.size !== d.map_size;
+    G = { size: d.map_size, fog: d.fog_of_war, maxTick: d.max_tick_count, first: d.tick, newest: d.tick, seed: d.seed,
+      props: d.properties, seats: d.seats, players: d.players, seatOf: {}, ticks: [], keys: new Map(), live: s,
+      debug: d.seats.map(() => ({ ticks: new Map(), layer: [] })), over: null, waiting: 0 };
+    d.players.forEach((p) => { G.seatOf[p[0]] = p[1]; });
+    G.keys.set(G.first, clone(s));
+    G.waiting = G.seats.filter((x) => x.status === "waiting").length;
+    G.showDebug = G.seats.map((x) => x.kind === "tcp");
+    cache = null;
+    G.replay = !!d.replay;
+    view.tick = G.first; view.follow = !G.replay; view.selected = null; view.playing = true;
+    $("play").textContent = "❚❚"; playLast = performance.now(); playAcc = 0;
+    lastSeed = d.seed;
+    if (sizeChanged || !cam.fitted) fit();
+    $("slider").min = G.first;
+    renderSide(); renderDebugOpts(); waitingBanner(); updateBar(); control();
+    document.title = "CodeCraft runner";
+    dirty = true;
+  }
+
+  function onTick(d) {
+    if (!G) return;
+    G.ticks.push(d);
+    applyTick(G.live, d);
+    G.newest = d.t;
+    if ((d.t - G.first) % KEYFRAME === 0) G.keys.set(d.t, clone(G.live));
+    if (view.follow) view.tick = G.newest;
+    updateBar();
+    if (view.follow) { dirty = true; renderSide(); }
+  }
+
+  function onDebug(d) {
+    if (!G || !G.debug[d.s]) return;
+    const dbg = G.debug[d.s];
+    let target = d.t < 0 ? dbg.layer : dbg.ticks.get(d.t);
+    if (!target) { target = []; dbg.ticks.set(d.t, target); }
+    for (const op of d.ops) {
+      if (op.c) target.length = 0;
+      else target.push(op);
+    }
+    if (d.t < 0 || d.t === view.tick) dirty = true;
+  }
+
+  function onSeat(d) {
+    if (!G) return;
+    const seat = G.seats[d.s];
+    seat.status = d.status; seat.comment = d.comment;
+    G.waiting = G.seats.filter((x) => x.status === "waiting").length;
+    renderSide();
+    waitingBanner();
+  }
+
+  function onOver(d) {
+    if (!G) return;
+    G.over = d;
+    renderSide();
+    if (d.replay) return;                              // a replay file: no banner
+    lastSeed = d.seed;
+    const order = d.results.map((score, k) => [score, k]).sort((a, b) => b[0] - a[0]);
+    const rows = order.map(([score, k]) => `<span style="color:${COLORS[k % 4]}">${esc(G.seats[k].label)}</span> ` +
+      `${score}${d.players[k].crashed ? ' <span class="bad">(crashed)</span>' : ""}`).join(" &nbsp;·&nbsp; ");
+    const err = d.error ? `<div class="bad">${esc(d.error)}</div>` : "";
+    banner(`<b>Game over</b> at tick ${d.tick} (seed ${esc(d.seed)})<div>${rows}</div>${err}` +
+      `<button id="newGame">New game</button><button id="closeBanner">Keep looking</button>`);
+    $("newGame").onclick = () => { post("/new"); banner(null); };
+    $("closeBanner").onclick = () => banner(null);
+    renderSide();
+  }
+
+  function waitingBanner() {
+    if (!G || G.over) return;
+    if (G.waiting === 0) { banner(null); return; }
+    const ports = G.seats.filter((x) => x.status === "waiting")
+      .map((x) => `<b>${esc(x.label)}</b> on 127.0.0.1:${x.port}`).join(", ");
+    banner(`Waiting for your strateg${G.waiting > 1 ? "ies" : "y"}: ${ports}.` +
+      `<div class="small muted">Start it (the client's default is 127.0.0.1 31001); the game starts when every ` +
+      `seat is connected.</div>`);
+  }
+
+  // State at a tick ----------------------------------------------------------------------------------------------
+  function stateAt(t) {
+    if (t === G.newest) return G.live;
+    if (cache && cache.t === t) return cache.s;
+    let s, from;
+    if (cache && cache.t < t && t - cache.t <= KEYFRAME) { s = cache.s; from = cache.t; }
+    else {
+      from = G.first + Math.floor((t - G.first) / KEYFRAME) * KEYFRAME;
+      while (!G.keys.has(from)) from -= KEYFRAME;
+      s = clone(G.keys.get(from));
+    }
+    for (let i = from; i < t; i++) applyTick(s, G.ticks[i - G.first]);
+    cache = { t, s };
+    return s;
+  }
+
+  // Playback -----------------------------------------------------------------------------------------------------
+  let controlTimer = 0;
+  function control(extra) {
+    clearTimeout(controlTimer);
+    controlTimer = 0;
+    post("/control", Object.assign({ playing: view.playing, speed: view.speed, follow: view.follow,
+      display: view.tick }, extra || {}));
+  }
+  function goTo(t, follow) {
+    if (!G) return;
+    view.tick = Math.max(G.first, Math.min(G.newest, t));
+    view.follow = follow === undefined ? view.tick === G.newest : follow;
+    updateBar(); renderSide(); dirty = true;
+  }
+  function setPlaying(on) {
+    view.playing = on;
+    playLast = performance.now(); playAcc = 0;
+    $("play").textContent = on ? "❚❚" : "▶";
+    if (on && view.tick === G?.newest) view.follow = true;
+    control();
+  }
+  function step(n) {
+    if (!G) return;
+    if (view.playing) setPlaying(false);
+    if (n > 0 && view.tick >= G.newest) {
+      if (!G.over) { view.follow = true; control({ step: true }); }
+      return;
+    }
+    goTo(view.tick + n);
+    control();
+  }
+  function frame(now) {
+    if (G && view.playing && !view.follow) {          // playing the history: the engine waits for the newest tick
+      const speed = view.speed > 0 ? view.speed : 60;
+      playAcc += (now - playLast) / 1000 * speed;
+      const n = Math.floor(playAcc);
+      if (n > 0) {
+        playAcc -= n;
+        goTo(view.tick + n, false);
+        if (view.tick >= G.newest) { view.follow = true; control(); }
+        else if (!controlTimer) controlTimer = setTimeout(() => control(), 250);
+      }
+    }
+    playLast = now;
+    if (dirty) { dirty = false; draw(); }
+    requestAnimationFrame(frame);
+  }
+
+  function updateBar() {
+    if (!G) return;
+    const sl = $("slider");
+    sl.max = G.newest;
+    sl.value = view.tick;
+    $("tick").textContent = `tick ${view.tick}` + (view.tick === G.newest ? "" : ` / ${G.newest}`);
+  }
+
+  // Camera -------------------------------------------------------------------------------------------------------
+  function resize() {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (G && !cam.fitted) fit();
+    dirty = true; input();
+  }
+  function fit() {
+    if (!G || !W) return;
+    cam.scale = Math.min(W, H) / G.size * 0.94;
+    cam.x = G.size / 2; cam.y = G.size / 2; cam.fitted = true;
+    dirty = true; input();
+  }
+  const sx = (x) => W / 2 + (x - cam.x) * cam.scale;
+  const sy = (y) => H / 2 - (y - cam.y) * cam.scale;
+  const wx = (px) => cam.x + (px - W / 2) / cam.scale;
+  const wy = (py) => cam.y - (py - H / 2) / cam.scale;
+
+  // The debug state the strategies ask for ----------------------------------------------------------------------
+  let inputDirty = true;
+  function input() { inputDirty = true; }
+  setInterval(() => {
+    if (!inputDirty) return;
+    inputDirty = false;
+    post("/input", { w: W, h: H, mx: Math.min(W - 1, Math.max(0, mouse.x)),
+      my: Math.min(H - 1, Math.max(0, H - 1 - mouse.y)),
+      wx: wx(mouse.x), wy: wy(mouse.y), keys: [...pressed], cx: cam.x, cy: cam.y, dist: H / 2 / cam.scale });
+  }, 33);
+
+  function keyName(code) {
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit[0-9]$/.test(code)) return "Num" + code.slice(5);
+    if (/^Numpad[0-9]$/.test(code)) return "Num" + code.slice(6);
+    if (/^F([1-9]|1[0-2])$/.test(code)) return code;
+    return { Space: "Space", Enter: "Enter", NumpadEnter: "Enter", Escape: "Escape", Backspace: "Backspace",
+      Tab: "Tab", ShiftLeft: "LShift", ShiftRight: "RShift", ControlLeft: "LCtrl", ControlRight: "RCtrl",
+      AltLeft: "LAlt", AltRight: "RAlt", ArrowLeft: "Left", ArrowRight: "Right", ArrowUp: "Up", ArrowDown: "Down",
+      PageUp: "PageUp", PageDown: "PageDown", Home: "Home", End: "End", Insert: "Insert", Delete: "Delete" }[code];
+  }
+
+  // Drawing ------------------------------------------------------------------------------------------------------
+  function color(e) {
+    if (TYPES[e[2]] === "RESOURCE") return "#6e8aa6";
+    if (e[1] == null) return "#666";
+    return COLORS[G.seatOf[e[1]] % 4] || "#999";
+  }
+  const size = (type) => (G.props[type] || {}).size || 1;
+
+  function draw() {
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--bg") || "#0a0e13";
+    ctx.fillRect(0, 0, W, H);
+    if (!G) return;
+    const c = cam.scale, n = G.size, s = stateAt(view.tick);
+    ctx.fillStyle = "#111821";
+    ctx.fillRect(sx(0), sy(n), n * c, n * c);
+    if (prefs.grid) {
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= n; i++) {
+        const major = i % 10 === 0;
+        if (!major && c < 10) continue;
+        ctx.strokeStyle = major ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.035)";
+        ctx.beginPath(); ctx.moveTo(sx(i), sy(0)); ctx.lineTo(sx(i), sy(n)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sx(0), sy(i)); ctx.lineTo(sx(n), sy(i)); ctx.stroke();
+      }
+    }
+    const x0 = wx(0) - 5, x1 = wx(W) + 1, y0 = wy(H) - 5, y1 = wy(0) + 1;
+    for (const e of s.entities.values()) {
+      const type = TYPES[e[2]], k = size(type);
+      if (e[3] > x1 || e[3] + k < x0 || e[4] > y1 || e[4] + k < y0) continue;
+      const x = sx(e[3]), y = sy(e[4] + k), w = k * c;
+      ctx.globalAlpha = e[6] ? 1 : 0.45;
+      ctx.fillStyle = color(e);
+      if (type === "RESOURCE") {
+        ctx.fillRect(x + c * 0.08, y + c * 0.08, w - c * 0.16, w - c * 0.16);
+      } else if (type.endsWith("_UNIT")) {
+        const r = type === "BUILDER_UNIT" ? 0.32 : 0.43;
+        ctx.beginPath(); ctx.arc(x + w / 2, y + w / 2, w * r, 0, Math.PI * 2); ctx.fill();
+        if (type === "RANGED_UNIT") {
+          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x + w / 2, y + w / 2, w * 0.12, 0, Math.PI * 2); ctx.fill();
+        } else if (type === "MELEE_UNIT") {
+          ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = Math.max(1, c * 0.08);
+          ctx.beginPath(); ctx.arc(x + w / 2, y + w / 2, w * 0.43, 0, Math.PI * 2); ctx.stroke();
+        }
+      } else {
+        ctx.fillRect(x + 1, y + 1, w - 2, w - 2);
+        if (c * k >= 14) {
+          ctx.fillStyle = "rgba(0,0,0,0.42)"; ctx.font = `bold ${Math.round(Math.min(c * k * 0.5, 28))}px sans-serif`;
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(LETTER[type] || "?", x + w / 2, y + w / 2);
+        }
+      }
+      ctx.globalAlpha = 1;
+      const max = (G.props[type] || {}).max_health || e[5];
+      if (e[5] < max && type !== "RESOURCE" && c * k >= 6) {
+        ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(x + 1, y + w - 4, w - 2, 3);
+        ctx.fillStyle = "#4ade80"; ctx.fillRect(x + 1, y + w - 4, (w - 2) * Math.max(0, e[5]) / max, 3);
+      }
+    }
+    const moves = prefs.moves;
+    ctx.lineWidth = 1;
+    for (const [id, a] of s.actions) {
+      if (!a.move || (!moves && id !== view.selected)) continue;
+      const e = s.entities.get(id);
+      if (!e) continue;
+      const k = size(TYPES[e[2]]);
+      ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(sx(e[3] + k / 2), sy(e[4] + k / 2));
+      ctx.lineTo(sx(a.move.target[0] + 0.5), sy(a.move.target[1] + 0.5)); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (prefs.attacks) {
+      ctx.lineWidth = Math.max(1, c / 6);
+      for (const ev of s.events) {
+        if (ev[0] !== 0) continue;
+        const a = s.entities.get(ev[1]), b = s.entities.get(ev[2]);
+        if (!a || !b) continue;
+        const ka = size(TYPES[a[2]]), kb = size(TYPES[b[2]]);
+        ctx.strokeStyle = TYPES[b[2]] === "RESOURCE" ? "rgba(255,255,255,0.22)" : "rgba(255,90,90,0.85)";
+        ctx.beginPath(); ctx.moveTo(sx(a[3] + ka / 2), sy(a[4] + ka / 2));
+        ctx.lineTo(sx(b[3] + kb / 2), sy(b[4] + kb / 2));
+        ctx.stroke();
+      }
+    }
+    if (mouse.inside) {
+      const cx = Math.floor(wx(mouse.x)), cy = Math.floor(wy(mouse.y));
+      if (cx >= 0 && cy >= 0 && cx < n && cy < n) {
+        ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
+        ctx.strokeRect(sx(cx) + 0.5, sy(cy + 1) + 0.5, c - 1, c - 1);
+      }
+    }
+    if (view.selected != null) {
+      const e = s.entities.get(view.selected);
+      if (e) {
+        const k = size(TYPES[e[2]]);
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+        ctx.strokeRect(sx(e[3]) - 2, sy(e[4] + k) - 2, k * c + 4, k * c + 4);
+      }
+    }
+    drawDebug();
+    drawTop(s);
+    document.title = `CodeCraft runner · tick ${view.tick}`;
+  }
+
+  // What the strategies drew: the tick's drawings and the persistent layer of debug_update, per seat.
+  function drawDebug() {
+    const logs = [];
+    G.debug.forEach((dbg, seat) => {
+      if (!G.showDebug[seat]) return;
+      const items = (dbg.ticks.get(view.tick) || []).concat(dbg.layer);
+      for (const it of items) {
+        if (it.k === 0) logs.push([seat, it.x]);
+        else if (it.k === 1) primitives(it);
+        else if (it.k === 2) placedText(it);
+      }
+    });
+    $("logs").innerHTML = logs.slice(-200).map(([seat, text]) =>
+      `<div style="color:${COLORS[seat % 4]}">${esc(text)}</div>`).join("");
+  }
+  function vpos(v, i) {
+    const o = i * 8;
+    const x = v[o] === null ? 0 : sx(v[o]), y = v[o] === null ? H : sy(v[o + 1]);
+    return [x + v[o + 2], y - v[o + 3]];
+  }
+  function vcolor(v, i) {
+    const o = i * 8, f = (k) => Math.round(Math.max(0, Math.min(1, v[o + k])) * 255);
+    return `rgba(${f(4)},${f(5)},${f(6)},${Math.max(0, Math.min(1, v[o + 7]))})`;
+  }
+  function avgColor(v, i, n) {
+    const m = [0, 0, 0, 0];
+    for (let j = 0; j < n; j++) {
+      for (let k = 0; k < 4; k++) m[k] += Math.max(0, Math.min(1, v[(i + j) * 8 + 4 + k])) / n;
+    }
+    return `rgba(${Math.round(m[0] * 255)},${Math.round(m[1] * 255)},${Math.round(m[2] * 255)},${m[3]})`;
+  }
+  function primitives(it) {
+    const v = it.v, count = v.length / 8;
+    if (it.p === 0) {
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i + 1 < count; i += 2) {
+        const [ax, ay] = vpos(v, i), [bx, by] = vpos(v, i + 1), ca = vcolor(v, i), cb = vcolor(v, i + 1);
+        if (ca === cb) ctx.strokeStyle = ca;
+        else { const g = ctx.createLinearGradient(ax, ay, bx, by); g.addColorStop(0, ca); g.addColorStop(1, cb);
+          ctx.strokeStyle = g; }
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      }
+    } else {
+      for (let i = 0; i + 2 < count; i += 3) {
+        const [ax, ay] = vpos(v, i), [bx, by] = vpos(v, i + 1), [cx, cy] = vpos(v, i + 2);
+        ctx.fillStyle = avgColor(v, i, 3);
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.closePath(); ctx.fill();
+      }
+    }
+  }
+  function placedText(it) {
+    const [x, y] = vpos(it.v, 0), sizePx = it.sz > 0 ? it.sz : 12;
+    ctx.font = `${sizePx}px system-ui, sans-serif`;
+    ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+    ctx.fillStyle = vcolor(it.v, 0);
+    ctx.fillText(it.x, x - ctx.measureText(it.x).width * (it.al || 0), y);
+  }
+
+  function counts(s) {
+    const per = {};
+    for (const e of s.entities.values()) {
+      if (e[1] == null) continue;
+      const p = per[e[1]] = per[e[1]] || { used: 0, provided: 0, b: 0, m: 0, r: 0 };
+      const type = TYPES[e[2]], props = G.props[type] || {};
+      p.used += props.population_use || 0;
+      if (e[6]) p.provided += props.population_provide || 0;
+      if (type === "BUILDER_UNIT") p.b++; else if (type === "MELEE_UNIT") p.m++; else if (type === "RANGED_UNIT") p.r++;
+    }
+    return per;
+  }
+  function drawTop(s) {
+    const per = counts(s);
+    const rows = [...s.players.values()].sort((a, b) => a[1] - b[1]).map((p) => {
+      const c = per[p[0]] || { used: 0, provided: 0, b: 0, m: 0, r: 0 };
+      return `<div style="color:${COLORS[p[1] % 4]}"><b>${esc(G.seats[p[1]] ? G.seats[p[1]].label : "Player")}</b>` +
+        `: resource = ${p[3]}, population = ${c.used}/${c.provided} (${c.b} b, ${c.m} m, ${c.r} r), ` +
+        `score = ${p[2]}</div>`;
+    });
+    $("top").innerHTML = rows.join("");
+  }
+
+  // Side panel ---------------------------------------------------------------------------------------------------
+  function renderSide() {
+    if (!G) return;
+    $("seed").textContent = (G.replay ? "replay" : `seed ${G.seed}`) + (G.fog ? " · fog of war (all shown)" : "");
+    const s = stateAt(view.tick), per = counts(s);
+    $("seats").innerHTML = G.seats.map((seat, k) => {
+      const p = [...s.players.values()].find((x) => x[1] === k);
+      const kind = seat.kind === "tcp" ? `TCP :${seat.port}` : seat.kind === "quickstart" ? "QuickStart" :
+        seat.kind === "empty" ? "Empty" : "";
+      const st = seat.status === "crashed" ? `<span class="bad">crashed</span>` : seat.status === "waiting" ?
+        `<span class="muted">waiting</span>` : seat.status === "connected" ? `<span class="ok">connected</span>` : "";
+      const c = p ? (per[p[0]] || { used: 0, provided: 0 }) : null;
+      return `<div class="seat"><span class="sw" style="background:${COLORS[k % 4]}"></span><span>` +
+        `<b>${esc(seat.label)}</b> <span class="muted small">${kind}</span></span><span class="small">${st}</span>` +
+        `<span></span><span class="small muted">` +
+        `${p ? `score ${p[2]} · res ${p[3]} · pop ${c.used}/${c.provided}` : ""}` +
+        `</span><span></span>` +
+        (seat.comment ? `<span></span><span class="small bad" style="grid-column:span 2">` +
+          `${esc(seat.comment)}</span>` : "") +
+        `</div>`;
+    }).join("");
+    renderInfo(s);
+  }
+  function renderDebugOpts() {
+    const box = $("debugOpts");
+    box.innerHTML = "";
+    G.seats.forEach((seat, k) => {
+      if (seat.kind !== "tcp") return;
+      const l = document.createElement("label");
+      l.className = "chk";
+      l.innerHTML = `<input type="checkbox" ${G.showDebug[k] ? "checked" : ""}> debug drawings of ` +
+        `<span style="color:${COLORS[k % 4]}">${esc(seat.label)}</span>`;
+      l.querySelector("input").onchange = (e) => { G.showDebug[k] = e.target.checked; dirty = true; };
+      box.appendChild(l);
+    });
+  }
+  function toView(seat, x, y, k) {             // a cell in a seat's own frame (what its strategy sees)
+    const n = G.size;
+    return seat === 1 ? [n - x - k, n - y - k] : seat === 2 ? [y, n - x - k] : seat === 3 ? [n - y - k, x] : [x, y];
+  }
+  function renderInfo(s) {
+    const info = $("info");
+    if (view.selected == null) { info.innerHTML = "click an entity"; return; }
+    const e = s.entities.get(view.selected);
+    if (!e) { info.innerHTML = `entity #${view.selected} is not there at this tick`; return; }
+    const type = TYPES[e[2]], k = size(type), seat = e[1] == null ? null : G.seatOf[e[1]];
+    const owner = seat == null ? "nobody" :
+      `<span style="color:${COLORS[seat % 4]}">${esc(G.seats[seat].label)}</span>`;
+    let frame = "";
+    if (seat) {
+      const [a, b] = toView(seat, e[3], e[4], k);
+      frame = ` <span class="muted">(${a}, ${b} in its frame)</span>`;
+    }
+    const a = s.actions.get(e[0]);
+    let act = "";
+    if (a) {
+      if (a.move) act += `<div>move → (${a.move.target[0]}, ${a.move.target[1]})` +
+        `${a.move.find_closest_position ? ", closest" : ""}${a.move.break_through ? ", break through" : ""}</div>`;
+      if (a.build) {
+        act += `<div>build ${TYPES[a.build.entity_type]} at (${a.build.position[0]}, ${a.build.position[1]})</div>`;
+      }
+      if (a.attack) act += `<div>attack ${a.attack.target != null ? "#" + a.attack.target : ""}` +
+        (a.attack.auto_attack ? ` auto (range ${a.attack.auto_attack.pathfind_range}` +
+          `${targets(a.attack.auto_attack.valid_targets)})` : "") + "</div>";
+      if (a.repair) act += `<div>repair #${a.repair.target}</div>`;
+    }
+    info.innerHTML = `<div style="color:var(--fg)"><b>#${e[0]} ${type}</b></div><div>owner ${owner}</div>` +
+      `<div>at (${e[3]}, ${e[4]})${frame}</div><div>health ${e[5]} / ${(G.props[type] || {}).max_health || "?"}` +
+      `${e[6] ? "" : " · inactive"}</div>` +
+      (act ? '<div style="color:var(--fg)">' + act + "</div>" : "<div>no order stored</div>");
+  }
+
+  function banner(html) {
+    const b = $("banner");
+    if (!html) { b.hidden = true; return; }
+    b.innerHTML = html; b.hidden = false;
+  }
+  let toastTimer = 0;
+  function toast(text) {
+    const t = $("toast");
+    t.textContent = text; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 6000);
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+  function targets(types) { return types.length ? ", " + types.map((t) => TYPES[t]).join("/") : ""; }
+
+  // Config screen ------------------------------------------------------------------------------------------------
+  let cfgBase = null;
+  function onConfig(d) {
+    G = null; cache = null; dirty = true;
+    banner(null);
+    $("logs").innerHTML = ""; $("top").innerHTML = "";
+    cfgBase = d.config || {};
+    const game = cfgBase.game || { Create: "Round1" };
+    const sel = $("cfgGame");
+    if (typeof game.Create === "string") sel.value = game.Create;
+    else if (game.LoadFrom !== undefined) { sel.value = "LoadFrom"; $("cfgState").value = game.LoadFrom; }
+    else sel.value = "Custom";
+    $("cfgState").hidden = sel.value !== "LoadFrom";
+    $("cfgSeed").value = cfgBase.seed == null ? "" : String(cfgBase.seed);
+    const last = $("cfgLastSeed");
+    last.hidden = !lastSeed;
+    last.textContent = lastSeed ? `use the last game's seed (${lastSeed})` : "";
+    seatsForm(cfgBase.players || ["QuickStart"]);
+    $("cfgJson").value = JSON.stringify(cfgBase, null, 2);
+    const err = $("cfgError");
+    err.hidden = !d.error; err.textContent = d.error || "";
+    $("config").hidden = false;
+  }
+  function seatsForm(players) {
+    const box = $("cfgSeats");
+    box.innerHTML = "";
+    players.forEach((p, k) => {
+      const spec = typeof p === "string" ? { [p]: null } : p;
+      const kind = Object.keys(spec)[0], tcp = kind === "Tcp" ? spec.Tcp : null;
+      const row = document.createElement("div");
+      row.className = "seatrow";
+      row.innerHTML = `<span class="sw" style="background:${COLORS[k % 4]}"></span>` +
+        `<span style="width:62px">Player ${k + 1}</span>` +
+        `<select><option value="Tcp">your strategy (TCP)</option><option value="QuickStart">QuickStart bot</option>` +
+        `<option value="Empty">empty</option></select>` +
+        `<span class="port">port <input type="number" min="1" max="65535" ` +
+        `size="6" value="${tcp ? tcp.port : 31001 + k}"></span>`;
+      const sel = row.querySelector("select");
+      sel.value = kind;
+      row.dataset.tcp = JSON.stringify(tcp || {});
+      const portBox = row.querySelector(".port");
+      portBox.hidden = kind !== "Tcp";
+      sel.onchange = () => { portBox.hidden = sel.value !== "Tcp"; };
+      box.appendChild(row);
+    });
+  }
+  function configFromForm() {
+    const cfg = JSON.parse(JSON.stringify(cfgBase || {}));
+    const g = $("cfgGame").value;
+    if (g === "LoadFrom") cfg.game = { LoadFrom: $("cfgState").value.trim() };
+    else if (g !== "Custom") cfg.game = { Create: g };
+    const seed = $("cfgSeed").value.trim();
+    if (seed && !/^\d+$/.test(seed)) throw new Error("the seed is a whole number (or empty for a random one)");
+    cfg.seed = seed ? JSON.parse(seed) : null;          // a big seed keeps its digits in the runner's own parser
+    cfg.players = [...$("cfgSeats").children].map((row) => {
+      const kind = row.querySelector("select").value;
+      if (kind !== "Tcp") return kind;
+      const old = JSON.parse(row.dataset.tcp || "{}");
+      return { Tcp: { host: old.host ?? null, port: +row.querySelector("input").value,
+        accept_timeout: old.accept_timeout ?? null, timeout: old.timeout ?? null, token: old.token ?? null } };
+    });
+    return cfg;
+  }
+  async function start(cfg, rawJson) {
+    const body = rawJson ? `{"config":${rawJson}}` : JSON.stringify({ config: cfg });
+    try {
+      const r = await fetch("/start", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+      const j = await r.json();
+      if (j.message) { $("cfgError").hidden = false; $("cfgError").textContent = j.message; }
+    } catch (e) { $("cfgError").hidden = false; $("cfgError").textContent = "the runner is not answering"; }
+  }
+  $("cfgGame").onchange = () => { $("cfgState").hidden = $("cfgGame").value !== "LoadFrom"; };
+  $("cfgLastSeed").onclick = (e) => { e.preventDefault(); $("cfgSeed").value = lastSeed; };
+  $("cfgAdd").onclick = () => {
+    const players = configFromFormSafe().players;
+    if (players.length < 4) { players.push("QuickStart"); seatsForm(players); }
+  };
+  $("cfgDel").onclick = () => {
+    const players = configFromFormSafe().players;
+    if (players.length > 1) { players.pop(); seatsForm(players); }
+  };
+  function configFromFormSafe() { try { return configFromForm(); } catch (e) { return { players: [] }; } }
+  $("cfgStart").onclick = () => {
+    try {
+      const cfg = configFromForm();
+      // the seed goes as written: JSON numbers above 2^53 would lose digits in JSON.stringify
+      const seed = $("cfgSeed").value.trim();
+      const text = JSON.stringify(Object.assign({}, cfg, { seed: "__SEED__" })).replace('"__SEED__"', seed || "null");
+      start(null, text);
+    } catch (e) { $("cfgError").hidden = false; $("cfgError").textContent = e.message; }
+  };
+  $("cfgStartJson").onclick = () => {
+    const text = $("cfgJson").value;
+    try { JSON.parse(text); } catch (e) {
+      $("cfgError").hidden = false; $("cfgError").textContent = "not JSON: " + e.message; return;
+    }
+    start(null, text);
+  };
+
+  // Input --------------------------------------------------------------------------------------------------------
+  const typing = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  document.addEventListener("keydown", (e) => {
+    if (typing(e) || !$("config").hidden) return;
+    const name = keyName(e.code);
+    if (name && !pressed.has(name)) { pressed.add(name); input(); }
+    if ((e.ctrlKey || e.metaKey) && e.code === "KeyS") { e.preventDefault(); saveReplay(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.code === "KeyE") { e.preventDefault(); saveState(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code === "KeyP") setPlaying(!view.playing);
+    else if (e.code === "ArrowLeft") { e.preventDefault(); step(e.shiftKey ? -10 : -1); }
+    else if (e.code === "ArrowRight") { e.preventDefault(); step(e.shiftKey ? 10 : 1); }
+    else if (e.code === "Home") fit();
+    else if (e.code === "Escape") { $("help").hidden = true; }
+  });
+  document.addEventListener("keyup", (e) => {
+    const name = keyName(e.code);
+    if (name && pressed.delete(name)) input();
+  });
+  window.addEventListener("blur", () => { pressed.clear(); input(); });
+
+  let drag = null;
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  canvas.addEventListener("mousedown", (e) => {
+    if (e.button === 2 || e.button === 1 || (e.button === 0 && e.shiftKey)) {
+      drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false };
+      e.preventDefault();
+    } else if (e.button === 0) {
+      drag = { click: true, x: e.clientX, y: e.clientY };
+    }
+  });
+  window.addEventListener("mousemove", (e) => {
+    const r = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
+    mouse.inside = mouse.x >= 0 && mouse.y >= 0 && mouse.x < W && mouse.y < H;
+    if (drag && !drag.click) {
+      cam.x = drag.cx - (e.clientX - drag.x) / cam.scale;
+      cam.y = drag.cy + (e.clientY - drag.y) / cam.scale;
+      drag.moved = true;
+    }
+    if (G) {
+      const cx = Math.floor(wx(mouse.x)), cy = Math.floor(wy(mouse.y));
+      const on = mouse.inside && cx >= 0 && cy >= 0 && cx < G.size && cy < G.size;
+      $("cell").textContent = on ? `cell (${cx}, ${cy})` : "";
+    }
+    dirty = true; input();
+  });
+  window.addEventListener("mouseup", (e) => {
+    if (drag && drag.click && e.button === 0 && G && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) select();
+    drag = null;
+  });
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const before = [wx(mouse.x), wy(mouse.y)];
+    cam.scale = Math.max(1.5, Math.min(120, cam.scale * Math.exp(-e.deltaY * 0.0015)));
+    cam.x += before[0] - wx(mouse.x); cam.y += before[1] - wy(mouse.y);
+    dirty = true; input();
+  }, { passive: false });
+  canvas.addEventListener("mouseleave", () => { mouse.inside = false; dirty = true; });
+
+  function select() {
+    const s = stateAt(view.tick), cx = Math.floor(wx(mouse.x)), cy = Math.floor(wy(mouse.y));
+    let found = null;
+    for (const e of s.entities.values()) {
+      const k = size(TYPES[e[2]]);
+      if (cx >= e[3] && cx < e[3] + k && cy >= e[4] && cy < e[4] + k) { found = e[0]; if (k === 1) break; }
+    }
+    view.selected = found;
+    renderSide(); dirty = true;
+  }
+
+  async function saveReplay() { if (G) toast((await post("/save-replay")).message); }
+  async function saveState() { if (G) toast((await post("/save-state", { tick: view.tick })).message); }
+
+  $("play").onclick = () => G && setPlaying(!view.playing);
+  $("slider").oninput = (e) => {
+    if (!G) return;
+    if (view.playing) setPlaying(false);
+    goTo(+e.target.value); control();
+  };
+  $("speed").onchange = (e) => { view.speed = +e.target.value; prefs.speed = view.speed; save(); control(); };
+  $("saveReplay").onclick = saveReplay;
+  $("saveState").onclick = saveState;
+  $("helpBtn").onclick = () => { $("help").hidden = !$("help").hidden; };
+  $("help").onclick = () => { $("help").hidden = true; };
+  $("hide").onclick = () => { prefs.side = !prefs.side; save(); $("side").classList.toggle("hidden", !prefs.side); };
+  for (const [id, key] of [["optAttacks", "attacks"], ["optMoves", "moves"], ["optGrid", "grid"]]) {
+    $(id).checked = prefs[key];
+    $(id).onchange = (e) => { prefs[key] = e.target.checked; save(); dirty = true; };
+  }
+  $("side").classList.toggle("hidden", !prefs.side);
+  view.speed = prefs.speed;
+  $("speed").value = String(prefs.speed);
+  window.addEventListener("resize", resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -6,6 +6,7 @@ FROM gcc:13.3.0 AS build
 WORKDIR /src
 COPY Makefile ./
 COPY src ./src
+COPY viewer ./viewer
 RUN make -j"$(nproc)" LDFLAGS="-pthread -static-libstdc++ -static-libgcc"
 
 FROM debian:bookworm-slim

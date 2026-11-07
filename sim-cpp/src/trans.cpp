@@ -176,6 +176,11 @@ void write_get_action(Writer& w, const PlayerView& v, bool debug_available) {
 
 void write_finish(Writer& w) { w.i32(1); }
 
+void write_debug_update(Writer& w, const PlayerView& v) {
+    w.i32(2);
+    write_player_view(w, v);
+}
+
 static EntityType read_type(SocketReader& r) {
     int32_t t = r.i32();
     if (t < 0 || t >= TYPE_COUNT) throw IoError("IO error: bad entity type " + std::to_string(t));

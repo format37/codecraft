@@ -45,7 +45,7 @@ struct JsonError : std::runtime_error {
 };
 
 Json parse_json(const std::string& text);
-// As Python's json.dumps(value, indent=2): non-ASCII escaped, no final newline.
+// As Python's json.dumps(value, indent=2): non-ASCII escaped, no final newline; indent < 0: one line.
 std::string dump_json(const Json& value, int indent = 2);
 
 }  // namespace cc

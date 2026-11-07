@@ -50,10 +50,10 @@ docker build -t codecraft/sim:0.1.0 . && docker run --rm -v $PWD:/game codecraft
 
 `game.json` is the official runner's config: `{"seed": 7, "game": {"Create": "Round1"}, "players": ["QuickStart",
 "QuickStart", "QuickStart", "QuickStart"]}`; a seat is `{"Tcp": {"host", "port", "accept_timeout", "timeout",
-"token"}}`, `"QuickStart"` or `{"Empty": null}`; the game `{"Create": "Round1" | "Round2" | "Finals" | {"Custom":
-{...}}}` or `{"LoadFrom": "/abs/state.json"}`. The server runs it when config.yaml says `engine: {image:
-codecraft/sim:0.1.0, context: sim}` (or CW_ENGINE_IMAGE / CW_ENGINE_CONTEXT). A 4-player game of 1000 ticks takes
-about a minute in pure Python, plus the players' time.
+"token"}}` (a null host listens on 127.0.0.1, a null token takes any token), `"QuickStart"` or `{"Empty": null}`;
+the game `{"Create": "Round1" | "Round2" | "Finals" | {"Custom": {...}}}` or `{"LoadFrom": "/abs/state.json"}`.
+The server runs it when config.yaml says `engine: {image: codecraft/sim:0.1.0, context: sim}` (or CW_ENGINE_IMAGE /
+CW_ENGINE_CONTEXT). A 4-player game of 1000 ticks takes about a minute in pure Python, plus the players' time.
 
 ## Tests
 
@@ -77,6 +77,9 @@ presets' starting entities against the stored official games, id for id, and our
 paths. The C++ tests (`tests/test_cpp.py`, after `make -C ../sim-cpp`, which they run) check the C++ engine on every
 fixture as the Python engine is checked, and that it writes the same bytes as this engine from the same config and
 seed: on the fixtures with other seeds, on maps, on games of QuickStart bots and from stored official states. The
+local runner's tests (`tests/test_live.py`) check the C++ engine's GUI mode: the batch mode's game, the official
+GUI's debug interface through the official Python client's classes, the viewer's controls and saves, replays; and
+the official configs' null host and token in the official engine and in both of ours. The
 replay tests use the stored games in `data/games/` (skipped when there are none) and cross-check against the
 server's decoder `server/codecraft/replay.py`. The fixture tests re-run every scenario on the official
 binary and compare with the stored file, so a fixture can never silently drift from what the engine does.

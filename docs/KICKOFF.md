@@ -242,6 +242,14 @@ there or with `CW_ENGINE_IMAGE` and `CW_ENGINE_CONTEXT` in `.env`: the Python on
 `sim`, the official binary, for A/B games, with `codecraft/engine:1.3.0` and `engine`. The cover page and the MCP
 instructions say which engine plays.
 
+The C++ engine is also the local runner (2026-11-07, Alex's request through his strategy session): without
+`--batch-mode` it shows the game live in the browser (`sim-cpp/viewer/viewer.html`, served on 127.0.0.1:31000) with
+the official GUI's whole debug interface, whose behaviour was probed on the official binary in a virtual display:
+drawings per tick and a persistent `debug_update` layer, autoflush, DebugUpdate with the view of the tick on screen,
+DebugState from the browser's mouse, keys and camera. It takes the official configs as they are (a null host or
+token, as the official runner; the Python engine too), has a config screen, pause, steps, rewinding, Ctrl-S and
+Ctrl-E, and plays replays (`--replay`). See [sim-cpp/README.md](../sim-cpp/README.md#the-local-runner).
+
 ## Kaggle
 
 A Kaggle "simulation competition" (e.g. Lux AI, Halite) needs the game as a `kaggle-environments`

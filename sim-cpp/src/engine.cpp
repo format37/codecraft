@@ -1,6 +1,8 @@
 #include "engine.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
 #include <fstream>
 #include <memory>
 #include <random>
@@ -8,6 +10,9 @@
 #include <stdexcept>
 #include <thread>
 
+#include "history.hpp"
+#include "jsonout.hpp"
+#include "live.hpp"
 #include "mapgen.hpp"
 #include "replay.hpp"
 #include "rules.hpp"
@@ -84,10 +89,15 @@ std::unique_ptr<Seat> make_seat(const Json& spec, Log& log) {
     if (kind == "QuickStart") return std::make_unique<QuickStartPlayer>();
     if (kind == "Tcp" && value) {
         try {
-            return std::make_unique<TcpPlayer>(value->at("host").as_string(),
+            // null host: 127.0.0.1; null token: any token is taken (as the official runner)
+            const Json* host = value->get("host");
+            const Json* token = value->get("token");
+            std::optional<std::string> tok;
+            if (token && !token->is_null()) tok = token->as_string();
+            return std::make_unique<TcpPlayer>(host && !host->is_null() ? host->as_string() : "127.0.0.1",
                                                static_cast<int>(value->at("port").as_int()),
                                                opt_seconds(value->get("accept_timeout")),
-                                               opt_seconds(value->get("timeout")), value->at("token").as_string(), log);
+                                               opt_seconds(value->get("timeout")), tok, log);
         } catch (const JsonError& e) {
             throw ConfigError(std::string("bad Tcp player: ") + e.what());
         }
@@ -158,33 +168,48 @@ Json results(const Model& m, const std::vector<std::unique_ptr<Seat>>& seats, ui
     return out;
 }
 
+// A game set up from its config: the seed, the generator, the map or state, the seats (not connected yet).
+struct Game {
+    uint64_t seed = 0;
+    std::unique_ptr<PyRandom> rng;
+    Model model;
+    std::vector<std::unique_ptr<Seat>> seats;
+};
+
+Game setup(const Json& config, Log& log) {
+    Game g;
+    const Json* s = config.get("seed");
+    if (!s || s->is_null()) {
+        std::random_device rd;
+        g.seed = (static_cast<uint64_t>(rd()) << 32) | rd();
+    } else if ((s->kind == Json::Int && s->i >= 0) || s->kind == Json::UInt) {
+        g.seed = s->as_u64();
+    } else {
+        throw ConfigError("the seed must be an unsigned 64-bit number");
+    }
+    const Json* specs = config.get("players");
+    if (!specs || specs->kind != Json::Array || specs->arr.empty() || specs->arr.size() > 4)
+        throw ConfigError("`players` must list 1 to 4 seats");
+    g.rng = std::make_unique<PyRandom>(g.seed);
+    g.model = load_game(config, static_cast<int>(specs->arr.size()), *g.rng);
+    for (const Json& spec : specs->arr) g.seats.push_back(make_seat(spec, log));
+    return g;
+}
+
 }  // namespace
 
 int run(const Json& config, const std::string& save_results, const std::string& save_replay, Log& log) {
-    uint64_t seed;
-    Model model;
-    std::vector<std::unique_ptr<Seat>> seats;
-    std::unique_ptr<PyRandom> rng;
+    Game g;
     try {
-        const Json* s = config.get("seed");
-        if (!s || s->is_null()) {
-            std::random_device rd;
-            seed = (static_cast<uint64_t>(rd()) << 32) | rd();
-        } else if ((s->kind == Json::Int && s->i >= 0) || s->kind == Json::UInt) {
-            seed = s->as_u64();
-        } else {
-            throw ConfigError("the seed must be an unsigned 64-bit number");
-        }
-        const Json* specs = config.get("players");
-        if (!specs || specs->kind != Json::Array || specs->arr.empty() || specs->arr.size() > 4)
-            throw ConfigError("`players` must list 1 to 4 seats");
-        rng = std::make_unique<PyRandom>(seed);
-        model = load_game(config, static_cast<int>(specs->arr.size()), *rng);
-        for (const Json& spec : specs->arr) seats.push_back(make_seat(spec, log));
+        g = setup(config, log);
     } catch (const std::exception& e) {
         log.error(std::string("panicked at '") + e.what() + "'");
         return PANIC;
     }
+    uint64_t seed = g.seed;
+    Model& model = g.model;
+    std::vector<std::unique_ptr<Seat>>& seats = g.seats;
+    PyRandom* rng = g.rng.get();
     try {
         connect(seats, log);
     } catch (const std::exception& e) {
@@ -215,4 +240,354 @@ int run(const Json& config, const std::string& save_results, const std::string& 
     return 0;
 }
 
+// GUI mode ------------------------------------------------------------------------------------------------------
+
+namespace {
+
+std::string seat_label(const LiveOptions& o, size_t k) {
+    return k < o.names.size() ? o.names[k] : "Player " + std::to_string(k + 1);
+}
+
+std::string seat_json(size_t k, const Seat& s, const char* status) {
+    Out o;
+    o.raw('{').key("s").num(static_cast<int64_t>(k)).key("status").str(s.crashed ? "crashed" : status);
+    o.key("comment");
+    if (s.comment) o.str(*s.comment);
+    else o.raw("null");
+    o.raw('}');
+    return o.s;
+}
+
+struct SeatInfo {
+    std::string label, kind, status;
+    int port = 0;
+};
+
+// The first event of a game: the map, the seats, the first state (the replay.json format, see history.hpp).
+std::string init_json(const Model& m, const std::vector<SeatInfo>& seats, const std::string& seed, bool replay) {
+    Out o;
+    o.raw('{').key("map_size").num(m.map_size).key("fog_of_war").boolean(m.fog_of_war);
+    o.key("max_tick_count").num(m.max_tick_count).key("tick").num(m.current_tick);
+    o.key("seed").str(seed).key("replay").boolean(replay);
+    o.key("properties");
+    properties_json(o, m.props);
+    std::vector<Player> players;
+    for (const auto& kv : m.players) players.push_back(kv.second);
+    std::sort(players.begin(), players.end(), [](const Player& a, const Player& b) { return a.index < b.index; });
+    o.key("players").raw('[');
+    for (const Player& p : players)
+        o.sep().raw('[').num(p.id).raw(',').num(p.index).raw(',').num(p.score).raw(',').num(p.resource).raw(']');
+    o.raw(']').key("seats").raw('[');
+    for (const SeatInfo& s : seats) {
+        o.sep().raw('{').key("label").str(s.label).key("kind").str(s.kind).key("status").str(s.status);
+        if (s.port) o.key("port").num(s.port);
+        o.raw('}');
+    }
+    o.raw(']').key("entities").raw('[');
+    for (const auto& kv : m.entities) {
+        o.sep();
+        entity_json(o, kv.second);
+    }
+    o.raw(']').key("actions").raw('{');
+    for (const auto& kv : m.entity_actions) {
+        o.key(std::to_string(kv.first).c_str());
+        order_json(o, kv.second);
+    }
+    o.raw("}}");
+    return o.s;
+}
+
+std::vector<SeatInfo> seat_infos(const Game& g, const LiveOptions& opts) {
+    std::vector<SeatInfo> out;
+    for (size_t k = 0; k < g.seats.size(); k++) {
+        SeatInfo i;
+        i.label = seat_label(opts, k);
+        if (auto* t = dynamic_cast<const TcpPlayer*>(g.seats[k].get())) {
+            i.kind = "tcp";
+            i.port = t->port();
+            i.status = "waiting";
+        } else {
+            i.kind = g.seats[k]->is_empty() ? "empty" : "quickstart";
+            i.status = "ready";
+        }
+        out.push_back(i);
+    }
+    return out;
+}
+
+// As the official GUI: the orders for a tick are asked for as soon as it is reached, then the tick stays on screen
+// while the clients get their debug updates (the view of the tick on screen; at least one between ticks, about 14 a
+// second while the game waits); the next tick comes when the viewer plays at the newest tick and its speed allows,
+// or when it asks for a step.
+void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& rec, Log& log) {
+    Model& m = g.model;
+    std::map<int, int32_t> by_seat;
+    for (const auto& kv : m.players) by_seat[kv.second.index] = kv.first;
+    using clock = std::chrono::steady_clock;
+    auto last = clock::now();
+    Model before = m;
+    const int first_tick = m.current_tick;
+    auto crash = [&](size_t k, const std::string& error) {
+        g.seats[k]->crash(error, log);
+        live.event("seat", seat_json(k, *g.seats[k], "crashed"));
+    };
+    auto debugging = [&] {
+        for (size_t k = 0; k < tcp.size(); k++)
+            if (tcp[k] && !g.seats[k]->crashed && tcp[k]->connected()) return true;
+        return false;
+    };
+    auto debug_round = [&](int shown) {
+        Model past;
+        const Model* at = &m;
+        if (shown != m.current_tick) {
+            past = rec.history.at(shown);
+            at = &past;
+        }
+        for (size_t k = 0; k < tcp.size(); k++) {
+            if (!tcp[k] || g.seats[k]->crashed || !tcp[k]->connected()) continue;
+            try {
+                tcp[k]->debug_update(player_view(*at, by_seat.at(static_cast<int>(k))));
+            } catch (const IoError& e) {
+                crash(k, e.what());
+            }
+        }
+    };
+    while (!game_over(m)) {
+        // the orders for the tick reached, at once: what a strategy draws answering it is shown with it
+        SightMaps seen;
+        if (m.fog_of_war)
+            for (const auto& kv : m.players) seen[kv.first] = sight_map(m, kv.first);
+        for (size_t seat = 0; seat < g.seats.size(); seat++) {
+            Seat& s = *g.seats[seat];
+            if (s.crashed || s.is_empty()) continue;
+            int32_t pid = by_seat.at(static_cast<int>(seat));
+            auto it = seen.find(pid);
+            Action actions;
+            try {
+                actions = s.get_action(player_view(m, pid, it == seen.end() ? nullptr : &it->second));
+            } catch (const IoError& e) {
+                crash(seat, e.what());
+                continue;
+            }
+            take_orders(m, pid, static_cast<int>(seat), actions, log);
+        }
+        // then the tick stays on screen as long as the viewer wants it
+        bool updated = false;
+        while (true) {
+            Control c = live.control();
+            int newest = m.current_tick;
+            bool debug = debugging();
+            if (debug) {
+                debug_round(c.follow ? newest : std::clamp(c.display, first_tick, newest));
+                updated = true;
+            }
+            if (live.take_step()) break;
+            double interval = c.speed > 0 ? 1.0 / c.speed : 0.0;
+            double elapsed = std::chrono::duration<double>(clock::now() - last).count();
+            bool at_newest = c.follow || c.display >= newest;
+            if (c.playing && at_newest && elapsed >= interval && (updated || !debug)) break;
+            double pause = debug ? 0.07 : 0.25;
+            if (c.playing && at_newest) pause = std::min(pause, std::max(0.0, interval - elapsed));
+            live.wait(pause);
+        }
+        last = clock::now();
+        std::vector<Event> events = process_turn(m, *g.rng, m.fog_of_war ? &seen : nullptr);
+        {
+            std::lock_guard<std::mutex> lock(rec.replay_mutex);
+            rec.replay->tick(events, m);
+        }
+        TickDiff d = diff(before, m);
+        rec.history.push(m, d);
+        before = m;
+        live.event("tick", tick_json(d, events));
+    }
+}
+
+int play_live(Game& g, Live& live, const LiveOptions& opts, Log& log) {
+    Model& m = g.model;
+    auto rec = std::make_shared<GameRecord>();
+    rec->seed = g.seed;
+    rec->history.start(m);
+    rec->replay = std::make_unique<ReplayWriter>(opts.save_replay, true);
+    rec->replay->start(m);
+    live.new_game("init", init_json(m, seat_infos(g, opts), std::to_string(g.seed), false), rec);
+    std::vector<TcpPlayer*> tcp(g.seats.size(), nullptr);
+    for (size_t k = 0; k < g.seats.size(); k++) {
+        tcp[k] = dynamic_cast<TcpPlayer*>(g.seats[k].get());
+        if (tcp[k]) tcp[k]->set_debug(&live, static_cast<int>(k), m.map_size);
+    }
+    connect(g.seats, log);                         // throws when a port cannot be bound
+    for (size_t k = 0; k < g.seats.size(); k++)
+        if (tcp[k]) live.event("seat", seat_json(k, *g.seats[k], "connected"));
+    bool over_at_start = game_over(m) && m.current_tick < m.max_tick_count;
+    int code = 0;
+    std::string error;
+    try {
+        if (!game_over(m)) live_loop(g, tcp, live, *rec, log);
+    } catch (const std::exception& e) {
+        error = e.what();
+        log.error("panicked at '" + error + "'");
+        code = PANIC;
+    }
+    for (auto& s : g.seats)
+        if (!s->crashed) s->finish();
+    {
+        std::lock_guard<std::mutex> lock(rec->replay_mutex);
+        rec->replay->close();
+    }
+    Json res = results(m, g.seats, g.seed);
+    if (!code && !opts.save_results.empty() && !over_at_start) {
+        std::ofstream f(opts.save_results, std::ios::binary);
+        f << dump_json(res, 2);
+    }
+    Out o;
+    o.raw('{').key("tick").num(m.current_tick).key("seed").str(std::to_string(g.seed));
+    o.key("results").raw(dump_json(*res.get("results"), -1).c_str());
+    o.key("players").raw(dump_json(*res.get("players"), -1).c_str());
+    o.key("over_at_start").boolean(over_at_start).key("error");
+    if (code) o.str(error);
+    else o.raw("null");
+    o.raw('}');
+    live.event("over", o.s);
+    std::string scores;
+    for (const Json& v : res.get("results")->arr) scores += (scores.empty() ? "" : ", ") + std::to_string(v.i);
+    log.info("Game over at tick " + std::to_string(m.current_tick) + ": " + scores);
+    return code;
+}
+
+void open_browser(const std::string& url) {
+#ifdef __APPLE__
+    std::string cmd = "open '" + url + "' >/dev/null 2>&1";
+#else
+    std::string cmd = "xdg-open '" + url + "' >/dev/null 2>&1";
+#endif
+    std::thread([cmd] {
+        if (std::system(cmd.c_str()) != 0) {
+        }
+    }).detach();
+}
+
+std::string default_config() {
+    return "{\"seed\":null,\"game\":{\"Create\":\"Round1\"},\"players\":[{\"Tcp\":{\"host\":null,\"port\":31001,"
+           "\"accept_timeout\":null,\"timeout\":null,\"token\":null}},\"QuickStart\",\"QuickStart\",\"QuickStart\"]}";
+}
+
+}  // namespace
+
+int run_live(const Json* config, const LiveOptions& opts, Log& log) {
+    Live live(log, opts.speed);
+    int port;
+    try {
+        port = live.listen("127.0.0.1", opts.port);
+    } catch (const std::exception& e) {
+        log.error(std::string("panicked at 'Could not start the viewer: ") + e.what() + "'");
+        return PANIC;
+    }
+    live.start();
+    std::string url = "http://127.0.0.1:" + std::to_string(port) + "/";
+    log.info("Viewer: " + url);
+    if (opts.open_browser) open_browser(url);
+    std::string offer = config ? dump_json(*config, -1) : default_config(), error;
+    bool given = config != nullptr;
+    while (true) {
+        Json cfg;
+        if (given) {
+            cfg = *config;
+        } else {
+            Out o;
+            o.raw('{').key("config").raw(offer.c_str()).key("error");
+            if (error.empty()) o.raw("null");
+            else o.str(error);
+            o.raw('}');
+            live.new_game("config", o.s);
+            cfg = live.wait_config();
+            offer = dump_json(cfg, -1);
+        }
+        Game g;
+        try {
+            g = setup(cfg, log);
+        } catch (const std::exception& e) {
+            log.error(std::string("panicked at '") + e.what() + "'");
+            if (given) return PANIC;            // a bad --config file ends the runner, as in batch mode
+            error = e.what();
+            continue;
+        }
+        given = false;
+        error.clear();
+        int code;
+        try {
+            code = play_live(g, live, opts, log);
+        } catch (const std::exception& e) {      // a port in use
+            log.error(std::string("panicked at 'Could not listen: ") + e.what() + "'");
+            if (opts.exit_when_over) return PANIC;
+            error = std::string("Could not listen: ") + e.what();
+            continue;
+        }
+        if (opts.exit_when_over) return code;
+        live.wait_new_game();
+    }
+}
+
+int run_replay(const std::string& path, const LiveOptions& opts, Log& log) {
+    std::unique_ptr<ReplayReader> reader;
+    try {
+        std::ifstream f(path, std::ios::binary);
+        if (!f) throw std::runtime_error("cannot read it");
+        std::stringstream ss;
+        ss << f.rdbuf();
+        reader = std::make_unique<ReplayReader>(ss.str());
+    } catch (const std::exception& e) {
+        log.error("panicked at 'Could not load the replay " + path + ": " + e.what() + "'");
+        return PANIC;
+    }
+    Live live(log, opts.speed);
+    int port;
+    try {
+        port = live.listen("127.0.0.1", opts.port);
+    } catch (const std::exception& e) {
+        log.error(std::string("panicked at 'Could not start the viewer: ") + e.what() + "'");
+        return PANIC;
+    }
+    live.start();
+    std::string url = "http://127.0.0.1:" + std::to_string(port) + "/";
+    log.info("Viewer: " + url);
+    if (opts.open_browser) open_browser(url);
+    Model m = reader->initial();
+    std::vector<SeatInfo> seats;
+    for (size_t k = 0; k < m.players.size(); k++) seats.push_back(SeatInfo{seat_label(opts, k), "replay", "replay", 0});
+    auto rec = std::make_shared<GameRecord>();
+    rec->source = path;
+    rec->history.start(m);
+    live.new_game("init", init_json(m, seats, "", true), rec);
+    Model before = m;
+    std::vector<Event> events;
+    try {
+        while (reader->next(m, events)) {
+            TickDiff d = diff(before, m);
+            rec->history.push(m, d);
+            before = m;
+            live.event("tick", tick_json(d, events));
+        }
+    } catch (const std::exception& e) {
+        log.warn(std::string("The replay ends early: ") + e.what());
+    }
+    std::vector<int32_t> scores(m.players.size(), 0);
+    for (const auto& kv : m.players)
+        if (kv.second.index >= 0 && static_cast<size_t>(kv.second.index) < scores.size())
+            scores[static_cast<size_t>(kv.second.index)] = kv.second.score;
+    Out o;
+    o.raw('{').key("tick").num(m.current_tick).key("seed").str("").key("replay").boolean(true);
+    o.key("results").raw('[');
+    for (int32_t v : scores) o.sep().num(v);
+    o.raw(']').key("players").raw('[');
+    for (size_t k = 0; k < scores.size(); k++) o.sep().raw("{\"crashed\":false,\"comment\":null}");
+    o.raw(']').key("over_at_start").boolean(false).key("error").raw("null").raw('}');
+    live.event("over", o.s);
+    log.info("Replay " + path + ": ticks " + std::to_string(reader->initial().current_tick) + " to " +
+             std::to_string(m.current_tick));
+    if (opts.exit_when_over) return 0;
+    while (true) live.wait_new_game();
+}
+
 }  // namespace cc
+

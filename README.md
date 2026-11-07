@@ -106,10 +106,27 @@ today's registries), plus `cpp-cuda` (nvcc) and `python-cuda` (CuPy / PyTorch) i
 for server-managed bots (see [strategies/README.md](strategies/README.md)); the bundled 2020 contest
 entries carry a `-2020` suffix and are disabled, so their authors can register under their own names.
 
+## Test a strategy on your machine
+
+Our engine is also a local runner, with the official GUI's debug interface (your strategy draws lines, triangles,
+text and logs, and reads the mouse and the keys) and the game live in the browser:
+
+```bash
+make -C sim-cpp
+sim-cpp/build/codecraft-sim-cpp                        # pick the game and the seats in the browser, or
+sim-cpp/build/codecraft-sim-cpp --config batch1.json   # an official runner's config, as it is
+python3 main.py                                        # in your strategy's folder: it connects to 127.0.0.1:31001
+```
+
+It plays the server's games (the same engine, rules and maps). Pause, step, rewind, zoom, inspect entities, save a
+replay (Ctrl-S) or the state of a tick to start a game from (Ctrl-E); `--replay replay.dat` watches a replay. See
+[sim-cpp/README.md](sim-cpp/README.md#the-local-runner).
+
 ## Layout
 
 ```
-sim-cpp/     our own engine in C++, the one the server runs: a game in seconds; Dockerfile
+sim-cpp/     our own engine in C++, the one the server runs: a game in seconds; the local runner and its viewer;
+             Dockerfile
 sim/         the same engine in Python, its executable spec (the same games, seed for seed); the oracle tools and
              fixtures that test it against the official binary; Dockerfile
 engine/      aicup2020 1.3.0 (the official local runner, closed source) + GUI assets, Dockerfile: the test oracle,

@@ -108,9 +108,10 @@ class QuickStartPlayer(Seat):
 
 
 class TcpPlayer(Seat):
-    def __init__(self, host: str, port: int, accept_timeout: float | None, timeout: float | None, token: str,
-                 log: Log) -> None:
-        self.host, self.port = host, int(port)
+    def __init__(self, host: str | None, port: int, accept_timeout: float | None, timeout: float | None,
+                 token: str | None, log: Log) -> None:
+        # as the official runner: a null host listens on 127.0.0.1, a null token takes any token
+        self.host, self.port = "127.0.0.1" if host is None else host, int(port)
         self.accept_timeout = None if accept_timeout is None else float(accept_timeout)
         self.timeout = None if timeout is None else float(timeout)
         self.token = token
@@ -150,7 +151,7 @@ class TcpPlayer(Seat):
             except (OSError, EOFError, ProtocolError, UnicodeDecodeError):
                 conn.close()
                 raise PlayerError(NO_CONNECTION) from None
-            if token != self.token:
+            if self.token is not None and token != self.token:
                 conn.close()
                 raise PlayerError(TOKEN_MISMATCH)
             conn.settimeout(self.timeout)
