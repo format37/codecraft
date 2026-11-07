@@ -236,11 +236,19 @@ QuickStart bot (ours is the starter strategy of
 our engine replays its own games exactly). Speed: a game of four QuickStart bots takes 1 to 5 minutes in the
 Python engine and 2 to 10 seconds in the C++ one, under 5 MB; with real players their thinking time dominates.
 
-Since 2026-11-07 the server runs the C++ engine by default: `engine: {image: codecraft/sim-cpp:0.1.0, context:
-sim-cpp}` in `config.yaml`, built by `./cw build` (or by the worker when it starts). Another engine is picked
-there or with `CW_ENGINE_IMAGE` and `CW_ENGINE_CONTEXT` in `.env`: the Python one with `codecraft/sim:0.1.0` and
-`sim`, the official binary, for A/B games, with `codecraft/engine:1.3.0` and `engine`. The cover page and the MCP
-instructions say which engine plays.
+Since 2026-11-07 the server runs the C++ engine by default: `engine: {image: codecraft/sim-cpp, context:
+sim-cpp}` in `config.yaml`. Another engine is picked there or with `CW_ENGINE_IMAGE` and `CW_ENGINE_CONTEXT` in
+`.env`: the Python one with `codecraft/sim` and `sim`, the official binary, for A/B games, with
+`codecraft/engine:1.3.0` and `engine`. The cover page and the MCP instructions say which engine plays.
+
+An image named without a tag is tagged with the version of its source: 12 hex digits of the hash of the Dockerfile
+and the files it copies (`builder.engine_source`, `source_version`). The worker checks it before every game, so a
+changed source (a deploy, a git pull) is built before the next game, from a copy of exactly the hashed files; while
+a changed source does not build, games go on with the image they had (the error is logged once). Every game
+records its image (`games.engine`: the game page, `game()`; `whoami()` names the current one). The C++ engine's
+Makefile computes the same version for `--version` and the viewer (`make version`; a server test checks that the
+two agree), so the local runner and the server play the same engine when the versions match. A tag of its own
+(`codecraft/engine:1.3.0`) pins an image: built when missing, whatever the source.
 
 The C++ engine is also the local runner (2026-11-07, Alex's request through his strategy session): without
 `--batch-mode` it shows the game live in the browser (`sim-cpp/viewer/viewer.html`, served on 127.0.0.1:31000) with

@@ -14,8 +14,13 @@ live in the browser, with the official GUI's debug interface for your strategy (
 ```
 make                                   # build/codecraft-sim-cpp (g++, C++17, the standard library only)
 build/codecraft-sim-cpp --config game.json --batch-mode --save-results results.json --save-replay replay.dat
-docker build -t codecraft/sim-cpp:0.1.0 .    # the image the server runs (config.yaml: engine.image, engine.context)
+build/codecraft-sim-cpp --version            # the version of its source, as the server tags the engine image
 ```
+
+The server builds the engine image from the Dockerfile and the files it copies (Makefile, src, viewer) and tags it
+with their hash: `codecraft/sim-cpp:<version>`, the version that `--version`, `make version` and the viewer's help
+show. Each game page on the server names the engine it was played on, so a local runner with the same version
+plays the games of the server. The server builds a new version before its next game, with no tag to bump.
 
 ## The local runner
 

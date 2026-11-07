@@ -14,9 +14,8 @@
 
 #include "engine.hpp"
 
-#ifndef SIM_VERSION
-#define SIM_VERSION "0.1.0"
-#endif
+// build/version.cpp, made by the Makefile: the version of the engine's source, as the server tags its image with it
+extern const char ENGINE_VERSION[];
 
 int main(int argc, char** argv) {
     std::string config_path, save_results, save_replay, replay_path, log_level = "info";
@@ -34,7 +33,7 @@ int main(int argc, char** argv) {
             return argv[++k];
         };
         if (a == "-V" || a == "--version") {
-            printf("codecraft-sim-cpp %s\n", SIM_VERSION);
+            printf("codecraft-sim-cpp %s\n", ENGINE_VERSION);
             return 0;
         } else if (a == "-h" || a == "--help") {
             printf("codecraft-sim-cpp %s: the CodeCraft 2020 game engine (our own)\n"
@@ -48,7 +47,7 @@ int main(int argc, char** argv) {
                    "  --no-browser            do not open the browser\n"
                    "  --viewer-exit           exit when the game is over (default: wait for the next game)\n"
                    "  --replay FILE           watch a replay file (--save-replay, Ctrl-S) in the viewer\n",
-                   SIM_VERSION);
+                   ENGINE_VERSION);
             return 0;
         } else if (a == "--config") {
             config_path = value();

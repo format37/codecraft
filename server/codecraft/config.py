@@ -9,7 +9,7 @@ import yaml
 
 DEFAULTS: dict = {
     "engine": {
-        "image": "codecraft/sim-cpp:0.1.0",
+        "image": "codecraft/sim-cpp",       # tagged with the version of its source (builder.engine_image)
         "binary": "engine/aicup2020",
         "context": "sim-cpp",
         "memory_mb": 512,

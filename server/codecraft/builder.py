@@ -12,6 +12,7 @@ import codecs
 import fnmatch
 import hashlib
 import io
+import json
 import logging
 import os
 import re
@@ -155,6 +156,106 @@ def _digest(*parts: str) -> str:
     return hashlib.sha256("\0".join(parts).encode()).hexdigest()[:12]
 
 
+# The engine image ------------------------------------------------------------------------------------------------
+COPY_FLAGS_RE = re.compile(r"((?:--\S+\s+)*)(.*)", re.S)
+
+
+def dockerfile_sources(text: str) -> list[str]:
+    """The context paths that a Dockerfile's COPY and ADD instructions take, as written (files, directories,
+    globs): not what they take from another stage or image (`--from`), nor URLs."""
+    sources = []
+    for line in re.sub(r"\\[ \t]*\r?\n", " ", text).splitlines():
+        words = line.strip().split(None, 1)
+        if len(words) < 2 or words[0].upper() not in ("COPY", "ADD"):
+            continue
+        flags, body = COPY_FLAGS_RE.match(words[1].strip()).groups()
+        if any(flag.startswith("--from") for flag in flags.split()):
+            continue
+        args = json.loads(body) if body.startswith("[") else body.split()
+        sources += [a for a in args[:-1] if "://" not in a and not a.startswith("<<")]
+    return sources
+
+
+def engine_source(context: Path) -> dict[str, bytes]:
+    """What an engine image is built from: its Dockerfile and every context file that its COPY and ADD instructions
+    take (directories in full, bytecode caches aside), by their '/'-separated paths in the context."""
+    root = context.resolve()
+    if not (root / "Dockerfile").is_file():
+        raise BuildError(f"no Dockerfile in the engine context {context}")
+    files = {"Dockerfile": (root / "Dockerfile").read_bytes()}
+    for src in dockerfile_sources(files["Dockerfile"].decode("utf-8", "replace")):
+        rel = src.lstrip("/")
+        paths = sorted(root.glob(rel)) if any(c in rel for c in "*?[") else [root / rel]
+        if not paths or not all(p.exists() and p.resolve().is_relative_to(root) for p in paths):
+            raise BuildError(f"the engine's Dockerfile copies {src}, which is not in {context}")
+        for path in paths:
+            for p in (path.rglob("*") if path.is_dir() else [path]):
+                if p.is_file() and not p.is_symlink() and "__pycache__" not in p.relative_to(root).parts:
+                    files[p.relative_to(root).as_posix()] = p.read_bytes()
+    return files
+
+
+def source_version(files: dict[str, bytes]) -> str:
+    """The version of an engine's source: 12 hex digits of the sha256 of its files' `sha256sum` lines in the order
+    of their paths. sim-cpp/Makefile computes the same for the version the engine reports (`--version`)."""
+    lines = "".join(f"{hashlib.sha256(data).hexdigest()}  {path}\n" for path, data in sorted(files.items()))
+    return hashlib.sha256(lines.encode()).hexdigest()[:12]
+
+
+def pinned(image: str) -> bool:
+    """An image named with a tag or a digest of its own (`codecraft/engine:1.3.0`, not `localhost:5000/engine`)."""
+    return "@" in image or ":" in image.rsplit("/", 1)[-1]
+
+
+def engine_context(cfg: Config) -> Path:
+    """The directory the engine image is built from: `engine.context` (`sim-cpp`, our own engine) when given, else
+    the directory of `engine.binary` (the official runner and its Dockerfile)."""
+    eng = cfg["engine"]
+    if eng.get("context"):
+        return cfg.root / eng["context"]
+    binary = cfg.root / eng["binary"]
+    if not binary.exists():
+        raise BuildError(f"engine binary not found: {binary}")
+    return binary.parent
+
+
+def engine_image(cfg: Config, files: dict[str, bytes] | None = None) -> str:
+    """The engine image of the current source: `engine.image` tagged with the version of its source (`files`, read
+    when not given), or as it is when it names a tag of its own (pinned: built when missing, whatever the source)."""
+    image = cfg["engine"]["image"]
+    if pinned(image):
+        return image
+    return f"{image}:{source_version(engine_source(engine_context(cfg)) if files is None else files)}"
+
+
+class EngineImage:
+    """The engine image that games are played on, kept to its source: before each game, a source that changed (a
+    deploy, a git pull) is built first. While a changed source does not build, games go on with the image they
+    had and that source is not tried again until it changes; the error goes to the log, and so to Sentry."""
+
+    def __init__(self, builder: Builder):
+        self.builder = builder
+        self.lock = threading.Lock()
+        self.image: str | None = None       # what games run on
+        self.failed: str | None = None      # the image of a source that did not build
+
+    def current(self) -> str:
+        with self.lock:
+            wanted = None
+            try:
+                wanted = engine_image(self.builder.cfg)
+                if wanted not in (self.image, self.failed):
+                    self.image, self.failed = self.builder.build_engine(), None
+            except (OSError, BuildError):
+                if self.image is None:
+                    raise
+                if wanted is None or wanted != self.failed:
+                    log.exception("the engine %s cannot be built: games go on with %s",
+                                  wanted or "(its source cannot be read)", self.image)
+                self.failed = wanted
+            return self.image
+
+
 # Files that do not make a root a source tree: a multi-language repository keeps only these at its top.
 DOC_FILE_RE = re.compile(r"(?i)^(readme|license|licence|copying|notice|changelog|contributing)(\..*)?$"
                          r"|\.(md|txt|rst)$|^\.(gitignore|gitattributes|editorconfig)$")
@@ -283,24 +384,24 @@ class Builder:
 
     # Engine --------------------------------------------------------------
     def build_engine(self, force: bool = False) -> str:
-        """The engine image: built from `engine.context` (a directory with a Dockerfile: `sim` for our own engine)
-        when given, else from the directory of `engine.binary` (the official runner and its Dockerfile)."""
-        eng = self.cfg["engine"]
-        image = eng["image"]
+        """The engine image of the current source (engine_image), built when missing (or always with `force`) from
+        exactly the files that its tag is the hash of: a copy of them, so a change while it builds is not mixed in."""
+        ctx = engine_context(self.cfg)
+        files = None if pinned(self.cfg["engine"]["image"]) else engine_source(ctx)
+        image = engine_image(self.cfg, files)
         if not force and self._image_exists(image):
             return image
-        if eng.get("context"):
-            ctx = self.cfg.root / eng["context"]
-            if not (ctx / "Dockerfile").exists():
-                raise BuildError(f"no Dockerfile in the engine context {ctx}")
-        else:
-            binary = self.cfg.root / eng["binary"]
-            if not binary.exists():
-                raise BuildError(f"engine binary not found: {binary}")
-            ctx = binary.parent
+        files = engine_source(ctx) if files is None else files
         log.info("building engine image %s from %s", image, ctx)
-        with _CappedLog(self.logs_dir / "engine.log", self.log_cap) as out:
-            self._docker_build(ctx, image, out, nocache=force)
+        with tempfile.TemporaryDirectory(prefix="cw-engine-") as tmp, \
+                _CappedLog(self.logs_dir / "engine.log", self.log_cap) as out:
+            for rel, data in files.items():
+                path = Path(tmp) / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                if os.access(ctx / rel, os.X_OK):
+                    path.chmod(0o755)
+            self._docker_build(Path(tmp), image, out, nocache=force)
         return image
 
     # Base images (trusted: template or client Dockerfile + the official client) ---------------------------

@@ -31,7 +31,7 @@ from codecraft_sim import replay as replay_io
 from codecraft_sim.model import model_json
 
 from conftest import ENGINE, ROOT, engine_runs, replays
-from test_cpp import CPP, needs_cpp
+from test_cpp import CPP, make_version, needs_cpp
 from test_engine import SIM, custom
 
 sys.path.insert(0, str(ROOT / "clients" / "Python"))
@@ -283,7 +283,9 @@ def test_the_viewer_controls_and_saves(tmp_path):
         at2 = list(replay.states())[2]
         assert model_json(at2) == json.loads(state.read_text())
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=10) as r:
-            assert r.status == 200 and b"<canvas" in r.read()
+            page = r.read().decode()
+            assert r.status == 200 and "<canvas" in page
+            assert f"Engine version <code>{make_version()}</code>" in page          # the help names the engine
         assert post(port, "/new", host=f"evil.example:{port}")[0] == 403
         assert post(port, "/control", {"playing": True}, content_type="text/plain")[0] == 403
         post(port, "/control", {"playing": True, "speed": 0})

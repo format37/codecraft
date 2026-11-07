@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import docker
 
-from .builder import Builder, BuildError
+from .builder import Builder, BuildError, EngineImage
 from .config import SEATS, Config
 from .db import DB
 from .game import GameRunner, PlayerSpec
@@ -29,8 +29,8 @@ class Worker:
         self.db = db
         self.client = client
         self.seeds = seeds
-        self.runner = GameRunner(cfg, client, db)
         self.builder = Builder(cfg, client)
+        self.runner = GameRunner(cfg, client, db, EngineImage(self.builder))
         self.gpu = cfg.resolve_gpu(client)
         w = cfg["worker"]
         self.sandbox = bool(w.get("sandbox", True)) if sandbox is None else sandbox
@@ -209,7 +209,7 @@ class Worker:
         stale = self.db.abort_stale_builds()
         if stale:
             log.info("marked %d interrupted build(s) as failed", stale)
-        self.builder.build_engine()
+        log.info("engine: %s", self.runner.engine.current())     # and again before every game
         workers = max(1, int(self.cfg["worker"].get("parallel_games") or 1))
         log.info("worker: %d game thread(s), sandbox=%s, builds=%s, gpu=%s, players: %s", workers, self.sandbox,
                  self.builds, self.gpu, ", ".join(s.name for s in self.runnable()) or "-")

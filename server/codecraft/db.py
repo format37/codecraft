@@ -105,7 +105,8 @@ CREATE TABLE IF NOT EXISTS games (
     kind         TEXT DEFAULT 'sandbox',   -- sandbox | custom | tournament
     created_by   INTEGER,
     rated        INTEGER DEFAULT 1,
-    started_at   TEXT
+    started_at   TEXT,
+    engine       TEXT               -- the engine image it was played on, tagged with the version of its source
 );
 CREATE TABLE IF NOT EXISTS game_players (
     game_id       INTEGER NOT NULL REFERENCES games(id),
@@ -143,7 +144,7 @@ ADDED_COLUMNS = {
     "strategies": {"owner_id": "INTEGER", "kind": "TEXT DEFAULT 'seed'", "active_version": "INTEGER",
                    "limits": "TEXT", "created_at": "TEXT"},
     "games": {"kind": "TEXT DEFAULT 'sandbox'", "created_by": "INTEGER", "rated": "INTEGER DEFAULT 1",
-              "started_at": "TEXT"},
+              "started_at": "TEXT", "engine": "TEXT"},
     "game_players": {"version_id": "INTEGER", "label": "TEXT"},
 }
 
@@ -545,6 +546,10 @@ class DB:
 
     def next_queued_game(self) -> sqlite3.Row | None:
         return self.one("SELECT * FROM games WHERE status='queued' ORDER BY id LIMIT 1")
+
+    def set_game_engine(self, game_id: int, engine: str) -> None:
+        with self.tx() as c:
+            c.execute("UPDATE games SET engine=? WHERE id=?", (engine, game_id))
 
     def claim_game(self, game_id: int) -> bool:
         with self.tx() as c:

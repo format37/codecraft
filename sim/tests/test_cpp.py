@@ -35,6 +35,13 @@ def built() -> bool:
     return CPP.exists()
 
 
+def make_version() -> str:
+    """The version the Makefile builds into the engine: the hash of its source, as the server tags the engine image
+    (server/tests/test_builder.py checks that the two agree)."""
+    return subprocess.run(["make", "-s", "--no-print-directory", "-C", str(ROOT / "sim-cpp"), "version"],
+                          capture_output=True, text=True).stdout.strip()
+
+
 needs_cpp = pytest.mark.skipif(not built(), reason="the C++ engine is not built (make -C sim-cpp)")
 pytestmark = needs_cpp
 WORKERS = os.cpu_count() or 4
@@ -142,7 +149,8 @@ def test_same_games_from_stored_states(tmp_path):
 def test_command_line_and_speed(tmp_path):
     """The C++ engine answers the official command line as the Python one does, and is much faster."""
     v = subprocess.run([str(CPP), "--version"], capture_output=True, text=True)
-    assert v.returncode == 0 and v.stdout.startswith("codecraft-sim-cpp ")
+    version = make_version()
+    assert v.returncode == 0 and v.stdout == f"codecraft-sim-cpp {version}\n" and len(version) == 12
     assert subprocess.run([str(CPP), "--batch-mode"], capture_output=True).returncode == 101
     import time
     t = time.time()

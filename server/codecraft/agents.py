@@ -40,7 +40,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
 from . import replay as R
 from .auth import RateLimiter, hash_token
-from .builder import ANSI_RE
+from .builder import ANSI_RE, BuildError, engine_image
 from .config import LIMIT_KEYS, MAX_TICKS, SEATS, Config
 from .db import DB, since
 from .submissions import SubmissionError, submit
@@ -670,6 +670,18 @@ def _slot_of_file(name: str) -> int | None:
 
 
 # Read tools ----------------------------------------------------------------------------------------------
+ENGINE_ABOUT = ("the engine image the next games are played on; its tag is the version of its source, and a local "
+                "runner built from the same source (make -C sim-cpp in the server's repository) shows the same "
+                "version: sim-cpp/build/codecraft-sim-cpp --version. game() names the engine of each game")
+
+
+def _engine(cfg: Config) -> str | None:
+    try:
+        return engine_image(cfg)
+    except (OSError, BuildError):
+        return None
+
+
 @tool(read=True)
 def whoami(ax: Agents, user: dict) -> dict:
     db, cfg = ax.db, ax.cfg
@@ -723,7 +735,9 @@ def whoami(ax: Agents, user: dict) -> dict:
             "map_size": 80,
             "sandbox_games_per_build": int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0),
             "max_zip_mb": int(sub.get("max_zip_mb") or 20),
-            "git_submissions": bool(sub.get("allow_git", True))},
+            "git_submissions": bool(sub.get("allow_git", True)),
+            "engine": _engine(cfg),
+            "engine_about": ENGINE_ABOUT},
         "links": {"site": ax.base, "rules": ax.url("/rules"), "leaderboard": ax.url("/leaderboard"),
                   "agents": ax.url("/agents"), "starter": STARTER},
     }
@@ -879,7 +893,7 @@ def game(ax: Agents, user: dict, game_id: int, wait_s: int = 0) -> dict:
     out = {"id": row["id"], "kind": row["kind"], "format": row["format"], "status": row["status"],
            "rated": bool(row["rated"]), "seed": _seed(row["seed"]), "error": row["error"],
            "created_at": row["created_at"], "started_at": row["started_at"], "finished_at": row["finished_at"],
-           "duration_sec": _num(row["duration_sec"]), "created_by": row["creator_name"],
+           "duration_sec": _num(row["duration_sec"]), "created_by": row["creator_name"], "engine": row["engine"],
            "seats": [{"slot": p["slot"], "strategy": p["strategy"], "label": p["label"] or p["strategy"] or "empty",
                       **played(p), "score": p["score"], "place": p["place"], "points": p["points"],
                       "rating_before": _num(p["rating_before"]), "rating_after": _num(p["rating_after"]),

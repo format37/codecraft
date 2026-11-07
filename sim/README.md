@@ -27,7 +27,7 @@ codecraft_sim/        the engine (Python 3.10+, standard library only)
   engine.py           the game loop: seats, views, orders, turns, the replay, results.json
   cli.py              the official runner's command line (`python3 -m codecraft_sim --config ... --batch-mode`)
 codecraft-sim         that command line from a checkout (the oracle tools run it in place of engine/aicup2020)
-Dockerfile            the engine image codecraft/sim:<version> (`./cw build` with engine.context: sim)
+Dockerfile            the engine image codecraft/sim (tagged with the hash of its source; engine.context: sim)
 oracle/               tools that interrogate the official binary
   state.py            build small states by hand (or take one from a replay tick)
   loadfrom.py         run the binary from a state, read back every tick
@@ -44,16 +44,17 @@ tests/                pytest
 ```
 cd sim
 ./codecraft-sim --config game.json --batch-mode --save-results results.json --save-replay replay.dat
-docker build -t codecraft/sim:0.1.0 . && docker run --rm -v $PWD:/game codecraft/sim:0.1.0 --config /game/game.json \
+docker build -t codecraft/sim:dev . && docker run --rm -v $PWD:/game codecraft/sim:dev --config /game/game.json \
     --batch-mode --save-results /game/results.json --save-replay /game/replay.dat
 ```
 
 `game.json` is the official runner's config: `{"seed": 7, "game": {"Create": "Round1"}, "players": ["QuickStart",
 "QuickStart", "QuickStart", "QuickStart"]}`; a seat is `{"Tcp": {"host", "port", "accept_timeout", "timeout",
 "token"}}` (a null host listens on 127.0.0.1, a null token takes any token), `"QuickStart"` or `{"Empty": null}`;
-the game `{"Create": "Round1" | "Round2" | "Finals" | {"Custom": {...}}}` or `{"LoadFrom": "/abs/state.json"}`.
-The server runs it when config.yaml says `engine: {image: codecraft/sim:0.1.0, context: sim}` (or CW_ENGINE_IMAGE /
-CW_ENGINE_CONTEXT). A 4-player game of 1000 ticks takes about a minute in pure Python, plus the players' time.
+the game `{"Create": "Round1" | "Round2" | "Finals" | {"Custom": {...}}}` or `{"LoadFrom": "/abs/state.json"}`. The
+server runs it when config.yaml says `engine: {image: codecraft/sim, context: sim}` (or CW_ENGINE_IMAGE /
+CW_ENGINE_CONTEXT); without a tag of its own the image is tagged with the hash of its source. A 4-player game of
+1000 ticks takes about a minute in pure Python, plus the players' time.
 
 ## Tests
 

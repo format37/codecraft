@@ -81,6 +81,9 @@ def test_migration_adds_columns_to_an_old_database(tmp_path):
     con.commit(); con.close()
     db = DB(path)
     assert db.strategy("old")["kind"] == "seed" and db.game(1)[0]["kind"] == "sandbox" and db.game(1)[0]["seed"] == "42"
+    assert db.game(1)[0]["engine"] is None
+    db.set_game_engine(1, "codecraft/sim-cpp:7390f3fc2f58")
+    assert db.game(1)[0]["engine"] == "codecraft/sim-cpp:7390f3fc2f58"
     assert db.users() == [] and db.next_queued_game() is None
 
 

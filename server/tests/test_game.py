@@ -7,6 +7,7 @@ import docker
 import pytest
 
 from codecraft.config import Config
+from codecraft.db import DB
 from codecraft.game import GameRunner, PlayerSpec, Seat, redacted, seat_subnet
 from codecraft.strategies import Strategy
 
@@ -72,16 +73,30 @@ def test_the_engine_joins_every_seat_network_at_its_fixed_address(tmp_path):
     for seat in seats:
         seat.network = MagicMock()
         seat.network.name = f"cw-52-s{seat.slot}"
-    gr._start_engine("cw-52", seats, {"players": []}, ["a", "b"])
-    kw = client.containers.create.call_args.kwargs
+    gr._start_engine("cw-52", seats, {"players": []}, ["a", "b"], "codecraft/sim-cpp:7390f3fc2f58")
+    args, kw = client.containers.create.call_args
+    assert args == ("codecraft/sim-cpp:7390f3fc2f58",)
     assert kw["network"] == "cw-52-s0" and kw["pids_limit"] == 256
     assert kw["networking_config"] == {"cw-52-s0": {"IPAMConfig": {"IPv4Address": "10.200.208.2"}},
                                        "cw-52-s1": {"IPAMConfig": {"IPv4Address": "10.200.209.2"}}}
     assert kw["log_config"]["Config"] == {"max-size": "10m", "max-file": "1"}
     quick = Seat(slot=0, spec=PlayerSpec(Strategy(name="quickstart", builtin="QuickStart")))
-    gr._start_engine("cw-53", [quick, quick], {"players": []}, ["q", "q"])
+    gr._start_engine("cw-53", [quick, quick], {"players": []}, ["q", "q"], "codecraft/sim-cpp:7390f3fc2f58")
     kw = client.containers.create.call_args.kwargs
     assert kw["network_mode"] == "none" and "network" not in kw
+
+
+def test_a_game_is_played_on_the_current_engine_and_names_it(tmp_path):
+    cfg = Config(Config.load(tmp_path).data, tmp_path)
+    cfg.ensure_dirs()
+    db = DB(tmp_path / "t.db")
+    engine = MagicMock()
+    engine.current.return_value = "codecraft/sim-cpp:7390f3fc2f58"
+    client = MagicMock()
+    quick = PlayerSpec(Strategy(name="quickstart", builtin="QuickStart"))
+    outcome = GameRunner(cfg, client, db, engine).run("Finals", [quick, quick], seed=7, kind="custom", rated=False)
+    assert client.containers.create.call_args.args == ("codecraft/sim-cpp:7390f3fc2f58",)
+    assert db.game(outcome.game_id)[0]["engine"] == "codecraft/sim-cpp:7390f3fc2f58"
 
 
 def test_a_player_is_read_only_on_its_seat_network_with_a_bounded_log(tmp_path):

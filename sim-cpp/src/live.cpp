@@ -16,6 +16,7 @@
 #include "jsonout.hpp"
 
 extern const char VIEWER_HTML[];     // build/viewer_html.cpp, made from viewer/viewer.html by the Makefile
+extern const char ENGINE_VERSION[];  // build/version.cpp: the version of the engine's source
 
 namespace cc {
 
@@ -35,6 +36,17 @@ bool send_all(int fd, const char* data, size_t n) {
 }
 
 bool send_all(int fd, const std::string& s) { return send_all(fd, s.data(), s.size()); }
+
+// The page, with the engine's version where it says %ENGINE_VERSION%.
+const std::string& viewer_page() {
+    static const std::string page = [] {
+        std::string s = VIEWER_HTML;
+        const std::string token = "%ENGINE_VERSION%";
+        for (size_t at; (at = s.find(token)) != std::string::npos;) s.replace(at, token.size(), ENGINE_VERSION);
+        return s;
+    }();
+    return page;
+}
 
 void respond(int fd, int code, const char* type, const std::string& body) {
     const char* reason = code == 200 ? "OK" : code == 400 ? "Bad Request" : code == 403 ? "Forbidden" : "Not Found";
@@ -196,7 +208,7 @@ void Live::serve(int fd) {
     if (req.host != "127.0.0.1:" + port && req.host != "localhost:" + port && req.host != "[::1]:" + port) {
         respond(fd, 403, "text/plain", "forbidden\n");
     } else if (req.method == "GET" && (req.path == "/" || req.path == "/index.html")) {
-        respond(fd, 200, "text/html; charset=utf-8", VIEWER_HTML);
+        respond(fd, 200, "text/html; charset=utf-8", viewer_page());
     } else if (req.method == "GET" && req.path == "/events") {
         stream(fd);
         return;

@@ -118,9 +118,11 @@ sim-cpp/build/codecraft-sim-cpp --config batch1.json   # an official runner's co
 python3 main.py                                        # in your strategy's folder: it connects to 127.0.0.1:31001
 ```
 
-It plays the server's games (the same engine, rules and maps). Pause, step, rewind, zoom, inspect entities, save a
-replay (Ctrl-S) or the state of a tick to start a game from (Ctrl-E), restart the game for your changed strategy
-(the same seed if you like) without restarting the runner; `--replay replay.dat` watches a replay. See
+It plays the server's games (the same engine, rules and maps): `--version` shows the version of its source, and
+each game page names the engine it was played on, `codecraft/sim-cpp:<version>`; the server builds a changed engine
+before its next game. Pause, step, rewind, zoom, inspect entities, save a replay (Ctrl-S) or the state of a tick to
+start a game from (Ctrl-E), restart the game for your changed strategy (the same seed if you like) without
+restarting the runner; `--replay replay.dat` watches a replay. See
 [sim-cpp/README.md](sim-cpp/README.md#the-local-runner).
 
 ## Layout

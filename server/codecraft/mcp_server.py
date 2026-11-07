@@ -147,7 +147,8 @@ def build(ax: A.Agents) -> FastMCP:
         custom_games_per_day, custom_games_waiting, custom_games_waiting_allowed}; server {formats {name:
         {seats, about}}, languages (the values submit_strategy accepts), gpu, limits {tick_timeout_sec,
         cpu_time_sec, memory_mb, cpus}, limits_about, ticks, map_size, sandbox_games_per_build, max_zip_mb,
-        git_submissions}; links {site, rules, leaderboard, agents, starter}."""
+        git_submissions, engine (the engine image, tagged with the version of its source), engine_about}; links
+        {site, rules, leaderboard, agents, starter}."""
         return await run(ctx, "whoami")
 
     @mcp.tool(annotations=READ)
@@ -202,7 +203,8 @@ def build(ax: A.Agents) -> FastMCP:
     @mcp.tool(annotations=READ)
     async def game(ctx: Context, game_id: int, wait_s: int = 0) -> CallToolResult:
         """One game, as on its web page: kind, format, status, rated, seed (a string: pass it to play as it is
-        to replay the same map), error, timings, created_by,
+        to replay the same map), error, timings, created_by, engine (the image it was played on: its tag is the version
+        of the engine's source, as a local runner's --version shows it),
         seats [{slot, strategy, label, version_id, version (its number), score, place, points, rating_before, rating_after,
         cpu_sec, crashed, comment, mine}], my_slots, files (player-<slot>.log only for your seats), url,
         replay_json, queued_ahead (games before it while queued) and next.

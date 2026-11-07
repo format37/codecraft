@@ -1,4 +1,6 @@
 import io
+import logging
+import shutil
 import subprocess
 import tarfile
 import threading
@@ -9,12 +11,14 @@ import docker
 import pytest
 
 from codecraft import builder as builder_module
-from codecraft.builder import (Builder, BuildError, _CappedLog, _tar_sources, check_git_url, compile_command,
-                               git_failure, language_subdir)
+from codecraft.builder import (Builder, BuildError, EngineImage, _CappedLog, _tar_sources, check_git_url,
+                               compile_command, dockerfile_sources, engine_image, engine_source, git_failure,
+                               language_subdir, source_version)
 from codecraft.config import Config
 from codecraft.strategies import load_strategy
 
 HOSTS = ["github.com", "gitlab.com", "bitbucket.org", "codeberg.org"]
+REPO = Path(__file__).resolve().parents[2]
 
 
 def make_root(tmp_path: Path) -> Path:
@@ -452,10 +456,15 @@ def test_the_old_build_timeout_key_still_counts_unless_the_new_one_is_set(tmp_pa
     assert Config.load(tmp_path)["build"]["timeout_sec"] == 1200
 
 
+def files_in(path: Path) -> dict[str, str]:
+    return {p.relative_to(path).as_posix(): p.read_text() for p in sorted(path.rglob("*")) if p.is_file()}
+
+
 def test_the_engine_image_is_built_from_its_context_or_from_the_binary(tmp_path, monkeypatch):
     """`engine.context`, a directory with a Dockerfile, wins over `engine.binary` (the official runner, built from
-    its directory): by default our own engine (sim-cpp); CW_ENGINE_IMAGE and CW_ENGINE_CONTEXT set both from the
-    env (the Python engine, the official one for A/B games); a null context builds the binary's directory."""
+    its directory): by default our own engine (sim-cpp), tagged with the version of its source; CW_ENGINE_IMAGE and
+    CW_ENGINE_CONTEXT set both from the env (the Python engine, the official one for A/B games, here pinned by tags
+    of their own); a null context builds the binary's directory. The build gets the Dockerfile and what it copies."""
     root = make_root(tmp_path)
     (root / "engine").mkdir()
     (root / "engine" / "aicup2020").write_text("binary")
@@ -464,14 +473,14 @@ def test_the_engine_image_is_built_from_its_context_or_from_the_binary(tmp_path,
     client = MagicMock()
     client.images.get.side_effect = docker.errors.ImageNotFound("none")
     built = []
-    for env, yaml, want, official in (
-            ({}, None, ("codecraft/sim-cpp:0.1.0", root / "sim-cpp"), False),
+    dockerfiles = {"sim-cpp": "FROM gcc\n", "sim": "FROM python\n", "engine": "FROM debian\nCOPY aicup2020 /engine/\n"}
+    for env, yaml, image, ctx, official in (
+            ({}, None, "codecraft/sim-cpp", "sim-cpp", False),
             ({"CW_ENGINE_IMAGE": "codecraft/sim:0.1.0", "CW_ENGINE_CONTEXT": "sim"}, None,
-             ("codecraft/sim:0.1.0", root / "sim"), False),
+             "codecraft/sim:0.1.0", "sim", False),
             ({"CW_ENGINE_IMAGE": "codecraft/engine:1.3.0", "CW_ENGINE_CONTEXT": "engine"}, None,
-             ("codecraft/engine:1.3.0", root / "engine"), True),
-            ({}, "engine: {image: codecraft/engine:1.3.0, context: null}\n",
-             ("codecraft/engine:1.3.0", root / "engine"), True)):
+             "codecraft/engine:1.3.0", "engine", True),
+            ({}, "engine: {image: codecraft/engine:1.3.0, context: null}\n", "codecraft/engine:1.3.0", "engine", True)):
         for key in ("CW_ENGINE_IMAGE", "CW_ENGINE_CONTEXT"):
             monkeypatch.delenv(key, raising=False)
         for key, value in env.items():
@@ -481,10 +490,118 @@ def test_the_engine_image_is_built_from_its_context_or_from_the_binary(tmp_path,
         cfg = Config.load(root)
         assert cfg.engine_official is official
         builder = Builder(cfg, client)
-        builder._docker_build = lambda ctx, tag, out, **kw: built.append((tag, ctx))
-        if not (want[1] / "Dockerfile").exists() and cfg["engine"]["context"]:
+        builder._docker_build = lambda path, tag, out, **kw: built.append((tag, files_in(path)))
+        if not (root / ctx / "Dockerfile").exists():
             with pytest.raises(BuildError, match="no Dockerfile"):
                 builder.build_engine()
-            (want[1] / "Dockerfile").write_text("FROM debian:bookworm-slim\n")
-        assert builder.build_engine() == want[0]
-        assert built[-1] == want
+            (root / ctx / "Dockerfile").write_text(dockerfiles[ctx])
+        want = image if ":" in image else f"{image}:{source_version(engine_source(root / ctx))}"
+        assert builder.build_engine() == want == engine_image(cfg)
+        copied = {"aicup2020": "binary"} if ctx == "engine" else {}
+        assert built[-1] == (want, {"Dockerfile": dockerfiles[ctx], **copied})
+
+
+def sim_cpp(root: Path) -> Path:
+    """A small engine context, as sim-cpp: a Dockerfile copying itself, a Makefile and src; a build dir and docs."""
+    ctx = root / "sim-cpp"
+    for d in ("src", "build"):
+        (ctx / d).mkdir(parents=True)
+    (ctx / "Dockerfile").write_text("FROM gcc AS build\nCOPY Dockerfile Makefile ./\nCOPY src ./src\nRUN make\n"
+                                    "FROM debian\nCOPY --from=build /src/build/engine /engine\n")
+    (ctx / "Makefile").write_text("all:\n")
+    (ctx / "src" / "a.cpp").write_text("int a;\n")
+    (ctx / "build" / "a.o").write_text("object")
+    (ctx / "README.md").write_text("docs\n")
+    return ctx
+
+
+class FakeDocker:
+    """Images that exist once built; a build fails while src/a.cpp says "broken"."""
+
+    def __init__(self, builder: Builder):
+        self.images, self.builds = set(), []
+        builder._image_exists = lambda image: image in self.images
+        builder._docker_build = self.build
+
+    def build(self, path: Path, tag: str, out, **kw) -> None:
+        self.builds.append((tag, files_in(path)))
+        if (path / "src" / "a.cpp").read_text() == "broken":
+            raise BuildError("the build failed")
+        self.images.add(tag)
+
+
+def test_the_engine_image_is_tagged_with_the_version_of_its_source(tmp_path):
+    """The tag is the hash of the Dockerfile and the files it copies: a change there is a new image, built from exactly
+    those files; anything else in the context (the build directory, the docs) changes nothing."""
+    root = make_root(tmp_path)
+    ctx = sim_cpp(root)
+    builder = Builder(Config(Config.load(root).data, root), client=None)
+    fake = FakeDocker(builder)
+    first = builder.build_engine()
+    assert first == f"codecraft/sim-cpp:{source_version(engine_source(ctx))}" and len(first.split(":")[1]) == 12
+    assert fake.builds == [(first, {"Dockerfile": (ctx / "Dockerfile").read_text(), "Makefile": "all:\n",
+                                    "src/a.cpp": "int a;\n"})]
+    assert builder.build_engine() == first and len(fake.builds) == 1           # there: not built again
+    (ctx / "README.md").write_text("more docs\n")
+    (ctx / "build" / "b.o").write_text("object")
+    assert engine_image(builder.cfg) == first
+    for path, text in (("src/a.cpp", "int a = 1;\n"), ("Makefile", "all: x\n"), ("src/b.hpp", "#pragma once\n")):
+        (ctx / path).write_text(text)
+        image = builder.build_engine()
+        assert image != fake.builds[-2][0] and fake.builds[-1] == (image, {**fake.builds[-2][1], path: text})
+    assert len({tag for tag, _ in fake.builds}) == 4
+
+
+def test_the_sources_of_a_dockerfile():
+    text = ("FROM gcc AS build\n# COPY a comment /x\nCOPY --chown=1:1 a b/ /dst/\nADD [\"c d\", \"/e\"]\n"
+            "COPY --from=build /x /y\nADD https://example.com/f.tgz /f\ncopy g \\\n  h /i\nRUN cp a b\n")
+    assert dockerfile_sources(text) == ["a", "b/", "c d", "g", "h"]
+
+
+def test_an_engine_dockerfile_must_copy_what_is_there(tmp_path):
+    (tmp_path / "Dockerfile").write_text("FROM x\nCOPY *.cpp missing/ /src/\n")
+    (tmp_path / "a.cpp").write_text("a")
+    with pytest.raises(BuildError, match="copies missing/, which is not in"):
+        engine_source(tmp_path)
+    (tmp_path / "Dockerfile").write_text("FROM x\nCOPY *.cpp ../outside /src/\n")
+    (tmp_path.parent / "outside").write_text("x")
+    with pytest.raises(BuildError, match="copies ../outside"):
+        engine_source(tmp_path)
+    (tmp_path / "Dockerfile").write_text("FROM x\nCOPY *.cpp /src/\n")
+    (tmp_path / "__pycache__").mkdir()
+    (tmp_path / "__pycache__" / "a.cpp").write_text("cache")
+    assert sorted(engine_source(tmp_path)) == ["Dockerfile", "a.cpp"]
+
+
+@pytest.mark.skipif(shutil.which("make") is None, reason="no make")
+def test_the_engine_reports_the_version_its_image_is_tagged_with():
+    """sim-cpp/Makefile builds into the engine (`--version`, the viewer) the version the server tags its image with,
+    from the same files: the Dockerfile and what it copies (the Makefile's SOURCES)."""
+    files = engine_source(REPO / "sim-cpp")
+    assert {path.split("/")[0] for path in files} == {"Dockerfile", "Makefile", "src", "viewer"}
+    make = subprocess.run(["make", "-s", "--no-print-directory", "-C", str(REPO / "sim-cpp"), "version"],
+                          capture_output=True, text=True, timeout=60)
+    assert make.stdout.strip() == source_version(files)
+
+
+def test_games_go_on_with_the_engine_they_had_while_a_new_source_does_not_build(tmp_path, caplog):
+    """Before every game the engine source is checked: a changed one (a deploy) is built first; one that does not
+    build is tried once and logged once, and games keep the image they had until the source changes again. With no
+    image yet, the failure is the game's (and the worker's at start)."""
+    root = make_root(tmp_path)
+    ctx = sim_cpp(root)
+    builder = Builder(Config(Config.load(root).data, root), client=None)
+    fake = FakeDocker(builder)
+    engine = EngineImage(builder)
+    first = engine.current()
+    assert engine.current() == first and len(fake.builds) == 1
+    (ctx / "src" / "a.cpp").write_text("broken")
+    with caplog.at_level(logging.ERROR, logger="codecraft.build"):
+        assert engine.current() == first and engine.current() == first
+    assert len(fake.builds) == 2 and caplog.text.count("cannot be built: games go on with " + first) == 1
+    (ctx / "src" / "a.cpp").write_text("int a = 2;\n")
+    second = engine.current()
+    assert second not in (first, fake.builds[1][0]) and fake.builds[-1][0] == second and engine.current() == second
+    (ctx / "src" / "a.cpp").write_text("broken")
+    with pytest.raises(BuildError, match="the build failed"):
+        EngineImage(builder).current()

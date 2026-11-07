@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from codecraft import agents as A
 from codecraft import monitoring
 from codecraft.auth import Auth, RateLimiter, hash_token
+from codecraft.builder import engine_source, source_version
 from codecraft.config import Config
 from codecraft.db import DB
 from codecraft.web import COOKIE, create_app
@@ -169,6 +170,28 @@ def test_whoami_mentions_gvisor_only_when_the_server_runs_it(env):
     assert "gVisor" not in about()
     env.ax.cfg.data["docker"]["runtime"] = "runsc"
     assert "gVisor" in about()
+
+
+def test_a_game_names_its_engine_and_whoami_the_current_one(env):
+    """A game names the engine image it was played on, tagged with the version of its source (its page, game());
+    whoami names the image of the current source, none while that cannot be read."""
+    user, token = env.user()
+    h = bearer(token)
+    gid = env.finished_game([{"slot": 0, "strategy": "quickstart", "label": "quickstart"},
+                             {"slot": 1, "strategy": "quickstart", "label": "quickstart"}])
+    assert env.client.get(f"/api/v1/game?game_id={gid}", headers=h).json()["engine"] is None
+    assert "engine <code" not in env.client.get(f"/games/{gid}").text
+    env.db.set_game_engine(gid, "codecraft/sim-cpp:7390f3fc2f58")
+    assert env.client.get(f"/api/v1/game?game_id={gid}", headers=h).json()["engine"] == "codecraft/sim-cpp:7390f3fc2f58"
+    page = env.client.get(f"/games/{gid}").text
+    assert "40 s · engine <code" in page and ">codecraft/sim-cpp:7390f3fc2f58</code>" in page
+    server = env.client.post("/api/v1/whoami", headers=h).json()["server"]
+    assert server["engine"] is None and "--version" in server["engine_about"]      # no sim-cpp in this root
+    ctx = env.cfg.root / "sim-cpp"
+    ctx.mkdir()
+    (ctx / "Dockerfile").write_text("FROM debian\n")
+    server = env.client.post("/api/v1/whoami", headers=h).json()["server"]
+    assert server["engine"] == f"codecraft/sim-cpp:{source_version(engine_source(ctx))}"
 
 
 def test_rest_dispatcher_read_tools_errors_and_get_with_query_params(env):

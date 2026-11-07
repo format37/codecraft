@@ -20,6 +20,7 @@ from pathlib import Path
 import docker
 from docker.types import DeviceRequest, IPAMConfig, IPAMPool, LogConfig, Ulimit
 
+from .builder import Builder, EngineImage
 from .config import MAX_TICKS, SEATS, Config
 from .db import DB
 from .strategies import Strategy
@@ -177,10 +178,11 @@ def gpu_available(cfg: Config, client: docker.DockerClient | None) -> bool:
 
 
 class GameRunner:
-    def __init__(self, cfg: Config, client: docker.DockerClient, db: DB):
+    def __init__(self, cfg: Config, client: docker.DockerClient, db: DB, engine: EngineImage | None = None):
         self.cfg = cfg
         self.client = client
         self.db = db
+        self.engine = engine or EngineImage(Builder(cfg, client))     # the engine image, kept to its source
         self.prefix = cfg["docker"]["prefix"]
         self.label = cfg["docker"]["label"]
 
@@ -217,13 +219,16 @@ class GameRunner:
         networks: list = []
         name = f"{self.prefix}-{game_id}"
         try:
+            image = self.engine.current()
+            if self.db is not None:
+                self.db.set_game_engine(game_id, image)
             for seat in seats:
                 if seat.is_tcp:
                     seat.network, seat.engine_ip = self._seat_network(name, game_id, seat.slot)
                     networks.append(seat.network)
             engine_config = self._engine_config(fmt, seats, seed)
             (gdir / "config.json").write_text(json.dumps(redacted(engine_config), indent=2))
-            engine = self._start_engine(name, seats, engine_config, names)
+            engine = self._start_engine(name, seats, engine_config, names, image)
             if any(s.is_tcp for s in seats):
                 self._wait_for_ports(engine, [s.port for s in seats if s.is_tcp])
                 for seat in seats:
@@ -328,7 +333,7 @@ class GameRunner:
                     raise
                 log.warning("game %d: seat %d subnet %s is taken, trying another", game_id, slot, subnet)
 
-    def _start_engine(self, name: str, seats: list[Seat], config: dict, names: list[str]):
+    def _start_engine(self, name: str, seats: list[Seat], config: dict, names: list[str], image: str):
         eng = self.cfg["engine"]
         command = ["--config", "/game/config.json", "--batch-mode", "--save-results", "/game/results.json",
                    "--save-replay", "/game/replay.dat", "--log-level", "info", "--player-names", *names]
@@ -344,7 +349,7 @@ class GameRunner:
                                            for s in tcp}
         else:       # built-in bots only: nobody to talk to
             kwargs["network_mode"] = "none"
-        engine = self.client.containers.create(eng["image"], **kwargs)
+        engine = self.client.containers.create(image, **kwargs)
         engine.put_archive("/game", _tar_bytes({"config.json": json.dumps(config).encode()}))
         engine.start()
         return engine
