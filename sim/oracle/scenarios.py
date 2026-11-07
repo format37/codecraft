@@ -1005,6 +1005,43 @@ def _():
     return _breach("BuilderUnit", 10, 4)
 
 
+# Pathfinding as the official engine runs it (read off its machine code in step 4) ------------------------------------
+@scenario("move-fog-unseen-wall", [5, 8], "Fog of war on: a path search counts only the entities its player sees, "
+          "and takes every other cell for free. A builder (sight 10) has a long resource divider ahead; the way round "
+          "it to the north is closed by a wall 20 cells off. Seeing only the near end of the divider, it goes round "
+          "either way (with the whole map in sight only the south is open).",
+          random="whether the unit goes round the divider by the north or by the south")
+def _():
+    s = State(map_size=40, ticks=4, fog=True)
+    s.resources([(x, 20) for x in range(6, 31)] + [(25, y) for y in range(20)])
+    s.order(s.add("BuilderUnit", 1, (5, 20)), move((35, 20)))
+    s.add("BuilderUnit", 2, (38, 38))
+    return s, E2
+
+
+@scenario("move-node-cap-frontier", [5], "max_pathfind_nodes = 1: the search expands only the start, yet the path "
+          "goes to the best cell it put on its heap. A builder with break_through and a resource in front of it on "
+          "the way to its target finds that cell the closest to the target and mines it, tick after tick.")
+def _():
+    s = State(ticks=3, max_pathfind_nodes=1)
+    s.add("Resource", None, (6, 10))
+    s.order(s.add("BuilderUnit", 1, (5, 10)), move((15, 10), break_through=True))
+    s.add("BuilderUnit", 2, (18, 18))
+    return s, E2
+
+
+@scenario("attack-auto-fog-hunt", [4, 8], "Fog of war on: a hunt counts enemies its player does not see, and walks "
+          "through what it does not see. A melee unit (sight 10, pathfind_range 14) hunts a House 14 cells away "
+          "behind a resource wall across the map 11 cells away: unseen, the wall is no obstacle and the House is in "
+          "reach, so the unit steps towards it (with the wall in sight it would stay).")
+def _():
+    s = State(ticks=1, fog=True)
+    s.resources([(13, y) for y in range(20)])
+    s.order(s.add("MeleeUnit", 1, (2, 10)), attack(auto_range=14))
+    s.add("House", 2, (16, 9))
+    return s, E2
+
+
 # CLI ---------------------------------------------------------------------------------------------------------------
 def _select(names: list[str]) -> list[Scenario]:
     if not names:

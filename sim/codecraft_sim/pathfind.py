@@ -1,23 +1,29 @@
-"""Pathfinding for the rules: the A* of a move order and the search of a hunting auto-attack.
+"""Pathfinding for the rules: the search of a move order and of a hunting auto-attack.
 
-Both run on the positions at the start of the tick (`Grid`): every entity is an obstacle, the player's own units
-included, and only the first step of a path is used; the path is planned anew every tick (fixtures `move-free`,
-`move-train`). A search expands at most `max_pathfind_nodes` cells; when it cannot reach its goal it heads for the
-closest cell it found, which is why `find_closest_position` changes nothing (`move-unreachable`, `move-node-cap`).
+Both are one A*, as the official engine runs it (aicup2020 1.3.0, `model::pathfind::pathfind`, read off its machine
+code in step 4 of the engine plan):
 
-With `break_through`, a cell holding another player's entity or a resource can be entered too, at the price of
-the hits it takes to destroy it, ceil(health / damage), in place of the 1 of a free cell (`move-break-through-*`).
+- on the positions at the start of the tick (`Grid`); only the first step of the path is taken, and the path is
+  planned anew every tick (fixtures `move-free`, `move-train`);
+- the price of entering a cell (`cost`, from rules.py) is 1 for a free cell; an entity is an obstacle, the player's
+  own units included, except that with `break_through` another player's entity or a resource costs the hits it takes
+  to destroy it, ceil(health / damage) (`move-break-through-*`); under fog of war a cell the player does not see
+  costs 1, whatever stands there;
+- cells are expanded by the lowest estimate (cost so far + heuristic), a random draw deciding between equal
+  estimates; a cell is re-priced only for a strictly cheaper path; at most `max_pathfind_nodes` cells are expanded;
+- the path goes to the best cell the search reached (expanded or merely put on its heap): the lowest heuristic, then
+  the cheapest, one at random among equals. For a move order the heuristic is the Manhattan distance to the target,
+  so an unreachable target sends the unit to the closest cell it can get to and `find_closest_position` changes
+  nothing (`move-unreachable`, `move-node-cap`); for a hunt it is 0 on a cell next to a valid enemy and 1 elsewhere,
+  and cells beyond the hunt's reach are left out.
 
-Where several paths are equally short the official engine picks one at random, a new draw every tick: from the
-same state a unit may take either of the first steps of two shortest paths (the `alternatives` of `move-free`).
-Ours draws from the turn's random generator; which paths the official draws among in every case (with the node
-cap, around obstacles, with break_through) is still being checked against the fixtures (step 4 of the plan).
+Every draw comes from the turn's random generator. `prefer` (used by the corpus check to follow a record) makes the
+paths through a given first cell win every draw they take part in.
 """
 from __future__ import annotations
 
 import heapq
 import random
-from collections import deque
 from typing import Callable, Iterable
 
 from .model import Vec2
@@ -90,36 +96,47 @@ def _first_cell(parent: dict[int, int], start: int, end: int) -> int:
     return i
 
 
-def first_step(grid: Grid, start: Vec2, target: Vec2, max_nodes: int, cost: Callable[[int], int | None],
-               rng: random.Random) -> Vec2 | None:
-    """The first cell of the path from `start` towards `target`, or None to stay put.
+def _pick(cands: list[int], parent: dict[int, int], start_i: int, rng: random.Random, prefer_i: int) -> int:
+    """One of equally good end cells, at random (the official engine keeps each new one with probability 1/count:
+    uniformly); with `prefer`, one whose path starts there if there is one."""
+    if prefer_i >= 0:
+        for c in cands:
+            if c != start_i and _first_cell(parent, start_i, c) == prefer_i:
+                return c
+    return cands[0] if len(cands) == 1 else rng.choice(cands)
 
-    A* with the Manhattan distance as heuristic; `cost(i)` is the price of entering cell `i`, None when it cannot
-    be entered. The path ends at the target when the search reaches it within `max_nodes` expanded cells, else at
-    the cell closest to the target among those expanded (the shorter path first). Among cells of equal estimate
-    a random one is expanded first, so any of the shortest paths may come out (`move-train`)."""
+
+def _step(n: int, parent: dict[int, int], start_i: int, end: int) -> Vec2 | None:
+    if end == start_i:
+        return None
+    j = _first_cell(parent, start_i, end)
+    return Vec2(j % n, j // n)
+
+
+def first_step(grid: Grid, start: Vec2, target: Vec2, max_nodes: int, cost: Callable[[int], int | None],
+               rng: random.Random, prefer: Vec2 | None = None) -> Vec2 | None:
+    """The first cell of the path from `start` towards `target`, or None to stay put (see the module docstring)."""
     n = grid.size
     tx, ty = target
     start_i = grid.index(start)
     target_i = ty * n + tx if grid.inside(tx, ty) else -1
+    prefer_i = grid.index(prefer) if prefer is not None and grid.inside(*prefer) else -1
+    first = {start_i: start_i}              # the first step of the path to each cell (kept only with `prefer`)
     g = {start_i: 0}
     parent = {start_i: start_i}
-    h0 = abs(start.x - tx) + abs(start.y - ty)
-    heap = [(h0, 0.0, start_i)]
+    heap = [(abs(start.x - tx) + abs(start.y - ty), 1, 0.0, start_i)]
     closed: set[int] = set()
-    best, best_key = start_i, (h0, 0)
     while heap:
-        i = heapq.heappop(heap)[2]
+        i = heapq.heappop(heap)[3]
         if i in closed:
             continue
         closed.add(i)
+        if i == target_i:                   # nothing can beat the target (the official search goes on, in vain)
+            return _step(n, parent, start_i, i)
+        if len(closed) > max_nodes:
+            break
         x, y = i % n, i // n
         gi = g[i]
-        key = (abs(x - tx) + abs(y - ty), gi)
-        if key < best_key:
-            best, best_key = i, key
-        if i == target_i or len(closed) > max_nodes:
-            break
         for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
             if not (0 <= nx < n and 0 <= ny < n):
                 continue
@@ -131,43 +148,70 @@ def first_step(grid: Grid, start: Vec2, target: Vec2, max_nodes: int, cost: Call
             if ng < g.get(j, 1 << 60):
                 g[j] = ng
                 parent[j] = i
-                heapq.heappush(heap, (ng + abs(nx - tx) + abs(ny - ty), rng.random(), j))
-    if best == start_i:
-        return None
-    j = _first_cell(parent, start_i, best)
-    return Vec2(j % n, j // n)
+                tie = 1
+                if prefer_i >= 0:
+                    fj = first[j] = j if i == start_i else first[i]
+                    tie = 0 if fj == prefer_i else 1
+                heapq.heappush(heap, (ng + abs(nx - tx) + abs(ny - ty), tie, rng.random(), j))
+    # the target was not reached: the closest cell reached, the cheaper path first, one at random among equals
+    best_key, cands = None, []
+    for i, gi in g.items():
+        key = (abs(i % n - tx) + abs(i // n - ty), gi)
+        if best_key is None or key < best_key:
+            best_key, cands = key, [i]
+        elif key == best_key:
+            cands.append(i)
+    return _step(n, parent, start_i, _pick(cands, parent, start_i, rng, prefer_i))
 
 
-def nearest_step(grid: Grid, start: Vec2, goals: set[int], budget: int, max_nodes: int,
-                 rng: random.Random) -> Vec2 | None:
-    """The first step towards the nearest goal cell at most `budget` steps away over free cells (breadth first,
-    the neighbours of each cell in a random order), or None when there is none (or the unit stands on one)."""
+def hunt_step(grid: Grid, start: Vec2, goals: set[int], reach: int, max_nodes: int,
+              cost: Callable[[int], int | None], rng: random.Random, prefer: Vec2 | None = None) -> Vec2 | None:
+    """The first step towards the nearest goal cell (one next to a valid enemy) at most `reach` away, or None when
+    there is none within reach or the unit stands on one (see the module docstring: heuristic 0 on a goal, 1
+    elsewhere; one of the nearest goals at random)."""
     n = grid.size
     start_i = grid.index(start)
-    if start_i in goals or budget <= 0:
+    if start_i in goals:
         return None
-    cells = grid.cells
+    prefer_i = grid.index(prefer) if prefer is not None and grid.inside(*prefer) else -1
+    first = {start_i: start_i}
+    g = {start_i: 0}
     parent = {start_i: start_i}
-    frontier = deque([(start_i, 0)])
-    expanded = 0
-    while frontier:
-        i, d = frontier.popleft()
-        expanded += 1
-        if expanded > max_nodes:
+    heap = [(1, 1, 0.0, start_i)]
+    closed: set[int] = set()
+    found = None                            # the distance of the nearest goal reached
+    while heap:
+        f, _, _, i = heapq.heappop(heap)
+        if found is not None and f > found:
+            break                           # what is left cannot reach a goal that near
+        if i in closed:
+            continue
+        closed.add(i)
+        if len(closed) > max_nodes:
             break
+        gi = g[i]
+        if i in goals and found is None:
+            found = gi
         x, y = i % n, i // n
-        around = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
-        rng.shuffle(around)
-        for nx, ny in around:
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
             if not (0 <= nx < n and 0 <= ny < n):
                 continue
             j = ny * n + nx
-            if j in parent or cells[j] != FREE:
+            c = cost(j)
+            if c is None:
                 continue
-            parent[j] = i
-            if j in goals:
-                k = _first_cell(parent, start_i, j)
-                return Vec2(k % n, k // n)
-            if d + 1 < budget:
-                frontier.append((j, d + 1))
-    return None
+            ng = gi + c
+            if ng <= reach and ng < g.get(j, 1 << 60):
+                g[j] = ng
+                parent[j] = i
+                tie = 1
+                if prefer_i >= 0:
+                    fj = first[j] = j if i == start_i else first[i]
+                    tie = 0 if fj == prefer_i else 1
+                heapq.heappush(heap, (ng + (0 if j in goals else 1), tie, rng.random(), j))
+    reached = [i for i in g if i in goals]
+    if not reached:
+        return None
+    nearest = min(g[i] for i in reached)
+    cands = [i for i in reached if g[i] == nearest]
+    return _step(n, parent, start_i, _pick(cands, parent, start_i, rng, prefer_i))

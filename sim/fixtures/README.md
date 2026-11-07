@@ -76,7 +76,7 @@ python3 -m oracle.scenarios show NAME           # the fixture tick by tick, as a
 5. Movement: the path, occupied and unreachable targets, `find_closest_position`, `break_through`, conflicts.
 6. Building: placement, cost, population, activation.
 7. Repair.
-8. Fog of war and the per-seat view.
+8. Fog of war: the per-seat view, and what a player's path searches see.
 9. Crashed seats.
 10. `passive_income`.
 11. Resource exhaustion.
