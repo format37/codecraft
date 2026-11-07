@@ -202,7 +202,7 @@ Beyond-All-Reason-style metal/energy economy) another, with its own engine (any 
 the orchestrator contract matters: TCP players, results file, replay). GPU fractions per player
 (CUDA MPS / time slicing) belong here too.
 
-## Our own engine — `sim/` (in progress, 2026-11-06/07)
+## Our own engine — `sim/` and `sim-cpp/` (2026-11-06/07)
 
 The official engine is a closed binary nobody can patch, port or study; so we write our own: **the same rules,
 not bit-exact** (our own maps and random draws), with the official runner's command line, config, log lines,
@@ -214,7 +214,8 @@ seats; written from the rules and tested against the binary, reading its machine
 Done (`sim/`, see [sim/README.md](../sim/README.md)): the state, the wire codec and the replay writer (byte-exact
 on every stored official replay); the rules of a tick; the player views (fog of war, every seat in its own frame);
 the game loop with TCP seats, timeouts and crashes; the presets and a map generator; QuickStart; the Docker image
-`codecraft/sim`. How it is checked:
+`codecraft/sim`. And its C++ clone (`sim-cpp/`, image `codecraft/sim-cpp`), which plays exactly the Python engine's
+games: from the same config and seed, the same replay and results, byte for byte. How it is checked:
 
 - 92 fixtures recorded from the official binary run from hand-made states (`LoadFrom`), one per rule question,
   with every outcome the binary gives where it draws at random; our rules reproduce each outcome set exactly;
@@ -223,19 +224,21 @@ the game loop with TCP seats, timeouts and crashes; the presets and a map genera
   scores; the pathfinder was read off the binary's machine code to get there;
 - 12 460 views the binary sent to recording players equal ours;
 - every fixture played by our engine as a whole, in place of the binary (TCP seats, crashes, log lines,
-  results), gives what the binary gave; the 15 starter languages played it with `./cw play`.
+  results), gives what the binary gave; the 15 starter languages played it with `./cw play`;
+- the C++ engine writes the Python engine's bytes on every fixture with other seeds, on generated maps, on full
+  games of QuickStart bots in the three presets and from states of the stored official games.
 
 What differs from the official engine, by design: the maps (ours are the same under the eight symmetries of the
 square, so every seat sees the same field from its corner; the official ones only under a half turn), the
 QuickStart bot (ours is the starter strategy of
 [codecraft-starter](https://github.com/format37/codecraft-starter); the official bot is closed, so the
 `quickstart` rating will drift), and the random draws (the same seed gives another game than the official engine;
-our engine replays its own games exactly). Speed: a game takes 1.5 to 3 minutes in pure Python, 2.5 to 5 times the
-official engine's, hence the C++ clone.
+our engine replays its own games exactly). Speed: a game of four QuickStart bots takes 1 to 5 minutes in the
+Python engine and 2 to 10 seconds in the C++ one, under 5 MB; with real players their thinking time dominates.
 
-Using it: `engine: {image: codecraft/sim:0.1.0, context: sim}` in `config.yaml` (or `CW_ENGINE_IMAGE` and
-`CW_ENGINE_CONTEXT` in `.env`), then `./cw build`; the official image stays selectable the same way. Next: the
-C++ clone (checked to play exactly the Python engine's games), then the ladder switches to it.
+Using it: `engine: {image: codecraft/sim-cpp:0.1.0, context: sim-cpp}` in `config.yaml` (or `CW_ENGINE_IMAGE` and
+`CW_ENGINE_CONTEXT` in `.env`; the Python engine: `codecraft/sim:0.1.0` and `sim`), then `./cw build`; the official
+image stays selectable the same way, for A/B games. Next: the live server switches to the C++ engine.
 
 ## Kaggle
 

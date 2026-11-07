@@ -7,9 +7,9 @@ not. This server puts it back behind a web platform: players sign in, upload str
 builds them into Docker images, plays them against each other, keeps an Elo ladder and shows every
 replay in the browser. We restored it for ourselves, to sharpen our coding skills.
 
-The game can also run on our own engine (`sim/`, in progress): the same rules, the official engine's command
-line, protocol and replay format, written from the rules and tested against the official binary; `config.yaml`
-picks the engine. See [docs/KICKOFF.md](docs/KICKOFF.md) and [sim/README.md](sim/README.md).
+The game can also run on our own engine (`sim/` in Python, `sim-cpp/` in C++): the same rules, the official
+engine's command line, protocol and replay format, written from the rules and tested against the official binary;
+`config.yaml` picks the engine. See [docs/KICKOFF.md](docs/KICKOFF.md) and [sim/README.md](sim/README.md).
 
 Live instance: https://codecraft.latentstate.dev
 
@@ -109,6 +109,7 @@ entries carry a `-2020` suffix and are disabled, so their authors can register u
 engine/      aicup2020 1.3.0 (the official local runner, closed source) + GUI assets, Dockerfile
 sim/         our own engine (Python): the same rules, command line, protocol and replay; the oracle tools and
              fixtures that test it against the official binary; Dockerfile
+sim-cpp/     the same engine in C++: the same games, seed for seed, in seconds; Dockerfile
 clients/     official v1.3.0 clients (GPL-3.0, MailRuChamps/raic-2020)
 templates/   base-image overrides per language
 strategies/  seed strategy manifests

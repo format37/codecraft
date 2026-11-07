@@ -9,7 +9,9 @@ when they make the record's random choices, and every game played from its first
 carried forward ends with the official scores (`oracle/corpus.py`); every view the official engine sends, fog of
 war and the seat's frame included, is ours (`tests/test_view.py`); and every fixture played by our engine as a
 whole, in place of the official binary (seats over TCP, crashes, log lines, results.json), gives what the official
-engine gave (`tests/test_engine.py`). The C++ clone for the ladder is not written yet.
+engine gave (`tests/test_engine.py`). The C++ clone in [`../sim-cpp`](../sim-cpp/README.md) plays exactly the
+games of this engine, seed for seed, 20 to 40 times faster (`tests/test_cpp.py`): this one stays the executable
+spec, a change of the rules is made here first.
 
 ```
 codecraft_sim/        the engine (Python 3.10+, standard library only)
@@ -57,9 +59,9 @@ about a minute in pure Python, plus the players' time.
 
 ```
 cd sim
-../server/.venv/bin/python -m pytest              # ~60 s; the oracle tests need engine/aicup2020 to run
+../server/.venv/bin/python -m pytest              # ~90 s; the oracle tests need engine/aicup2020 to run
 SIM_SLOW=1 ../server/.venv/bin/python -m pytest   # + the replay round trip over all of data/games, every fixture
-                                                  #   turn replayed on the official engine, three full games (~5 min)
+                                                  #   turn replayed on the official engine, full games (~15 min)
 ```
 
 The rules tests (`tests/test_rules.py`) play every turn of every fixture through `rules.py` with many seeds: each
@@ -72,8 +74,11 @@ with `codecraft-sim` in place of the binary, through the same oracle tools: the 
 crashes and their comments, each puppet's views and `Finish`, and every tick until a random turn takes another of
 the official outcomes, must be what the official engine gave. The map tests (`tests/test_mapgen.py`) check the
 presets' starting entities against the stored official games, id for id, and our maps' symmetry, free corners and
-paths. The replay tests use the stored games in `data/games/` (skipped when there are none) and cross-check
-against the server's decoder `server/codecraft/replay.py`. The fixture tests re-run every scenario on the official
+paths. The C++ tests (`tests/test_cpp.py`, after `make -C ../sim-cpp`, which they run) check the C++ engine on every
+fixture as the Python engine is checked, and that it writes the same bytes as this engine from the same config and
+seed: on the fixtures with other seeds, on maps, on games of QuickStart bots and from stored official states. The
+replay tests use the stored games in `data/games/` (skipped when there are none) and cross-check against the
+server's decoder `server/codecraft/replay.py`. The fixture tests re-run every scenario on the official
 binary and compare with the stored file, so a fixture can never silently drift from what the engine does.
 
 ## The oracle

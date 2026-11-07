@@ -28,17 +28,22 @@ FIXTURES = fixture.all_fixtures()
 NAMES = [fx["name"] for fx in FIXTURES]
 
 
-def play_fixture(fx: dict) -> loadfrom.EngineRun:
+def play_fixture(fx: dict, engine: Path = SIM, seed: int | None = None) -> loadfrom.EngineRun:
+    """A fixture played by `engine` (its own seed unless given), its puppets over TCP."""
     players = [Puppet.from_spec(p) if isinstance(p, dict) else p for p in fx["players"]]
     model = fixture.state_from_json(fx["state"])
-    return loadfrom.run(model, players, seed=fx["seed"], timeout=fx.get("timeout", 1.0),
-                        accept_timeout=fx.get("accept_timeout", 5.0), engine=SIM)
+    return loadfrom.run(model, players, seed=fx["seed"] if seed is None else seed, timeout=fx.get("timeout", 1.0),
+                        accept_timeout=fx.get("accept_timeout", 5.0), engine=engine)
+
+
+def play_all(engine: Path) -> dict[str, loadfrom.EngineRun]:
+    with ThreadPoolExecutor(os.cpu_count() or 4) as pool:
+        return dict(zip(NAMES, pool.map(lambda fx: play_fixture(fx, engine), FIXTURES)))
 
 
 @pytest.fixture(scope="module")
 def runs() -> dict[str, loadfrom.EngineRun]:
-    with ThreadPoolExecutor(os.cpu_count() or 4) as pool:
-        return dict(zip(NAMES, pool.map(play_fixture, FIXTURES)))
+    return play_all(SIM)
 
 
 def follows(fx: dict, run: loadfrom.EngineRun) -> int:
@@ -62,8 +67,12 @@ def follows(fx: dict, run: loadfrom.EngineRun) -> int:
 
 @pytest.mark.parametrize("name", NAMES)
 def test_fixture_on_our_engine(name, runs):
-    fx = next(f for f in FIXTURES if f["name"] == name)
-    run, exp = runs[name], fx["expected"]
+    check_fixture_run(next(f for f in FIXTURES if f["name"] == name), runs[name])
+
+
+def check_fixture_run(fx: dict, run: loadfrom.EngineRun) -> None:
+    """What an engine made of a fixture is what the official engine made of it (see the module docstring)."""
+    exp = fx["expected"]
     assert run.returncode == exp["returncode"], run.log
     assert fixture.notable_log(run.log) == exp["log"]
     n = follows(fx, run)
