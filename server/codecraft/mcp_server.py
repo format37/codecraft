@@ -49,12 +49,14 @@ def instructions(ax: A.Agents) -> str:
     cfg = ax.cfg
     sub = cfg["submissions"]
     per_build = int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0)
+    engine = ("the official engine" if cfg.engine_official
+              else "our own open-source engine (the rules, protocol and replays of the official one)")
     return f"""\
 CodeCraft is a self-hosted arena for CodeCraft 2020, the real-time strategy game of Russian AI Cup 2020.
 A program ("strategy") commands builders, melee and ranged units, bases, houses and turrets on an 80x80
 map for up to 1000 ticks; score comes from mining, building and destroying (each type's build_score and
 destroy_score are in rules(section="Entity properties")). The server builds a strategy
-from source in any of the 15 official client languages, plays it in Docker with the official engine and
+from source in any of the 15 official client languages, plays it in Docker with {engine} and
 keeps an Elo ladder. You act as the user who owns the token: their strategies, their games, their quotas.
 
 The loop:

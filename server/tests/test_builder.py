@@ -453,27 +453,38 @@ def test_the_old_build_timeout_key_still_counts_unless_the_new_one_is_set(tmp_pa
 
 
 def test_the_engine_image_is_built_from_its_context_or_from_the_binary(tmp_path, monkeypatch):
-    """`engine.context` (our own engine: `sim`, a directory with a Dockerfile) wins over `engine.binary` (the
-    official runner, built from its directory); CW_ENGINE_IMAGE and CW_ENGINE_CONTEXT set both from the env."""
+    """`engine.context`, a directory with a Dockerfile, wins over `engine.binary` (the official runner, built from
+    its directory): by default our own engine (sim-cpp); CW_ENGINE_IMAGE and CW_ENGINE_CONTEXT set both from the
+    env (the Python engine, the official one for A/B games); a null context builds the binary's directory."""
     root = make_root(tmp_path)
     (root / "engine").mkdir()
     (root / "engine" / "aicup2020").write_text("binary")
     (root / "sim").mkdir()
+    (root / "sim-cpp").mkdir()
     client = MagicMock()
     client.images.get.side_effect = docker.errors.ImageNotFound("none")
     built = []
-    for env, want in (({}, ("codecraft/engine:1.3.0", root / "engine")),
-                      ({"CW_ENGINE_IMAGE": "codecraft/sim:0.1.0", "CW_ENGINE_CONTEXT": "sim"},
-                       ("codecraft/sim:0.1.0", root / "sim"))):
+    for env, yaml, want, official in (
+            ({}, None, ("codecraft/sim-cpp:0.1.0", root / "sim-cpp"), False),
+            ({"CW_ENGINE_IMAGE": "codecraft/sim:0.1.0", "CW_ENGINE_CONTEXT": "sim"}, None,
+             ("codecraft/sim:0.1.0", root / "sim"), False),
+            ({"CW_ENGINE_IMAGE": "codecraft/engine:1.3.0", "CW_ENGINE_CONTEXT": "engine"}, None,
+             ("codecraft/engine:1.3.0", root / "engine"), True),
+            ({}, "engine: {image: codecraft/engine:1.3.0, context: null}\n",
+             ("codecraft/engine:1.3.0", root / "engine"), True)):
         for key in ("CW_ENGINE_IMAGE", "CW_ENGINE_CONTEXT"):
             monkeypatch.delenv(key, raising=False)
         for key, value in env.items():
             monkeypatch.setenv(key, value)
-        builder = Builder(Config.load(root), client)
+        if yaml:
+            (root / "config.yaml").write_text(yaml)
+        cfg = Config.load(root)
+        assert cfg.engine_official is official
+        builder = Builder(cfg, client)
         builder._docker_build = lambda ctx, tag, out, **kw: built.append((tag, ctx))
-        if env:
+        if not (want[1] / "Dockerfile").exists() and cfg["engine"]["context"]:
             with pytest.raises(BuildError, match="no Dockerfile"):
                 builder.build_engine()
-            (root / "sim" / "Dockerfile").write_text("FROM python:3.12-slim\n")
+            (want[1] / "Dockerfile").write_text("FROM debian:bookworm-slim\n")
         assert builder.build_engine() == want[0]
         assert built[-1] == want

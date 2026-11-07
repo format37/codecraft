@@ -236,9 +236,11 @@ QuickStart bot (ours is the starter strategy of
 our engine replays its own games exactly). Speed: a game of four QuickStart bots takes 1 to 5 minutes in the
 Python engine and 2 to 10 seconds in the C++ one, under 5 MB; with real players their thinking time dominates.
 
-Using it: `engine: {image: codecraft/sim-cpp:0.1.0, context: sim-cpp}` in `config.yaml` (or `CW_ENGINE_IMAGE` and
-`CW_ENGINE_CONTEXT` in `.env`; the Python engine: `codecraft/sim:0.1.0` and `sim`), then `./cw build`; the official
-image stays selectable the same way, for A/B games. Next: the live server switches to the C++ engine.
+Since 2026-11-07 the server runs the C++ engine by default: `engine: {image: codecraft/sim-cpp:0.1.0, context:
+sim-cpp}` in `config.yaml`, built by `./cw build` (or by the worker when it starts). Another engine is picked
+there or with `CW_ENGINE_IMAGE` and `CW_ENGINE_CONTEXT` in `.env`: the Python one with `codecraft/sim:0.1.0` and
+`sim`, the official binary, for A/B games, with `codecraft/engine:1.3.0` and `engine`. The cover page and the MCP
+instructions say which engine plays.
 
 ## Kaggle
 

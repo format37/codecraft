@@ -2,14 +2,17 @@
 
 A self-hosted competition server for **CodeCraft**, the game of
 [Russian AI Cup 2020](https://github.com/MailRuChamps/raic-2020) by Mail.ru Group. The official
-platform (cups.online) is gone; the official game engine — the local runner `aicup2020` 1.3.0 — is
-not. This server puts it back behind a web platform: players sign in, upload strategies, the server
-builds them into Docker images, plays them against each other, keeps an Elo ladder and shows every
-replay in the browser. We restored it for ourselves, to sharpen our coding skills.
+platform (cups.online) is gone, and the official engine survives only as a closed binary, the local runner
+`aicup2020` 1.3.0. This server puts the game back behind a web platform, on an open-source engine of our own:
+players sign in, upload strategies, the server builds them into Docker images, plays them against each other,
+keeps an Elo ladder and shows every replay in the browser. We restored it for ourselves, to sharpen our coding
+skills.
 
-The game can also run on our own engine (`sim/` in Python, `sim-cpp/` in C++): the same rules, the official
-engine's command line, protocol and replay format, written from the rules and tested against the official binary;
-`config.yaml` picks the engine. See [docs/KICKOFF.md](docs/KICKOFF.md) and [sim/README.md](sim/README.md).
+Our engine (`sim-cpp/` in C++, which the server runs, and `sim/` in Python, its executable spec, which plays the
+same games) has the official rules, the official engine's command line, protocol and replay format, so the 15
+official clients play it unchanged; it is written from the rules and tested against the official binary. The
+binary stays in `engine/` as the test oracle and for A/B games: `config.yaml` picks the engine. See
+[docs/KICKOFF.md](docs/KICKOFF.md) and [sim/README.md](sim/README.md).
 
 Live instance: https://codecraft.latentstate.dev
 
@@ -106,10 +109,11 @@ entries carry a `-2020` suffix and are disabled, so their authors can register u
 ## Layout
 
 ```
-engine/      aicup2020 1.3.0 (the official local runner, closed source) + GUI assets, Dockerfile
-sim/         our own engine (Python): the same rules, command line, protocol and replay; the oracle tools and
+sim-cpp/     our own engine in C++, the one the server runs: a game in seconds; Dockerfile
+sim/         the same engine in Python, its executable spec (the same games, seed for seed); the oracle tools and
              fixtures that test it against the official binary; Dockerfile
-sim-cpp/     the same engine in C++: the same games, seed for seed, in seconds; Dockerfile
+engine/      aicup2020 1.3.0 (the official local runner, closed source) + GUI assets, Dockerfile: the test oracle,
+             A/B games, `cw watch`
 clients/     official v1.3.0 clients (GPL-3.0, MailRuChamps/raic-2020)
 templates/   base-image overrides per language
 strategies/  seed strategy manifests
@@ -123,8 +127,9 @@ data/        database, submissions, build cache, games (git-ignored)
 The game, the engine and the clients were made by the Russian AI Cup team (Mail.ru Group; engine by
 [kuviman](https://github.com/kuviman)). This server is an independent, non-commercial restoration and is
 not affiliated with them.
-`sim/` is our own re-implementation of the engine, written from the published rules and the official binary's
-observed behaviour (its pathfinding was worked out from its machine code); it contains none of its code.
+`sim/` and `sim-cpp/` are our own re-implementation of the engine, written from the published rules and the
+official binary's observed behaviour (its pathfinding was worked out from its machine code); they contain none of
+its code.
 
 The server code is [MIT](LICENSE): run it on your own machine, change it, share it. The official
 clients stay GPL-3.0 and the engine binary (closed source) is redistributed unchanged from the

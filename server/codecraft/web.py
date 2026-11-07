@@ -128,7 +128,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                 client = None
         cfg.resolve_gpu(client)
     templates.env.globals.update(title=title, SEATS=SEATS, cfg=cfg.data, registration=auth.registration,
-                                 gpu_ok=cfg.gpu_ok)
+                                 gpu_ok=cfg.gpu_ok, engine_official=cfg.engine_official)
 
     def game_dir(game_id: int) -> Path:
         return cfg.games_dir / f"{game_id:06d}"
