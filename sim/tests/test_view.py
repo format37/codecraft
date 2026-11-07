@@ -33,7 +33,8 @@ def test_views_of_the_fixtures(fx):
 
 def test_actions_are_turned_back():
     """Every order a puppet sent in its own frame for one of its player's entities is stored as `action_from_view`
-    gives it (in the frame of the replay); a late or garbled answer is not applied, and is left out."""
+    gives it (in the frame of the replay); a late or garbled answer, or one after a debug message that crashes the
+    seat, is not applied, and is left out."""
     checked = 0
     for fx in ALL:
         ticks = fx["expected"]["ticks"]
@@ -46,7 +47,7 @@ def test_actions_are_turned_back():
             seen = fx["expected"]["puppets"][str(seat)]["view_ticks"]
             pid = player_of(model, seat)
             for tick, actions in pup.script.items():
-                late = (tick in pup.sleep_at or tick == pup.garbage_at
+                late = (tick in pup.sleep_at or tick == pup.garbage_at or pup.debug_at.get(tick) in (2, 3)
                         or (pup.crash_at is not None and tick >= pup.crash_at))
                 if tick not in seen or tick + 1 not in index or late:
                     continue

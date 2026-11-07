@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Our engine with the official runner's command line, from a checkout: sim/codecraft-sim --config ... --batch-mode
+# (the oracle tools run it in place of engine/aicup2020; SIM_PYTHON picks the interpreter, python3 by default).
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}" exec "${SIM_PYTHON:-python3}" -m codecraft_sim "$@"

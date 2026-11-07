@@ -11,6 +11,7 @@ DEFAULTS: dict = {
     "engine": {
         "image": "codecraft/engine:1.3.0",
         "binary": "engine/aicup2020",
+        "context": None,
         "memory_mb": 512,
         "cpus": 1.0,
         "startup_timeout_sec": 30,
@@ -157,6 +158,10 @@ class Config:
             data["web"]["trusted_proxies"] = env["CW_TRUSTED_PROXIES"]
         if env.get("CW_DOCKER_RUNTIME", "").strip():
             data["docker"]["runtime"] = env["CW_DOCKER_RUNTIME"].strip()
+        if env.get("CW_ENGINE_IMAGE", "").strip():
+            data["engine"]["image"] = env["CW_ENGINE_IMAGE"].strip()
+        if env.get("CW_ENGINE_CONTEXT", "").strip():
+            data["engine"]["context"] = env["CW_ENGINE_CONTEXT"].strip()
         proxies = data["web"].get("trusted_proxies") or []
         if isinstance(proxies, str):
             proxies = proxies.split(",")

@@ -4,12 +4,12 @@ A re-implementation of the CodeCraft 2020 game simulator, to replace the closed 
 (`engine/aicup2020`, the "oracle") without the server noticing: same rules, same CLI, same `results.json`, same
 replay format, same TCP protocol. Python first, as the executable spec; a C++ clone later for the ladder.
 
-Status: the oracle tooling, the fixtures, the binary formats, the rules of a tick and the player views are done.
-Every turn of the 92 distinct stored official games replays exactly through our rules when they make the record's
-random choices, and every game played from its first state with our own state carried forward ends with the
-official scores (`oracle/corpus.py`); every view the official engine sends, fog of war and the seat's frame
-included, is ours (`tests/test_view.py`). The game loop, the seats, the CLI and the map generator are not written
-yet.
+Status: a complete engine. Every turn of the 92 distinct stored official games replays exactly through our rules
+when they make the record's random choices, and every game played from its first state with our own state
+carried forward ends with the official scores (`oracle/corpus.py`); every view the official engine sends, fog of
+war and the seat's frame included, is ours (`tests/test_view.py`); and every fixture played by our engine as a
+whole, in place of the official binary (seats over TCP, crashes, log lines, results.json), gives what the official
+engine gave (`tests/test_engine.py`). The C++ clone for the ladder is not written yet.
 
 ```
 codecraft_sim/        the engine (Python 3.10+, standard library only)
@@ -19,6 +19,13 @@ codecraft_sim/        the engine (Python 3.10+, standard library only)
   rules.py            one turn of the game: pathfinding, attacks, builds, repairs, movement, the end of the tick
   pathfind.py         the A* of move orders and hunting auto-attacks, as the official engine runs it
   view.py             what a seat is sent: fog of war, its own frame, and the way back for its actions
+  mapgen.py           the presets (Round1, Round2, Finals, Custom) and our map generator
+  players.py          the seats: TCP clients (the official protocol, timeouts, crashes), Empty, QuickStart
+  quickstart.py       the built-in bot: the starter strategy of format37/codecraft-starter
+  engine.py           the game loop: seats, views, orders, turns, the replay, results.json
+  cli.py              the official runner's command line (`python3 -m codecraft_sim --config ... --batch-mode`)
+codecraft-sim         that command line from a checkout (the oracle tools run it in place of engine/aicup2020)
+Dockerfile            the engine image codecraft/sim:<version> (`./cw build` with engine.context: sim)
 oracle/               tools that interrogate the official binary
   state.py            build small states by hand (or take one from a replay tick)
   loadfrom.py         run the binary from a state, read back every tick
@@ -30,13 +37,29 @@ fixtures/             one JSON per rule question, recorded from the binary (form
 tests/                pytest
 ```
 
+## Running it
+
+```
+cd sim
+./codecraft-sim --config game.json --batch-mode --save-results results.json --save-replay replay.dat
+docker build -t codecraft/sim:0.1.0 . && docker run --rm -v $PWD:/game codecraft/sim:0.1.0 --config /game/game.json \
+    --batch-mode --save-results /game/results.json --save-replay /game/replay.dat
+```
+
+`game.json` is the official runner's config: `{"seed": 7, "game": {"Create": "Round1"}, "players": ["QuickStart",
+"QuickStart", "QuickStart", "QuickStart"]}`; a seat is `{"Tcp": {"host", "port", "accept_timeout", "timeout",
+"token"}}`, `"QuickStart"` or `{"Empty": null}`; the game `{"Create": "Round1" | "Round2" | "Finals" | {"Custom":
+{...}}}` or `{"LoadFrom": "/abs/state.json"}`. The server runs it when config.yaml says `engine: {image:
+codecraft/sim:0.1.0, context: sim}` (or CW_ENGINE_IMAGE / CW_ENGINE_CONTEXT). A 4-player game of 1000 ticks takes
+about a minute in pure Python, plus the players' time.
+
 ## Tests
 
 ```
 cd sim
-../server/.venv/bin/python -m pytest              # ~45 s; the oracle tests need engine/aicup2020 to run
-SIM_SLOW=1 ../server/.venv/bin/python -m pytest   # + the replay round trip over all of data/games and every
-                                                  #   fixture turn replayed on the official engine (~4 min)
+../server/.venv/bin/python -m pytest              # ~60 s; the oracle tests need engine/aicup2020 to run
+SIM_SLOW=1 ../server/.venv/bin/python -m pytest   # + the replay round trip over all of data/games, every fixture
+                                                  #   turn replayed on the official engine, three full games (~5 min)
 ```
 
 The rules tests (`tests/test_rules.py`) play every turn of every fixture through `rules.py` with many seeds: each
@@ -44,10 +67,14 @@ outcome must be one the official engine gives, and each of its outcomes must com
 random draws); and turns of two stored games (the opening of one, every 40th turn of one with fog of war) must
 come out exactly as recorded when our rules make the record's random choices. The view tests (`tests/test_view.py`)
 compare every view a recording puppet got in the fixtures with ours, and with the engine, every view of two stored
-fog games played on from some of their states. The replay tests use the stored
-games in `data/games/` (skipped when there are none) and cross-check against the server's decoder
-`server/codecraft/replay.py`. The fixture tests re-run every scenario on the official binary and compare with the
-stored file, so a fixture can never silently drift from what the engine does.
+fog games played on from some of their states. The engine tests (`tests/test_engine.py`) play every fixture again
+with `codecraft-sim` in place of the binary, through the same oracle tools: the exit code, the log lines, the
+crashes and their comments, each puppet's views and `Finish`, and every tick until a random turn takes another of
+the official outcomes, must be what the official engine gave. The map tests (`tests/test_mapgen.py`) check the
+presets' starting entities against the stored official games, id for id, and our maps' symmetry, free corners and
+paths. The replay tests use the stored games in `data/games/` (skipped when there are none) and cross-check
+against the server's decoder `server/codecraft/replay.py`. The fixture tests re-run every scenario on the official
+binary and compare with the stored file, so a fixture can never silently drift from what the engine does.
 
 ## The oracle
 

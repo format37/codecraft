@@ -6,6 +6,7 @@ PlayerView it is sent (the fog-of-war oracle), and it can misbehave on cue (the 
     p = Puppet(crash_at=3)        # close the connection instead of answering at tick 3
     p = Puppet(sleep_at={2: 1.5}) # answer tick 2 after 1.5 s
     p = Puppet(garbage_at=1)      # answer tick 1 with an unknown message tag
+    p = Puppet(debug_at={1: 0})   # send a debug message (ClientMessage tag 0, 2 or 3) before the answer to tick 1
     p = Puppet(token="wrong")     # send this token instead of the configured one
 
 `loadfrom.run` gives it a port and a token and starts it once the engine listens.
@@ -26,11 +27,13 @@ Script = dict[int, dict[int, EntityAction]] | Callable[[PlayerView], dict[int, E
 class Puppet:
     def __init__(self, script: Script | None = None, *, crash_at: int | None = None,
                  sleep_at: dict[int, float] | None = None, garbage_at: int | None = None,
-                 token: str | None = None, connect: bool = True) -> None:
+                 debug_at: dict[int, int] | None = None, token: str | None = None, connect: bool = True) -> None:
         self.script = script if script is not None else {}
         self.crash_at = crash_at
         self.sleep_at = dict(sleep_at or {})
         self.garbage_at = garbage_at
+        self.debug_at = dict(debug_at or {})    # view tick -> ClientMessage tag sent first: 0 = DebugMessage(Clear),
+        #                                         2 = DebugUpdateDone, 3 = RequestDebugState
         self.token = token
         self.connect = connect                  # False: never connect (the accept-timeout case)
         self.views: list[PlayerView] = []       # every GetAction's view, in order
@@ -51,6 +54,8 @@ class Puppet:
                 out[key] = getattr(self, key)
         if self.sleep_at:
             out["sleep_at"] = {str(t): s for t, s in sorted(self.sleep_at.items())}
+        if self.debug_at:
+            out["debug_at"] = {str(t): tag for t, tag in sorted(self.debug_at.items())}
         if not self.connect:
             out["connect"] = False
         return {"puppet": out}
@@ -61,7 +66,8 @@ class Puppet:
         script = {int(t): {int(e): action_from_json(a) for e, a in acts.items()}
                   for t, acts in d.get("script", {}).items()}
         return cls(script, crash_at=d.get("crash_at"), garbage_at=d.get("garbage_at"), token=d.get("token"),
-                   sleep_at={int(t): s for t, s in d.get("sleep_at", {}).items()}, connect=d.get("connect", True))
+                   sleep_at={int(t): s for t, s in d.get("sleep_at", {}).items()},
+                   debug_at={int(t): tag for t, tag in d.get("debug_at", {}).items()}, connect=d.get("connect", True))
 
     def actions_for(self, view: PlayerView) -> dict[int, EntityAction]:
         if callable(self.script):
@@ -106,6 +112,10 @@ class Puppet:
                 if tick in self.sleep_at:
                     time.sleep(self.sleep_at[tick])
                 w = Writer()
+                if tick in self.debug_at:
+                    w.i32(self.debug_at[tick])
+                    if self.debug_at[tick] == 0:
+                        w.i32(1)        # DebugCommand::Clear
                 if self.garbage_at == tick:
                     w.i32(77)           # no such ClientMessage tag
                 else:

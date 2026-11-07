@@ -42,8 +42,9 @@ python3 -m oracle.scenarios show NAME           # the fixture tick by tick, as a
   scripted TCP player. `script` maps the `current_tick` of a view to the Action the puppet answers it with (entity
   id -> EntityAction, in the seat's own frame; a tick that is not listed is answered with an empty Action).
   Misbehaviour: `crash_at` (close the connection instead of answering that view), `sleep_at` (tick -> seconds to
-  wait before answering), `garbage_at` (answer with an unknown message tag), `token` (send this instead of the
-  configured token), `connect: false` (never connect).
+  wait before answering), `garbage_at` (answer with an unknown message tag), `debug_at` (tick -> a ClientMessage
+  tag sent before the answer: 0 a DebugMessage(Clear), 2 DebugUpdateDone, 3 RequestDebugState), `token` (send
+  this instead of the configured token), `connect: false` (never connect).
 - `random`: present when the outcome depends on the engine's random numbers (the order of the attacks and so the
   events list, the order of the builds and so the new entities' ids, movement conflicts, the target of an
   auto-attack, the choice among equally short paths): what is random, in words. The recording is the outcome of

@@ -283,15 +283,24 @@ class Builder:
 
     # Engine --------------------------------------------------------------
     def build_engine(self, force: bool = False) -> str:
-        image = self.cfg["engine"]["image"]
+        """The engine image: built from `engine.context` (a directory with a Dockerfile: `sim` for our own engine)
+        when given, else from the directory of `engine.binary` (the official runner and its Dockerfile)."""
+        eng = self.cfg["engine"]
+        image = eng["image"]
         if not force and self._image_exists(image):
             return image
-        binary = self.cfg.root / self.cfg["engine"]["binary"]
-        if not binary.exists():
-            raise BuildError(f"engine binary not found: {binary}")
-        log.info("building engine image %s", image)
+        if eng.get("context"):
+            ctx = self.cfg.root / eng["context"]
+            if not (ctx / "Dockerfile").exists():
+                raise BuildError(f"no Dockerfile in the engine context {ctx}")
+        else:
+            binary = self.cfg.root / eng["binary"]
+            if not binary.exists():
+                raise BuildError(f"engine binary not found: {binary}")
+            ctx = binary.parent
+        log.info("building engine image %s from %s", image, ctx)
         with _CappedLog(self.logs_dir / "engine.log", self.log_cap) as out:
-            self._docker_build(binary.parent, image, out, nocache=force)
+            self._docker_build(ctx, image, out, nocache=force)
         return image
 
     # Base images (trusted: template or client Dockerfile + the official client) ---------------------------

@@ -127,6 +127,28 @@ def _():
     return s, [Puppet(connect=False), "Empty"]
 
 
+@scenario("debug-message", [9], "Before its answer to view tick 1 (a move) the seat sends a DebugMessage (Clear), "
+          "which batch mode does not invite (debug_available is false): the engine reads it, ignores it and takes "
+          "the answer after it; the seat is not crashed.")
+def _():
+    s, a, b = two_builders(4)
+    return s, [Puppet({1: {a: move((2, 10))}}, debug_at={1: 0}), "Empty"]
+
+
+@scenario("crash-debug-update-done", [9], "The seat answers view tick 1 with DebugUpdateDone (ClientMessage tag 2), "
+          "never asked for in batch mode: crashed, with its own comment.")
+def _():
+    s, a, b = two_builders(4)
+    return s, [Puppet({1: {a: move((2, 10))}}, debug_at={1: 2}), "Empty"]
+
+
+@scenario("crash-debug-state", [9], "The seat answers view tick 1 with RequestDebugState (ClientMessage tag 3): "
+          "crashed, there is no debug interface in batch mode.")
+def _():
+    s, a, b = two_builders(4)
+    return s, [Puppet({1: {a: move((2, 10))}}, debug_at={1: 3}), "Empty"]
+
+
 # Movement ------------------------------------------------------------------------------------------------------
 @scenario("move-free", [5], "A builder walks from (1, 1) to (10, 10) on an empty map. The path is planned anew "
           "every tick and only its first step taken; among the equally short paths the engine draws one at random "

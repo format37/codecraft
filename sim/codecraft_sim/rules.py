@@ -88,13 +88,14 @@ def population(model: Model, player_id: int) -> tuple[int, int]:
     return provided, used
 
 
-def process_turn(model: Model, rng: random.Random) -> list[Event]:
-    """Play one turn on `model` (changed in place) and return its events, in the order they happened."""
-    return _Turn(model, rng).play()
+def process_turn(model: Model, rng: random.Random, seen: dict[int, bytearray] | None = None) -> list[Event]:
+    """Play one turn on `model` (changed in place) and return its events, in the order they happened. `seen`: the
+    players' sight maps at the start of the turn (view.sight_map), when they were made already for the views."""
+    return _Turn(model, rng, seen).play()
 
 
 class _Turn:
-    def __init__(self, model: Model, rng: random.Random) -> None:
+    def __init__(self, model: Model, rng: random.Random, seen: dict[int, bytearray] | None = None) -> None:
         self.m = model
         self.rng = rng
         self.props = model.entity_properties
@@ -103,7 +104,7 @@ class _Turn:
         self.events: list[Event] = []
         self.busy: set[int] = set()             # attacked, built or repaired this tick
         self._goals: dict[tuple, set[int]] = {}
-        self._seen: dict[int | None, bytearray] = {}
+        self._seen: dict[int | None, bytearray] = dict(seen or {})
 
     def play(self) -> list[Event]:
         playing = players_with_entities(self.m)

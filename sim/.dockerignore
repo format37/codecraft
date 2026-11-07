@@ -1,0 +1,4 @@
+# the image holds the engine only: no oracle, fixtures or tests
+*
+!codecraft_sim
+**/__pycache__
