@@ -5,6 +5,7 @@
 #pragma once
 #include <atomic>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -52,6 +53,15 @@ public:
     Json wait_config();              // the config the viewer starts a game with (after new_game("config", ...))
     void wait_new_game();            // until the viewer asks for another game
 
+    // Restart: the viewer ends the game at once to play it again (the same config; `same_seed`: its seed too).
+    // set_interrupt(f): how to stop the game's waits on its seats (f(false): waiting for connections; f(true): also
+    // the reads of a strategy that does not answer, after a grace period); null when the game is over.
+    void set_interrupt(std::function<void(bool force)> f);
+    bool reset_requested();
+    bool take_reset(bool& same_seed);
+    enum class Next { NewGame, Restart };
+    Next wait_next();                // after a game: the config screen, or a restart
+
     void debug_ops(int seat, int layer, std::vector<DebugOp> ops) override;
     DebugInput debug_input() override;
 
@@ -72,6 +82,9 @@ private:
     DebugInput input_;
     std::optional<Json> config_;
     bool new_game_ = false;
+    std::optional<bool> reset_;                // a restart asked for: with the same seed or not
+    std::function<void(bool)> interrupt_;
+    std::condition_variable ended_cv_;
     long inputs_ = 0;                          // counts the viewer's controls, for wait()
 
     void accept_loop();

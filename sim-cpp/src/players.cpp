@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <netdb.h>
@@ -90,23 +91,37 @@ void TcpPlayer::listen() {
 }
 
 void TcpPlayer::start() {
+    // waits in slices, so that the viewer's Restart (interrupt) is seen
+    using clock = std::chrono::steady_clock;
+    auto deadline = clock::now() + std::chrono::duration_cast<clock::duration>(
+                                       std::chrono::duration<double>(accept_timeout_.value_or(0)));
     pollfd p{listener_, POLLIN, 0};
-    int wait_ms = accept_timeout_ ? static_cast<int>(*accept_timeout_ * 1000) : -1;
-    int ready;
-    do {
-        ready = poll(&p, 1, wait_ms);
-    } while (ready < 0 && errno == EINTR);
-    int conn = ready > 0 ? accept(listener_, nullptr, nullptr) : -1;
-    if (conn < 0) {
-        log_.info("Timeout accepting player on port " + std::to_string(port_));
+    int ready = 0;
+    while (!aborted_) {
+        int slice = 250;
+        if (accept_timeout_) {
+            auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - clock::now()).count();
+            if (left <= 0) break;
+            slice = static_cast<int>(std::min<long long>(slice, left));
+        }
+        ready = poll(&p, 1, slice);
+        if (ready > 0 || (ready < 0 && errno != EINTR)) break;
+        ready = 0;
+    }
+    int conn = ready > 0 && !aborted_ ? accept(listener_, nullptr, nullptr) : -1;
+    auto stop_listening = [&] {
+        std::lock_guard<std::mutex> lock(fd_mutex_);
         ::close(listener_);
         listener_ = -1;
+    };
+    if (conn < 0) {
+        if (!aborted_) log_.info("Timeout accepting player on port " + std::to_string(port_));
+        stop_listening();
         log_.info("Stop listening port " + std::to_string(port_));
-        failure = NO_CONNECTION;
+        failure = aborted_ ? "IO error: stopped by a restart" : NO_CONNECTION;
         return;
     }
-    ::close(listener_);
-    listener_ = -1;
+    stop_listening();
     log_.info("Got connection on port " + std::to_string(port_));
     int one = 1;
     setsockopt(conn, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
@@ -126,8 +141,15 @@ void TcpPlayer::start() {
         return;
     }
     set_timeout(conn, timeout_);
+    std::lock_guard<std::mutex> lock(fd_mutex_);
     sock_ = conn;
     reader_ = std::make_unique<SocketReader>(conn);
+}
+
+void TcpPlayer::interrupt(bool force) {
+    aborted_ = true;
+    std::lock_guard<std::mutex> lock(fd_mutex_);
+    if (force && sock_ >= 0) ::shutdown(sock_, SHUT_RDWR);
 }
 
 void TcpPlayer::send_all(const std::string& data) {
@@ -260,10 +282,13 @@ void TcpPlayer::finish() {
 }
 
 void TcpPlayer::drop() {
-    if (sock_ < 0) return;
-    reader_.reset();
-    ::close(sock_);
-    sock_ = -1;
+    {
+        std::lock_guard<std::mutex> lock(fd_mutex_);
+        if (sock_ < 0) return;
+        reader_.reset();
+        ::close(sock_);
+        sock_ = -1;
+    }
     log_.info("Dropping tcp player on port " + std::to_string(port_));
 }
 

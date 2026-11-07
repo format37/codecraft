@@ -29,8 +29,11 @@ sim-cpp/build/codecraft-sim-cpp --replay replay.dat    # watch a replay (ours, C
 The viewer opens at http://127.0.0.1:31000/ (`--viewer-port`; `--no-browser` does not open it). A TCP seat waits
 for your strategy: start it as usual (the clients connect to 127.0.0.1:31001 with the token `0000000000000000`
 unless told otherwise; a config's `"host": null` listens on 127.0.0.1 and `"token": null` takes any token, as in
-the official runner). The game starts when every TCP seat is connected; after it, "New game" starts another with
-the same seats (restart your strategy), or with the last game's seed to play it again.
+the official runner). The game starts when every TCP seat is connected. **↻ Restart** ends the game at any moment
+and starts it again with the same config, waiting for your strategy: the connected strategies get Finish (the
+official clients end as after a game; one that does not answer, at a breakpoint, has its connection cut after
+1.5 s), so you change your code, run it again, and play on without restarting the runner; with **same seed** the
+new game has the same map and dice. "New game…" after a game opens the config screen.
 
 In the viewer: **P** pauses and plays, **←/→** step a tick (→ at the newest tick plays one more), **Shift** for
 ten, the slider and the speed (1 to 100 ticks a second, or as fast as the strategies answer) move through the game,

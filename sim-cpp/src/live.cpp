@@ -283,6 +283,20 @@ std::string Live::post(const std::string& path, const Json& body) {
         input_cv_.notify_all();
         return "{}";
     }
+    if (path == "/reset") {
+        std::unique_lock<std::mutex> lock(mutex_);
+        reset_ = flag(body, "same_seed", false);
+        inputs_++;
+        input_cv_.notify_all();
+        if (interrupt_) {
+            interrupt_(false);                         // stop waiting for connections
+            // a strategy that does not answer (a breakpoint): its connection is cut after a while
+            if (!ended_cv_.wait_for(lock, std::chrono::milliseconds(1500), [&] { return !interrupt_; }) &&
+                interrupt_)
+                interrupt_(true);
+        }
+        return "{}";
+    }
     if (path == "/new") {
         std::lock_guard<std::mutex> lock(mutex_);
         new_game_ = true;
@@ -348,6 +362,7 @@ void Live::new_game(const std::string& first_event, const std::string& json, std
     steps_ = 0;
     config_.reset();
     new_game_ = false;
+    reset_.reset();
     events_cv_.notify_all();
 }
 
@@ -381,6 +396,33 @@ Json Live::wait_config() {
     Json config = config_ ? *config_ : Json::object();
     config_.reset();
     return config;
+}
+
+void Live::set_interrupt(std::function<void(bool)> f) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    interrupt_ = std::move(f);
+    if (!interrupt_) ended_cv_.notify_all();
+}
+
+bool Live::reset_requested() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return reset_.has_value();
+}
+
+bool Live::take_reset(bool& same_seed) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!reset_) return false;
+    same_seed = *reset_;
+    reset_.reset();
+    return true;
+}
+
+Live::Next Live::wait_next() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    input_cv_.wait(lock, [&] { return stop_ || new_game_ || reset_.has_value(); });
+    if (reset_) return Next::Restart;
+    new_game_ = false;
+    return Next::NewGame;
 }
 
 void Live::wait_new_game() {

@@ -119,7 +119,8 @@ python3 main.py                                        # in your strategy's fold
 ```
 
 It plays the server's games (the same engine, rules and maps). Pause, step, rewind, zoom, inspect entities, save a
-replay (Ctrl-S) or the state of a tick to start a game from (Ctrl-E); `--replay replay.dat` watches a replay. See
+replay (Ctrl-S) or the state of a tick to start a game from (Ctrl-E), restart the game for your changed strategy
+(the same seed if you like) without restarting the runner; `--replay replay.dat` watches a replay. See
 [sim-cpp/README.md](sim-cpp/README.md#the-local-runner).
 
 ## Layout

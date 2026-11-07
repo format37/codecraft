@@ -352,7 +352,7 @@ void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& re
             }
         }
     };
-    while (!game_over(m)) {
+    while (!game_over(m) && !live.reset_requested()) {
         // the orders for the tick reached, at once: what a strategy draws answering it is shown with it
         SightMaps seen;
         if (m.fog_of_war)
@@ -374,6 +374,7 @@ void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& re
         // then the tick stays on screen as long as the viewer wants it
         bool updated = false;
         while (true) {
+            if (live.reset_requested()) return;
             Control c = live.control();
             int newest = m.current_tick;
             bool debug = debugging();
@@ -416,24 +417,40 @@ int play_live(Game& g, Live& live, const LiveOptions& opts, Log& log) {
         tcp[k] = dynamic_cast<TcpPlayer*>(g.seats[k].get());
         if (tcp[k]) tcp[k]->set_debug(&live, static_cast<int>(k), m.map_size);
     }
+    // the viewer's Restart stops the waits on the seats; cleared before they go
+    struct Interruptible {
+        Live& live;
+        ~Interruptible() { live.set_interrupt(nullptr); }
+    } interruptible{live};
+    live.set_interrupt([&tcp](bool force) {
+        for (TcpPlayer* t : tcp)
+            if (t) t->interrupt(force);
+    });
     connect(g.seats, log);                         // throws when a port cannot be bound
-    for (size_t k = 0; k < g.seats.size(); k++)
-        if (tcp[k]) live.event("seat", seat_json(k, *g.seats[k], "connected"));
+    bool restart = live.reset_requested();
+    if (!restart)
+        for (size_t k = 0; k < g.seats.size(); k++)
+            if (tcp[k]) live.event("seat", seat_json(k, *g.seats[k], "connected"));
     bool over_at_start = game_over(m) && m.current_tick < m.max_tick_count;
     int code = 0;
     std::string error;
     try {
-        if (!game_over(m)) live_loop(g, tcp, live, *rec, log);
+        if (!restart && !game_over(m)) live_loop(g, tcp, live, *rec, log);
     } catch (const std::exception& e) {
         error = e.what();
         log.error("panicked at '" + error + "'");
         code = PANIC;
     }
     for (auto& s : g.seats)
-        if (!s->crashed) s->finish();
+        if (!s->crashed) s->finish();              // a restart too: the clients end as after a game
+    live.set_interrupt(nullptr);
     {
         std::lock_guard<std::mutex> lock(rec->replay_mutex);
         rec->replay->close();
+    }
+    if (live.reset_requested()) {
+        log.info("Restart at tick " + std::to_string(m.current_tick));
+        return code;
     }
     Json res = results(m, g.seats, g.seed);
     if (!code && !opts.save_results.empty() && !over_at_start) {
@@ -467,6 +484,16 @@ void open_browser(const std::string& url) {
     }).detach();
 }
 
+Json with_seed(Json config, uint64_t seed) {
+    for (auto& kv : config.obj)
+        if (kv.first == "seed") {
+            kv.second = Json::unsigned_integer(seed);
+            return config;
+        }
+    config.add("seed", Json::unsigned_integer(seed));
+    return config;
+}
+
 std::string default_config() {
     return "{\"seed\":null,\"game\":{\"Create\":\"Round1\"},\"players\":[{\"Tcp\":{\"host\":null,\"port\":31001,"
            "\"accept_timeout\":null,\"timeout\":null,\"token\":null}},\"QuickStart\",\"QuickStart\",\"QuickStart\"]}";
@@ -488,11 +515,15 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
     log.info("Viewer: " + url);
     if (opts.open_browser) open_browser(url);
     std::string offer = config ? dump_json(*config, -1) : default_config(), error;
-    bool given = config != nullptr;
+    std::optional<Json> next;              // a config to play without the config screen
+    if (config) next = *config;
+    bool from_file = config != nullptr;
+    Json base;                             // the config chosen (a restart plays it again)
     while (true) {
         Json cfg;
-        if (given) {
-            cfg = *config;
+        if (next) {
+            cfg = *next;
+            next.reset();
         } else {
             Out o;
             o.raw('{').key("config").raw(offer.c_str()).key("error");
@@ -500,19 +531,20 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
             else o.str(error);
             o.raw('}');
             live.new_game("config", o.s);
-            cfg = live.wait_config();
+            cfg = base = live.wait_config();
             offer = dump_json(cfg, -1);
         }
+        if (from_file) base = cfg;
         Game g;
         try {
             g = setup(cfg, log);
         } catch (const std::exception& e) {
             log.error(std::string("panicked at '") + e.what() + "'");
-            if (given) return PANIC;            // a bad --config file ends the runner, as in batch mode
+            if (from_file) return PANIC;        // a bad --config file ends the runner, as in batch mode
             error = e.what();
             continue;
         }
-        given = false;
+        from_file = false;
         error.clear();
         int code;
         try {
@@ -523,8 +555,13 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
             error = std::string("Could not listen: ") + e.what();
             continue;
         }
-        if (opts.exit_when_over) return code;
-        live.wait_new_game();
+        bool same_seed = false;
+        bool restart = live.take_reset(same_seed);
+        if (!restart) {
+            if (opts.exit_when_over) return code;
+            restart = live.wait_next() == Live::Next::Restart && live.take_reset(same_seed);
+        }
+        if (restart) next = same_seed ? with_seed(base, g.seed) : base;
     }
 }
 

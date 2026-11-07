@@ -11,6 +11,7 @@ docs/private/engine-probes/step9); and the official configs' null host and token
   agrees with; the server answers only the page (Host and JSON checks); a config screen starts games.
 - A null host listens on 127.0.0.1 and a null token takes any token: the official engine, the Python and the C++ one.
 - `--replay FILE` streams a replay file (ours, and the official engine's) state for state.
+- Restart ends the game at once and plays its config again, waiting for the strategies to reconnect.
 """
 from __future__ import annotations
 
@@ -387,4 +388,42 @@ def test_a_replay_in_the_viewer(tmp_path):
             assert entities == {e.id: [e.id, e.player_id, int(e.entity_type), e.position.x, e.position.y, e.health,
                                        int(e.active)] for e in m.entities.values()}
             assert players == {q.id: [q.id, q.index, q.score, q.resource] for q in m.players.values()}
+
+
+@needs_cpp
+def test_restart(tmp_path):
+    """The viewer's Restart: the game ends at once, its clients get Finish (as after a game), and it starts again with
+    the same config, waiting for the strategies; `same_seed` keeps the seed; while waiting for connections it starts
+    again at once; a strategy that does not answer has its connection cut."""
+    port = free_port()
+    config = {"seed": None, "game": {"Create": custom(300)}, "players": [tcp_seat(port), "QuickStart"]}
+    p, vport, log = live(tmp_path, config, "--viewer-speed", "20")
+    try:
+        stream = Stream(vport)
+        stream.start()
+        inits = lambda: stream.named("init")  # noqa: E731
+        a = Client(port)
+        a.start()
+        assert until(lambda: len(a.ticks) >= 3)
+        post(vport, "/reset")
+        assert until(lambda: a.finished and len(inits()) == 2, 5)
+        assert inits()[1]["seats"][0]["status"] == "waiting" and inits()[1]["seed"] != inits()[0]["seed"]
+        b = Client(port)
+        b.start()
+        assert until(lambda: len(b.ticks) >= 2)
+        assert b.ticks[:2] == [0, 1]
+        post(vport, "/reset", {"same_seed": True})
+        assert until(lambda: b.finished and len(inits()) == 3, 5)
+        assert inits()[2]["seed"] == inits()[1]["seed"]
+        start = time.time()
+        post(vport, "/reset")                                   # nobody connected yet
+        assert until(lambda: len(inits()) == 4, 5) and time.time() - start < 2
+        stuck = Client(port, script=lambda c, kind, tick: time.sleep(30) if (kind, tick) == ("get_action", 1) else 0)
+        stuck.start()
+        assert until(lambda: len(stuck.ticks) == 2)
+        post(vport, "/reset")
+        assert until(lambda: len(inits()) == 5, 6)
+        assert p.poll() is None, "".join(log)
+    finally:
+        p.kill()
 

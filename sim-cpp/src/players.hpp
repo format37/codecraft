@@ -4,6 +4,7 @@
 // refused; with the viewer (live.hpp) a TCP client has the official GUI's debug interface: debug_available, its
 // drawings, DebugUpdate between ticks and the DebugState it asks for.
 #pragma once
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -87,6 +88,9 @@ public:
     void set_debug(DebugHost* host, int seat, int map_size);
     bool debug() const { return debug_ != nullptr; }
     void debug_update(const PlayerView& view);     // DebugUpdate, until DebugUpdateDone; throws IoError
+    // The viewer's Restart, from another thread: stop waiting for a connection; `force` also cuts the connection
+    // (a read waiting on a strategy that does not answer then fails).
+    void interrupt(bool force);
 
 private:
     std::string host_;
@@ -95,6 +99,8 @@ private:
     std::optional<double> accept_timeout_, timeout_;
     Log& log_;
     int listener_ = -1, sock_ = -1;
+    std::mutex fd_mutex_;                       // sock_ and listener_ are closed under it (interrupt() reads them)
+    std::atomic<bool> aborted_{false};
     std::unique_ptr<SocketReader> reader_;
     void send_all(const std::string& data);
     void drop();

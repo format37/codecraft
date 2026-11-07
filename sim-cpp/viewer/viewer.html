@@ -98,6 +98,10 @@
     <option value="100">100 t/s</option><option value="0">max</option>
   </select>
   <span id="cell"></span>
+  <button id="restart" title="end this game and start it again; your strategy reconnects (run it again)">
+    ↻ Restart</button>
+  <label class="chk small" title="restart with this game's seed: the same map and the same dice">
+    <input type="checkbox" id="sameSeed"> same seed</label>
   <button id="saveReplay" title="save the replay so far (Ctrl-S)">Save replay</button>
   <button id="saveState" title="save the state of the tick shown, for LoadFrom (Ctrl-E)">Save state</button>
   <button id="helpBtn" title="keys">?</button>
@@ -112,6 +116,8 @@
       <td>a tick back / forward (pauses; → at the newest tick plays one)</td></tr>
     <tr><td><kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd></td><td>10 ticks</td></tr>
     <tr><td><kbd>Home</kbd></td><td>fit the map</td></tr>
+    <tr><td>↻ Restart</td><td>end the game and start it again (same seats; "same seed": same map and dice);
+      connected strategies get Finish, then run yours again</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>save the replay so far</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>save the state of the tick shown (a LoadFrom file)</td></tr>
     <tr><td>wheel</td><td>zoom</td></tr>
@@ -168,7 +174,8 @@
   const pressed = new Set();
   let W = 0, H = 0, dirty = true, lastSeed = null, playAcc = 0, playLast = 0;
 
-  const prefs = load("cc-runner-prefs", { speed: 10, attacks: true, moves: false, grid: true, side: true });
+  const prefs = load("cc-runner-prefs", { speed: 10, attacks: true, moves: false, grid: true, side: true,
+    sameSeed: false });
   function load(key, fallback) {
     try { return Object.assign({}, fallback, JSON.parse(localStorage.getItem(key) || "{}")); }
     catch (e) { return fallback; }
@@ -231,6 +238,7 @@
     lastSeed = d.seed;
     if (sizeChanged || !cam.fitted) fit();
     $("slider").min = G.first;
+    $("restart").hidden = G.replay; $("sameSeed").parentElement.hidden = G.replay;
     renderSide(); renderDebugOpts(); waitingBanner(); updateBar(); control();
     document.title = "CodeCraft runner";
     dirty = true;
@@ -279,7 +287,9 @@
       `${score}${d.players[k].crashed ? ' <span class="bad">(crashed)</span>' : ""}`).join(" &nbsp;·&nbsp; ");
     const err = d.error ? `<div class="bad">${esc(d.error)}</div>` : "";
     banner(`<b>Game over</b> at tick ${d.tick} (seed ${esc(d.seed)})<div>${rows}</div>${err}` +
-      `<button id="newGame">New game</button><button id="closeBanner">Keep looking</button>`);
+      `<button id="restartOver">↻ Restart</button><button id="newGame">New game…</button>` +
+      `<button id="closeBanner">Keep looking</button>`);
+    $("restartOver").onclick = restart;
     $("newGame").onclick = () => { post("/new"); banner(null); };
     $("closeBanner").onclick = () => banner(null);
     renderSide();
@@ -684,6 +694,7 @@
   let cfgBase = null;
   function onConfig(d) {
     G = null; cache = null; dirty = true;
+    $("restart").hidden = true; $("sameSeed").parentElement.hidden = true;
     banner(null);
     $("logs").innerHTML = ""; $("top").innerHTML = "";
     cfgBase = d.config || {};
@@ -850,6 +861,13 @@
     renderSide(); dirty = true;
   }
 
+  function restart() {
+    if (!G || G.replay) return;
+    banner(null);
+    toast("Restarting: run your strateg" + (G.seats.filter((x) => x.kind === "tcp").length > 1 ? "ies" : "y") +
+      " again when it has finished");
+    post("/reset", { same_seed: $("sameSeed").checked });
+  }
   async function saveReplay() { if (G) toast((await post("/save-replay")).message); }
   async function saveState() { if (G) toast((await post("/save-state", { tick: view.tick })).message); }
 
@@ -860,6 +878,10 @@
     goTo(+e.target.value); control();
   };
   $("speed").onchange = (e) => { view.speed = +e.target.value; prefs.speed = view.speed; save(); control(); };
+  $("restart").onclick = restart;
+  $("sameSeed").checked = !!prefs.sameSeed;
+  $("sameSeed").onchange = (e) => { prefs.sameSeed = e.target.checked; save(); };
+  $("restart").hidden = true; $("sameSeed").parentElement.hidden = true;
   $("saveReplay").onclick = saveReplay;
   $("saveState").onclick = saveState;
   $("helpBtn").onclick = () => { $("help").hidden = !$("help").hidden; };
