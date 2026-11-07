@@ -45,7 +45,7 @@ from __future__ import annotations
 import random
 from typing import Iterable
 
-from . import pathfind
+from . import pathfind, view
 from .model import (ATTACK_EVENT, AutoAttack, BuildAction, Entity, EntityAction, EntityType, Event, Model, MoveAction,
                     Vec2)
 from .pathfind import FREE, Grid
@@ -186,13 +186,7 @@ class _Turn:
         if not self.m.fog_of_war:
             return None
         if player_id not in self._seen:
-            seen = bytearray(self.m.map_size * self.m.map_size)
-            for t in self.m.entities.values():
-                if t.player_id == player_id:
-                    p = self.props[t.entity_type]
-                    for i in self.grid.around(t.position, p.size, p.sight_range):
-                        seen[i] = 1
-            self._seen[player_id] = seen
+            self._seen[player_id] = view.sight_map(self.m, player_id)
         return self._seen[player_id]
 
     def hunt(self, e: Entity, auto: AutoAttack, prefer: Vec2 | None = None) -> Vec2 | None:

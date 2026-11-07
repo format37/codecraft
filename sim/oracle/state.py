@@ -78,22 +78,6 @@ def combine(*actions: EntityAction) -> EntityAction:
     return out
 
 
-def to_view(seat: int, pos: tuple[int, int], size: int, map_size: int) -> Vec2:
-    """Where the seat sees a square of `size` cells at `pos`: the official engine rotates every PlayerView so that
-    each seat sees its own corner at (0, 0) (seat 1 by 180 degrees, seat 2 by 90, seat 3 by 270; see the
-    view-frames fixture), and turns the positions in the seat's actions back the same way."""
-    x, y = pos
-    n = map_size
-    return Vec2(*((x, y), (n - x - size, n - y - size), (y, n - x - size), (n - y - size, x))[seat])
-
-
-def from_view(seat: int, pos: tuple[int, int], size: int, map_size: int) -> Vec2:
-    """The global position of a square the seat names at `pos` in its own view (the inverse of `to_view`)."""
-    a, b = pos
-    n = map_size
-    return Vec2(*((a, b), (n - a - size, n - b - size), (n - b - size, a), (b, n - a - size))[seat])
-
-
 def from_replay(path: str | Path, tick: int) -> Model:
     """The model of a stored game at `tick` (stored actions included), e.g. to replay one tick on the oracle."""
     for m in replay_io.load(path).states():

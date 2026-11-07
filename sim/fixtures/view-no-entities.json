@@ -1,0 +1,277 @@
+{
+ "name": "view-no-entities",
+ "about": "Four seats under fog of war: player 4 owns nothing from the start, player 3 loses its only unit at tick 0, players 1 and 2 keep the game going. Seats 2 and 3 are still sent a view every tick, with no entity in it, until the game ends and they get Finish. (Without fog of war such a seat sees every entity, as any seat does.)",
+ "questions": [8, 12],
+ "engine": "aicup2020 1.3.0",
+ "seed": 1,
+ "timeout": 1.0,
+ "accept_timeout": 5.0,
+ "players": [{"puppet": {"script": {}}}, {"puppet": {"script": {}}}, {"puppet": {"script": {}}}, {"puppet": {"script": {}}}],
+ "state": {
+  "next_id": 9,
+  "map_size": 20,
+  "fog_of_war": true,
+  "entity_properties": "default",
+  "max_tick_count": 3,
+  "max_pathfind_nodes": 1000,
+  "current_tick": 0,
+  "passive_income": 0,
+  "players": {
+   "by_id": {
+    "1": {"id": 1, "index": 0, "score": 0, "resource": 0},
+    "2": {"id": 2, "index": 1, "score": 0, "resource": 0},
+    "3": {"id": 3, "index": 2, "score": 0, "resource": 0},
+    "4": {"id": 4, "index": 3, "score": 0, "resource": 0}
+   }
+  },
+  "entities": {
+   "by_id": {
+    "5": {"id": 5, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+    "6": {"id": 6, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+    "7": {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true},
+    "8": {"id": 8, "player_id": 3, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 6}, "health": 5, "active": true}
+   }
+  },
+  "entity_actions": {"by_id": {"5": {"entity_id": 5, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 8, "auto_attack": null}, "repair_action": null}}}}
+ },
+ "expected": {
+  "returncode": 0,
+  "results": {
+   "players": [{"crashed": false, "comment": null}, {"crashed": false, "comment": null}, {"crashed": false, "comment": null}, {"crashed": false, "comment": null}],
+   "results": [100, 0, 0, 0],
+   "seed": 1
+  },
+  "log": [],
+  "puppets": {
+   "0": {
+    "view_ticks": [0, 1, 2],
+    "finished": true,
+    "views": [
+     {
+      "my_id": 1,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 0,
+      "players": [{"id": 1, "score": 0, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": [
+       {"id": 5, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+       {"id": 6, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+       {"id": 8, "player_id": 3, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 6}, "health": 5, "active": true}
+      ]
+     },
+     {
+      "my_id": 1,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 1,
+      "players": [{"id": 1, "score": 100, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": [
+       {"id": 5, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+       {"id": 6, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true}
+      ]
+     },
+     {
+      "my_id": 1,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 2,
+      "players": [{"id": 1, "score": 100, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": [
+       {"id": 5, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+       {"id": 6, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true}
+      ]
+     }
+    ]
+   },
+   "1": {
+    "view_ticks": [0, 1, 2],
+    "finished": true,
+    "views": [
+     {
+      "my_id": 2,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 0,
+      "players": [{"id": 1, "score": 0, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": [{"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true}]
+     },
+     {
+      "my_id": 2,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 1,
+      "players": [{"id": 1, "score": 100, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": [{"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true}]
+     },
+     {
+      "my_id": 2,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 2,
+      "players": [{"id": 1, "score": 100, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": [{"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true}]
+     }
+    ]
+   },
+   "2": {
+    "view_ticks": [0, 1, 2],
+    "finished": true,
+    "views": [
+     {
+      "my_id": 3,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 0,
+      "players": [{"id": 1, "score": 0, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": [
+       {"id": 5, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 14}, "health": 50, "active": true},
+       {"id": 6, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 17}, "health": 10, "active": true},
+       {"id": 8, "player_id": 3, "entity_type": "BuilderUnit", "position": {"x": 6, "y": 14}, "health": 5, "active": true}
+      ]
+     },
+     {
+      "my_id": 3,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 1,
+      "players": [{"id": 1, "score": 100, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": []
+     },
+     {
+      "my_id": 3,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 2,
+      "players": [{"id": 1, "score": 100, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": []
+     }
+    ]
+   },
+   "3": {
+    "view_ticks": [0, 1, 2],
+    "finished": true,
+    "views": [
+     {
+      "my_id": 4,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 0,
+      "players": [{"id": 1, "score": 0, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": []
+     },
+     {
+      "my_id": 4,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 1,
+      "players": [{"id": 1, "score": 100, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": []
+     },
+     {
+      "my_id": 4,
+      "map_size": 20,
+      "fog_of_war": true,
+      "max_tick_count": 3,
+      "max_pathfind_nodes": 1000,
+      "current_tick": 2,
+      "players": [{"id": 1, "score": 100, "resource": 0}, {"id": 2, "score": 0, "resource": 0}, {"id": 3, "score": 0, "resource": 0}, {"id": 4, "score": 0, "resource": 0}],
+      "entities": []
+     }
+    ]
+   }
+  },
+  "ticks": [
+   {
+    "tick": 0,
+    "next_id": 9,
+    "players": [
+     {"id": 1, "index": 0, "score": 0, "resource": 0},
+     {"id": 2, "index": 1, "score": 0, "resource": 0},
+     {"id": 3, "index": 2, "score": 0, "resource": 0},
+     {"id": 4, "index": 3, "score": 0, "resource": 0}
+    ],
+    "entities": [
+     {"id": 5, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+     {"id": 6, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true},
+     {"id": 8, "player_id": 3, "entity_type": "BuilderUnit", "position": {"x": 5, "y": 6}, "health": 5, "active": true}
+    ],
+    "entity_actions": [{"entity_id": 5, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 8, "auto_attack": null}, "repair_action": null}}],
+    "events": []
+   },
+   {
+    "tick": 1,
+    "next_id": 9,
+    "players": [
+     {"id": 1, "index": 0, "score": 100, "resource": 0},
+     {"id": 2, "index": 1, "score": 0, "resource": 0},
+     {"id": 3, "index": 2, "score": 0, "resource": 0},
+     {"id": 4, "index": 3, "score": 0, "resource": 0}
+    ],
+    "entities": [
+     {"id": 5, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+     {"id": 6, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [{"entity_id": 5, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 8, "auto_attack": null}, "repair_action": null}}],
+    "events": [[0, 5, 8]]
+   },
+   {
+    "tick": 2,
+    "next_id": 9,
+    "players": [
+     {"id": 1, "index": 0, "score": 100, "resource": 0},
+     {"id": 2, "index": 1, "score": 0, "resource": 0},
+     {"id": 3, "index": 2, "score": 0, "resource": 0},
+     {"id": 4, "index": 3, "score": 0, "resource": 0}
+    ],
+    "entities": [
+     {"id": 5, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+     {"id": 6, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [{"entity_id": 5, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 8, "auto_attack": null}, "repair_action": null}}],
+    "events": []
+   },
+   {
+    "tick": 3,
+    "next_id": 9,
+    "players": [
+     {"id": 1, "index": 0, "score": 100, "resource": 0},
+     {"id": 2, "index": 1, "score": 0, "resource": 0},
+     {"id": 3, "index": 2, "score": 0, "resource": 0},
+     {"id": 4, "index": 3, "score": 0, "resource": 0}
+    ],
+    "entities": [
+     {"id": 5, "player_id": 1, "entity_type": "MeleeUnit", "position": {"x": 5, "y": 5}, "health": 50, "active": true},
+     {"id": 6, "player_id": 1, "entity_type": "BuilderUnit", "position": {"x": 2, "y": 2}, "health": 10, "active": true},
+     {"id": 7, "player_id": 2, "entity_type": "BuilderUnit", "position": {"x": 17, "y": 17}, "health": 10, "active": true}
+    ],
+    "entity_actions": [{"entity_id": 5, "action": {"move_action": null, "build_action": null, "attack_action": {"target": 8, "auto_attack": null}, "repair_action": null}}],
+    "events": []
+   }
+  ]
+ }
+}

@@ -18,10 +18,11 @@ from dataclasses import dataclass
 from typing import Callable
 
 from codecraft_sim.model import Model
+from codecraft_sim.view import to_view
 
 from . import fixture as fixture_io
 from .puppet import Puppet
-from .state import NOTHING, State, attack, build, combine, move, repair, to_view
+from .state import NOTHING, State, attack, build, combine, move, repair
 
 
 @dataclass
@@ -696,6 +697,50 @@ def _():
     s.add("BuilderUnit", 1, (2, 18))
     s.add("MeleeUnit", 2, (8, 5))                              # 3 from (5, 5), 13+ from the builder
     return s, [Puppet(), "Empty"]
+
+
+@scenario("view-fog-building-edge", [8, 3], "Fog of war on: a builder at (5, 5) (sight 10) and enemy buildings with "
+          "only some of their cells in sight. A House whose nearest cell is 10 away (its position 12) and a "
+          "MeleeBase whose nearest cell is 10 away (its position 14) are in the view, a House whose nearest cell is "
+          "12 away is not: an entity is shown when any of its cells is in sight.", record_views=True)
+def _():
+    s = State(ticks=1, fog=True)
+    s.add("BuilderUnit", 1, (5, 5))
+    s.add("House", 2, (15, 3))           # cells 15..17 x 3..5: (15, 5) is 10 away, (15, 3) 12
+    s.add("House", 2, (16, 6))           # cells 16..18 x 6..8: (16, 6) is 12 away
+    s.add("MeleeBase", 2, (0, 14))       # cells 0..4 x 14..18: (4, 14) is 10 away, (0, 14) 14
+    return s, [Puppet(), "Empty"]
+
+
+@scenario("view-order", [8], "The state file lists the entities by decreasing id; at tick 0 a melee unit kills a "
+          "builder and a base builds a unit (a new id). Every view lists the entities by increasing id, whatever the "
+          "order of the file, after a death and a birth alike.", record_views=True)
+def _():
+    s = State(ticks=3, resource=100)
+    base = s.add("MeleeBase", 1, (2, 2))
+    s.order(base, build("MeleeUnit", (7, 2)))
+    killer = s.add("MeleeUnit", 1, (10, 10))
+    victim = s.add("BuilderUnit", 2, (10, 11), health=5)
+    s.add("BuilderUnit", 2, (17, 17))
+    s.add("BuilderUnit", 2, (15, 17))
+    s.order(killer, attack(victim))
+    m = s.model
+    m.entities = {i: m.entities[i] for i in sorted(m.entities, reverse=True)}
+    return m, [Puppet(), Puppet()]
+
+
+@scenario("view-no-entities", [8, 12], "Four seats under fog of war: player 4 owns nothing from the start, player 3 "
+          "loses its only unit at tick 0, players 1 and 2 keep the game going. Seats 2 and 3 are still sent a view "
+          "every tick, with no entity in it, until the game ends and they get Finish. (Without fog of war such a seat "
+          "sees every entity, as any seat does.)", record_views=True)
+def _():
+    s = State(players=4, ticks=3, fog=True)
+    killer = s.add("MeleeUnit", 1, (5, 5))
+    s.add("BuilderUnit", 1, (2, 2))
+    s.add("BuilderUnit", 2, (17, 17))
+    victim = s.add("BuilderUnit", 3, (5, 6), health=5)
+    s.order(killer, attack(victim))
+    return s, [Puppet() for _ in range(4)]
 
 
 @scenario("passive-income", [10], "passive_income 3 (0 in every preset): every player's resource grows by 3 per "

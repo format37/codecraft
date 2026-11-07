@@ -4,10 +4,11 @@ A re-implementation of the CodeCraft 2020 game simulator, to replace the closed 
 (`engine/aicup2020`, the "oracle") without the server noticing: same rules, same CLI, same `results.json`, same
 replay format, same TCP protocol. Python first, as the executable spec; a C++ clone later for the ladder.
 
-Status: the oracle tooling, the fixtures, the binary formats and the rules of a tick are done. Every turn of the
-92 distinct stored official games replays exactly through our rules when they make the record's random choices,
-and every game played from its first state with our own state carried forward ends with the official scores
-(`oracle/corpus.py`). The player views, the game loop, the seats, the CLI and the map generator are not written
+Status: the oracle tooling, the fixtures, the binary formats, the rules of a tick and the player views are done.
+Every turn of the 92 distinct stored official games replays exactly through our rules when they make the record's
+random choices, and every game played from its first state with our own state carried forward ends with the
+official scores (`oracle/corpus.py`); every view the official engine sends, fog of war and the seat's frame
+included, is ours (`tests/test_view.py`). The game loop, the seats, the CLI and the map generator are not written
 yet.
 
 ```
@@ -17,6 +18,7 @@ codecraft_sim/        the engine (Python 3.10+, standard library only)
   replay.py           replay.dat reader and writer (byte-exact on every stored official replay)
   rules.py            one turn of the game: pathfinding, attacks, builds, repairs, movement, the end of the tick
   pathfind.py         the A* of move orders and hunting auto-attacks, as the official engine runs it
+  view.py             what a seat is sent: fog of war, its own frame, and the way back for its actions
 oracle/               tools that interrogate the official binary
   state.py            build small states by hand (or take one from a replay tick)
   loadfrom.py         run the binary from a state, read back every tick
@@ -32,7 +34,7 @@ tests/                pytest
 
 ```
 cd sim
-../server/.venv/bin/python -m pytest              # ~40 s; the oracle tests need engine/aicup2020 to run
+../server/.venv/bin/python -m pytest              # ~45 s; the oracle tests need engine/aicup2020 to run
 SIM_SLOW=1 ../server/.venv/bin/python -m pytest   # + the replay round trip over all of data/games and every
                                                   #   fixture turn replayed on the official engine (~4 min)
 ```
@@ -40,7 +42,9 @@ SIM_SLOW=1 ../server/.venv/bin/python -m pytest   # + the replay round trip over
 The rules tests (`tests/test_rules.py`) play every turn of every fixture through `rules.py` with many seeds: each
 outcome must be one the official engine gives, and each of its outcomes must come out (the same rules, our own
 random draws); and turns of two stored games (the opening of one, every 40th turn of one with fog of war) must
-come out exactly as recorded when our rules make the record's random choices. The replay tests use the stored
+come out exactly as recorded when our rules make the record's random choices. The view tests (`tests/test_view.py`)
+compare every view a recording puppet got in the fixtures with ours, and with the engine, every view of two stored
+fog games played on from some of their states. The replay tests use the stored
 games in `data/games/` (skipped when there are none) and cross-check against the server's decoder
 `server/codecraft/replay.py`. The fixture tests re-run every scenario on the official binary and compare with the
 stored file, so a fixture can never silently drift from what the engine does.
