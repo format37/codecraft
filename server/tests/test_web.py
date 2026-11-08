@@ -1,6 +1,8 @@
 """The web app through FastAPI's TestClient: the pages a signed-in user opens must render."""
 import json
 import re
+import shutil
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -18,7 +20,13 @@ class FakeMailer:
         self.sent.append((to, subject, text))
 
 
+REPO = Path(__file__).resolve().parents[2]
+
+
 def make(tmp_path):
+    (tmp_path / "docs").mkdir(exist_ok=True)
+    for name in ("arena.md", "doc-en.md"):
+        shutil.copy(REPO / "docs" / name, tmp_path / "docs" / name)
     cfg = Config(Config.load(tmp_path).data, tmp_path)
     cfg.data["auth"]["base_url"] = "http://testserver"
     cfg.data["auth"]["cookie_secure"] = False
@@ -41,6 +49,12 @@ def test_public_pages_render_and_submit_needs_a_sign_in(tmp_path):
     client, auth, db = make(tmp_path)
     assert client.get("/leaderboard").status_code == 200
     assert client.get("/login").status_code == 200
+    rules = client.get("/rules")
+    assert rules.status_code == 200
+    assert '<h1 id="the-arena">The arena</h1>' in rules.text and '<h1 id="codecraft-2020-the-game">' in rules.text
+    assert '<nav class="toc"><div class="toc">' in rules.text and 'href="#leagues"' in rules.text
+    assert 'href="#vec2int32"' not in rules.text            # the object sections stay out of the contents
+    assert "then one a day" in client.get("/").text
     r = client.get("/submit")
     assert r.status_code == 303 and r.headers["location"].startswith("/login?next=")
 

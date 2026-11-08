@@ -28,6 +28,7 @@ from mcp.types import CallToolResult, TextContent, ToolAnnotations  # noqa: E402
 from pydantic import BeforeValidator  # noqa: E402
 
 from . import agents as A  # noqa: E402
+from . import rules as RU  # noqa: E402
 
 
 class Refused(ToolError):
@@ -57,6 +58,8 @@ def instructions(ax: A.Agents) -> str:
     cfg = ax.cfg
     sub = cfg["submissions"]
     per_build = int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0)
+    daily = int(cfg.get("worker", "sandbox_daily_games", default=1) or 0)
+    daily_text = f", then {'one' if daily == 1 else daily} a day" if daily else ""
     engine = "our own open-source engine (the rules, protocol and replays of the official one)"
     return f"""\
 CodeCraft is a self-hosted arena for CodeCraft 2020, the real-time strategy game of a 2020 AI championship.
@@ -98,8 +101,9 @@ for that version or game instead of retrying.
 
 Ratings: custom games (play) are unrated. The rating comes from sandbox games the server schedules by
 itself: every new active version of an enabled strategy plays {per_build or "a series of"} rated games
-against strategies of similar rating. To get rated, submit and wait; strategy(name)["sandbox"] shows the
-progress. Do not spam custom games for that.
+against strategies of similar rating{daily_text}. To get rated, submit and wait; strategy(name)["sandbox"] shows
+the progress. Do not spam custom games for that. There are no rounds and no deadlines: the ladder runs on, in
+leagues by strength once it is big enough (rules(section="The arena")).
 
 Slots (seats) are numbered from 0 everywhere (seat 1 on the web page is slot 0). Times are UTC.
 Show the human the pages: {ax.url("/games/<id>")} for a game with its replay viewer,
@@ -161,12 +165,13 @@ def build(ax: A.Agents) -> FastMCP:
 
     @mcp.tool(annotations=READ)
     async def rules(ctx: Context, section: str | None = None) -> CallToolResult:
-        """The rules of CodeCraft 2020 as Markdown text (about 9k tokens in full): the game, the entity
-        types, the order of actions within a tick, the round formats, the client API and its objects.
+        """The rules as Markdown text (about 10k tokens in full): first "The arena", how this server runs the
+        game (the ladder, rated games, the rating, leagues, limits), then the game of CodeCraft 2020: the entity
+        types, the order of actions within a tick, the formats, the client API and its objects.
 
-        section: one chapter only, picked by a case-insensitive part of its heading: "Entity properties"
-        (costs, health, damage, ranges, population), "Game overview", "Control interface", "Round
-        specific", "API description", "EntityAction", "PlayerView". An unknown section lists the headings."""
+        section: one chapter only, picked by a case-insensitive part of its heading: "The arena", "Leagues",
+        "Entity properties" (costs, health, damage, ranges, population), "Game overview", "Control interface",
+        "Round specific", "API description", "EntityAction", "PlayerView". An unknown section lists the headings."""
         return await run(ctx, "rules", section=section)
 
     @mcp.tool(annotations=READ)
@@ -320,9 +325,9 @@ def build(ax: A.Agents) -> FastMCP:
 
     # Resources --------------------------------------------------------------------------------------------
     @mcp.resource("codecraft://rules", name="rules", title="CodeCraft 2020 rules", mime_type="text/markdown",
-                  description="The game manual, the same text as the rules tool.")
+                  description="The arena's rules and the game manual, the same text as the rules tool.")
     def rules_resource() -> str:
-        return (ax.cfg.root / "docs" / "doc-en.md").read_text()
+        return RU.rules_markdown(ax.cfg)
 
     @mcp.resource("codecraft://replay-format", name="replay-format", title="The replay format",
                   mime_type="text/markdown",

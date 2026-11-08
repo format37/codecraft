@@ -1,61 +1,9 @@
-# About CodeCraft 2020
+# CodeCraft 2020: the game
 
-## General concepts and the rules of the tournament
-
-This competition gives you an opportunity to test your programming skills, by creating an artificial intelligence (strategy) playing a game in a special world (you can learn about details of the CodeCraft 2020 world in later sections). In each game you are to compete against other players' strategies. Your team's goal is to gain more score than your opponents.
-
-The tournament is held in several stages (**Round 1**, **Round 2** and **Finals**) preceded by a qualification in the **Sandbox**.
-**Sandbox** is a competition that takes place throughout the championship.
-Each participant has a certain rating value — an indicator of how successful their strategy is involved in games within each stage.
-
-The initial value of the rating in the **Sandbox** is `1200`. At the end of the game this value can both be increased and decreased. At the same time victory
-over a weak (with a low rating) opponent gives a small increase, also the defeat from a strong opponent slightly decreases your
-rating. Over time the rating in the **Sandbox** becomes more and more inert, which makes it possible to decrease the impact of random long series of victories or
-defeats on the participant's place, but at the same time makes it difficult to change their position with a significant improvement in strategy. To cancel such effect
-the participant can reset the variability of the rating to the initial state when sending a new strategy, including the corresponding
-option. If the new strategy is adopted, the rating system of the participant will fall dramatically after the next game in the **Sandbox**, however,
-further participation in games will quickly recover and even become higher if your strategy has really become more effective. It is not recommended
-to use this option with minor, incremental improvements to your strategy, as well as in cases where a new strategy
-insufficiently tested and the effect of changes in it is not known reliably.
-
-The initial value of the rating at each main stage of the tournament is `0`. For each game the participant receives a certain number of rating points
-depending on the occupied place (a system similar to that used in the championship "Formula-1"). If two or more participants share
-some place, then the total number of rating points for this place and for the following `number_of_such_members - 1` of places is shared
-equally among these participants. For example, if two participants share the first place, then each of them will receive half of the rating points number
-for the first and second places. When sharing rounding always takes place in a smaller direction. More detailed information about the stages of the tournament will be
-provided in the announcements on the project website.
-
-First all participants can participate only in the games that take place in the **Sandbox**. Players can send their strategies to the **Sandbox**, and
-the last one taken from them is taken by the system for participation in qualifying games. Each player participates in approximately one qualifying
-game for an hour. The jury reserves the right to change this interval based on the throughput of the testing system, but for
-the majority of participants it remains constant. There are a number of criteria by which the interval of participation in qualifying games
-can be increased for a specific player. For every N-th full week that has elapsed since the player sent the last strategy, the interval
-of participation for this player is increased by N basic test intervals. Only the strategies adopted by the system are taken into account. An additional penalty which is equal to `20%` from the basic testing interval is charged in the **Sandbox** for each strategy "crash" in `10` last games. The player’s participation interval in the **Sandbox** can not become bigger than a day.
-
-Games in the **Sandbox** are held according to a set of rules corresponding to the rules of a random stage among the passed ones and the next (current) one. At the same time, the closer the rating value of the two players rating within the **Sandbox**, the more likely that they will be in one game. The **Sandbox** starts before the start of the first stage of the tournament and ends after some time after the final stage (see the schedule
-of stages to clarify the details). In addition, the **Sandbox** is frozen during the stages of the tournament. Following the results of the games in the **Sandbox**
-there is a selection for participation in **Round 1**, which will involve no more than `1080` participants (if there is less participants, maximal number divisible by `4`) with the highest rating at the beginning of this stage of the tournament
-(if the rating is equal, priority is given to the player who previously sent the latest version of their strategy), as well as an additional selection to
-the next stages of the tournament, including the **Finals**.
-
-**Round 1**, as all further stages, consists of two parts, between which there will be a short break (with the renewal of the **Sandbox** work), which
-allows to improve its strategy. The last strategy sent by the player before the beginning of this part is selected for the games in each part.
-Games are conducted in waves. In each wave, each player participates exactly in one game. The number of waves in each part is determined by
-the capabilities of the testing system. `300` highest rated participants will proceed to **Round 2**. Also in **Round 2** there will be an additional selection of `60` participants with the highest rating in the **Sandbox** (at the moment of **Round 2** beginning) among those who did not passed according to the results of **Round 1**.
-
-According to the results of **Round 2** the `50` best strategies will reach the **Finals**. Also in the **Finals** there will be an additional selection of `10` participants with
-the highest rating in the **Sandbox** (at the beginning of the **Finals**) from those who did not go through the main tournament.
-
-The system of holding the **Finals** has its own peculiarities. The stage is still
-divided into two parts, but they will no longer consist of waves. In each part of the stage, games will be played between all pairs
-of **Finals** participants. If the time and capabilities of the testing system permit, the operation will be repeated.
-
-All finalists are ranked according to the non-increase in the rating after the end of the **Finals**. If the ratings are equal, a higher place is taken by that finalist, whose strategy, which was part of the Final, was sent out earlier. Prizes for the Final are distributed based on the occupied place after this
-ordering.
-
-After the completion of the **Sandbox**, all its participants, except for the **Finals** winners, are ranked according to the non-increase in the rating. If the ratings are equal
-a higher place is taken by the participant who sent the latest version of their strategy earlier. Prizes for the **Sandbox** are distributed on the basis of
-occupied place after this ordering.
+The rules of the game, its entities and the client API, as the organisers of the 2020 championship published them:
+the one document the clients and the engine follow (the lines about the 2020 schedule are gone). How this server
+runs the game, with its ladder, ratings, leagues and limits, is written in
+[The arena](https://codecraft.day/rules#the-arena).
 
 ## About testing and strategy limits
 
@@ -148,34 +96,22 @@ In the end, entities with zero health are removed from the game, and entities wi
 
 ## Round specific rules
 
-In **Round 1** you are to learn the rules of the game. To simplify things, there will be no fog of war in this stage. Also, you will be given a base for each unit type in the beginning of the game, so you can start gathering resources and attacking your opponent right away. You can still experiment with buildings to prepare for next stages.
+Three game formats are played. The server draws one for every rated game; a custom game is set up in any of them.
 
-In **Round 2** you have to learn building. In the beginning you will only have builders. You will need to build bases for other types of units. Also, fog of war will now be enabled so you will have to do some exploration before confronting the enemy. The task is further complicated
-that after summarizing the **Round 1**, the part of the weak strategies will be eliminated and you will have to confront stronger opponents.
+**Round 1**: four players, no fog of war, and a base for each unit type given at the start, so a strategy can gather
+resources and attack right away. Experimenting with buildings here prepares for the other formats.
 
-**Finals** is the most important stage. After the selection, held following the results of the first two stages, the strongest participants will be remained. The games in the finals are going to be 1v1. Besides that, if there is only one player left in the game, they are given enough score points to win the game.
+**Round 2**: four players, fog of war, and only builders at the start: the bases for the other unit types have to be
+built, and the enemy found before it can be fought.
 
-## Using the app
+**Finals**: one on one, with fog of war and builders only at the start, as in Round 2. If only one player is left
+in the game, they are given enough score to win it.
 
-You have an option to run simple test games locally on your computer. To do so, download the app. Use of the app will allow you to test your strategy in an environment similar to the environment of a testing game on the site, but without any restrictions on the number of games created.
+## Testing on your machine
 
-When you start the app, you will see a config screen. You can select strategies participating in the game and configure some game settings. If you want to test your strategy, select TCP player, and then start your strategy. By default port `31001` is used. After successful connection, you will be able to start the game.
-
-If you want to change the port, for example to connect multiple strategies, run your language package specifying host and port. For example, `./aicup2020 localhost 31002`.
-
-After all players have connected, instead of starting new game, you may also start the game using saved game state, or repeat previously saved game. While repeating a game, your strategy will receive data from the server but all the actions will be ignored.
-
-Controls in the app:
-
-- RMB / Shift-LMB - move camera
-- MMB / Ctrl-LMB - rotate camera
-- V - change visualization mode.
-- Ctrl-S - save current game to a file (you can use replay feature)
-- Ctrl-E - save current game state (you can load game state and start game from it)
-- P - pause/play
-- Left/Right - move time tick by tick (when paused)
-
-You can save the config to a file, and then run the app with `--config <file>` option, bypassing this config screen. Other available options are listed when using `--help` option.
+The local runner plays the server's games on your computer (the same engine, rules and maps), live in the browser,
+with the debug interface described below: your strategy draws on the map and logs, and reads the mouse and the keys.
+See [the server repository](https://github.com/format37/codecraft#test-a-strategy-on-your-machine).
 
 ## Entity properties values
 
@@ -401,11 +337,11 @@ This method will be called each tick.
 The method takes following arguments:
 
 - Player view — all the information you have about current game's state,
-- Debug interface — this object allows you to do send debug commands to the app and receive debug state from inside your strategy code. Note that this is unavailable when testing your strategy on the server, or using the app in batch mode. This is for local debugging only.
+- Debug interface — this object allows you to do send debug commands to the local runner and receive debug state from inside your strategy code. Note that this is unavailable when testing your strategy on the server, or using the app in batch mode. This is for local debugging only.
 
 The method should return the action you desire to perform this tick.
 
-For debugging purposes, there is also another method — `debug_update`, that has same parameters, and is called continiously while the app is running (not in batch mode), if the client is waiting for the next tick. There will always be at least one debug update between ticks.
+For debugging purposes, there is also another method — `debug_update`, that has same parameters, and is called continiously while the local runner is running (not in batch mode), if the client is waiting for the next tick. There will always be at least one debug update between ticks.
 
 ## Objects description
 
@@ -418,7 +354,7 @@ Some objects may take one of several forms. The way it is implemented depends on
 If possible, a dedicated sum (algebraic) data type is used,
 otherwise other methods may be used (like variants being classes inherited from abstract base class).
 
-## `Vec2Float32`
+### `Vec2Float32`
 
 2 dimensional vector.
 
@@ -427,7 +363,7 @@ Fields:
 - `x`: `float32` - `x` coordinate of the vector
 - `y`: `float32` - `y` coordinate of the vector
 
-## `Color`
+### `Color`
 
 RGBA Color
 
@@ -438,7 +374,7 @@ Fields:
 - `b`: `float32` - Blue component
 - `a`: `float32` - Alpha (opacity) component
 
-## `ColoredVertex`
+### `ColoredVertex`
 
 Vertex for debug rendering
 
@@ -448,7 +384,7 @@ Fields:
 - `screen_offset`: `Vec2Float32` - Additional offset in screen coordinates
 - `color`: `Color` - Color to use
 
-## `PrimitiveType`
+### `PrimitiveType`
 
 Primitive type for debug rendering
 
@@ -457,9 +393,9 @@ Variants:
 - `Lines` - Lines, number of vertices should be divisible by 2
 - `Triangles` - Triangles, number of vertices should be divisible by 3
 
-## `DebugData`
+### `DebugData`
 
-Debug data can be drawn in the app
+Debug data can be drawn in the local runner
 
 One of:
 
@@ -483,9 +419,9 @@ One of:
     - `alignment`: `float32` - Text alignment (0 means left, 0.5 means center, 1 means right)
     - `size`: `float32` - Font size in pixels
 
-## `DebugCommand`
+### `DebugCommand`
 
-Debug commands that can be sent while debugging with the app
+Debug commands that can be sent while debugging with the local runner
 
 One of:
 
@@ -508,7 +444,7 @@ One of:
     No fields
 
 
-## `Vec2Int32`
+### `Vec2Int32`
 
 2 dimensional vector.
 
@@ -517,7 +453,7 @@ Fields:
 - `x`: `int32` - `x` coordinate of the vector
 - `y`: `int32` - `y` coordinate of the vector
 
-## `MoveAction`
+### `MoveAction`
 
 Move action
 
@@ -527,7 +463,7 @@ Fields:
 - `find_closest_position`: `boolean` - Whether to try find closest position, if path to target is not found
 - `break_through`: `boolean` - Whether to destroy other entities on the way
 
-## `EntityType`
+### `EntityType`
 
 Entity type
 
@@ -544,7 +480,7 @@ Variants:
 - `Resource` - Resource can be harvested
 - `Turret` - Ranged attacking building
 
-## `BuildAction`
+### `BuildAction`
 
 Build action
 
@@ -553,7 +489,7 @@ Fields:
 - `entity_type`: `EntityType` - Type of an entity to build
 - `position`: `Vec2Int32` - Desired position of new entity
 
-## `AutoAttack`
+### `AutoAttack`
 
 Auto attack options
 
@@ -562,7 +498,7 @@ Fields:
 - `pathfind_range`: `int32` - Maximum distance to pathfind
 - `valid_targets`: `[EntityType]` - List of target entity types to try to attack. If empty, all types but resource are considered
 
-## `AttackAction`
+### `AttackAction`
 
 Attack action
 
@@ -571,7 +507,7 @@ Fields:
 - `target`: `Option<int32>` - If specified, target entity's ID
 - `auto_attack`: `Option<AutoAttack>` - If specified, configures auto attacking
 
-## `RepairAction`
+### `RepairAction`
 
 Repair action
 
@@ -579,7 +515,7 @@ Fields:
 
 - `target`: `int32` - Target entity's ID
 
-## `EntityAction`
+### `EntityAction`
 
 Entity's action
 
@@ -590,7 +526,7 @@ Fields:
 - `attack_action`: `Option<AttackAction>` - Attack action
 - `repair_action`: `Option<RepairAction>` - Repair action
 
-## `Action`
+### `Action`
 
 Player's action
 
@@ -598,7 +534,7 @@ Fields:
 
 - `entity_actions`: `Map<int32 -> EntityAction>` - New actions for entities. If entity does not get new action, if will continue to perform previously set one
 
-## `ClientMessage`
+### `ClientMessage`
 
 Message sent from client
 
@@ -618,12 +554,12 @@ One of:
 
     No fields
 
-- `RequestDebugState` - Request debug state from the app
+- `RequestDebugState` - Request debug state from the local runner
 
     No fields
 
 
-## `BuildProperties`
+### `BuildProperties`
 
 Entity's build properties
 
@@ -632,7 +568,7 @@ Fields:
 - `options`: `[EntityType]` - Valid new entity types
 - `init_health`: `Option<int32>` - Initial health of new entity. If absent, it will have full health
 
-## `AttackProperties`
+### `AttackProperties`
 
 Entity's attack properties
 
@@ -642,7 +578,7 @@ Fields:
 - `damage`: `int32` - Damage dealt in one tick
 - `collect_resource`: `boolean` - If true, dealing damage will collect resource from target
 
-## `RepairProperties`
+### `RepairProperties`
 
 Entity's repair properties
 
@@ -651,7 +587,7 @@ Fields:
 - `valid_targets`: `[EntityType]` - Valid target entity types
 - `power`: `int32` - Health restored in one tick
 
-## `EntityProperties`
+### `EntityProperties`
 
 Entity properties
 
@@ -671,7 +607,7 @@ Fields:
 - `attack`: `Option<AttackProperties>` - Attack properties, if entity can attack
 - `repair`: `Option<RepairProperties>` - Repair properties, if entity can repair
 
-## `Player`
+### `Player`
 
 Player (strategy, client)
 
@@ -681,7 +617,7 @@ Fields:
 - `score`: `int32` - Current score
 - `resource`: `int32` - Current amount of resource
 
-## `Entity`
+### `Entity`
 
 Game entity
 
@@ -694,7 +630,7 @@ Fields:
 - `health`: `int32` - Current health
 - `active`: `boolean` - If entity is active, it can perform actions
 
-## `PlayerView`
+### `PlayerView`
 
 Information available to the player
 
@@ -710,7 +646,7 @@ Fields:
 - `players`: `[Player]` - List of players
 - `entities`: `[Entity]` - List of entities
 
-## `ServerMessage`
+### `ServerMessage`
 
 Message sent from server
 
@@ -732,7 +668,7 @@ One of:
 
     - `player_view`: `PlayerView` - Player's view
 
-## `Camera`
+### `Camera`
 
 Camera used for rendering
 
@@ -744,9 +680,9 @@ Fields:
 - `distance`: `float32` - Distance to center
 - `perspective`: `boolean` - Whether perspective is applied
 
-## `DebugState`
+### `DebugState`
 
-Debug state to be received from the app
+Debug state to be received from the local runner
 
 Fields:
 

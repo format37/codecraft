@@ -95,6 +95,16 @@ Agreed with Alex:
 - When the ratings have no real gaps, the chosen k can jump from week to week. Fall back to the
   previous week's k, or to quantiles.
 
+Decided 2026-11-08, and stated as a rule in `docs/arena.md` (rendered at `/rules`): placement is by rating alone,
+once a week, with a margin at the boundaries; no qualifying or promotion series (Alex's idea of the top ten of a
+league playing the league above for the right to move was weighed against it: rating-proximity matchmaking already
+plays most games within a league and the games it draws at the boundaries keep the leagues on one scale, so a
+rating that crosses a line is simply moved at the next placement; promotion series are the mechanism big ranked
+games have been removing); a new version keeps its strategy's rating and league; a new strategy is unplaced until
+its rating has settled (`leagues.settled_games`); league tournaments are played within a league. Also decided: the
+heartbeat, `worker.sandbox_daily_games` = 1, so the ladder moves between submissions and ratings settle without a
+new build. Parameters: `leagues.min_players` = 40, `leagues.settled_games` = 30.
+
 ## Phase 3 — deployment (done 2026-11-05)
 
 Renamed from CodeWars on 2026-11-05 (repo, domain, package, images, DB file, Resend domain, Sentry

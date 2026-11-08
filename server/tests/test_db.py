@@ -112,3 +112,20 @@ def test_rename_strategy_touches_rows_versions_and_seats(tmp_path):
     with pytest.raises(ValueError):
         db.rename_strategy("new", "q")      # q has history (a seat)
 
+
+def test_sandbox_games_since_counts_recent_sandbox_seats_only(tmp_path):
+    from codecraft.db import since
+    db = DB(tmp_path / "t.db")
+    for n in ("a", "b"):
+        db.upsert_strategy(strategy(n), 1200)
+    seats = lambda: [dict(slot=0, strategy="a", image="img", score=1, crashed=False, comment=None, cpu_sec=None),
+                     dict(slot=1, strategy="b", image="img", score=0, crashed=False, comment=None, cpu_sec=None)]
+    gid = db.create_game("Finals", 1)
+    db.finish_game(gid, "finished", None, 1.0, 1, seats(), RATING, [2, 0])
+    custom = db.create_game("Finals", 2, kind="custom", rated=False)
+    db.finish_game(custom, "finished", None, 1.0, 2, seats(), RATING, [2, 0])
+    db.create_game("Finals", 3)                                   # running: counts, the seats are taken
+    assert db.sandbox_games_since("a", since(24)) == 1
+    assert db.sandbox_games_since("b", since(24)) == 1
+    assert db.sandbox_games_since("a", since(-24)) == 0           # nothing in the future
+    assert db.sandbox_games_since("c", since(24)) == 0

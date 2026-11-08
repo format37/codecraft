@@ -20,6 +20,7 @@ from . import agents as A
 from . import mcp_server
 from . import preview as P
 from . import replay as R
+from . import rules as RU
 from .auth import Auth, AuthError
 from .config import SEATS, Config
 from .db import DB
@@ -282,15 +283,15 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
 
     @app.get("/rules", response_class=HTMLResponse)
     def rules(request: Request):
-        path = cfg.root / "docs" / "doc-en.md"
-        if not path.exists():
+        """The arena (docs/arena.md with the numbers of config.yaml), then the game (docs/doc-en.md)."""
+        if not RU.exists(cfg):
             raise HTTPException(404, "rules not found")
+        text = RU.rules_markdown(cfg)
         try:
-            import markdown
-            body = markdown.markdown(path.read_text(), extensions=["tables", "fenced_code"])
+            body, toc = RU.html(text)
         except ImportError:
-            body = "<pre>" + path.read_text().replace("&", "&amp;").replace("<", "&lt;") + "</pre>"
-        return render(request, "rules.html", body=body)
+            body, toc = "<pre>" + text.replace("&", "&amp;").replace("<", "&lt;") + "</pre>", ""
+        return render(request, "rules.html", body=body, toc=toc)
 
     @app.get("/leaderboard", response_class=HTMLResponse)
     def leaderboard(request: Request):

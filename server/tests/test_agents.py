@@ -44,7 +44,7 @@ class Env:
         (tmp_path / "clients" / "Python" / "Dockerfile").write_text("FROM python:3.8\n")
         (tmp_path / "templates").mkdir()
         (tmp_path / "docs").mkdir()
-        for name in ("doc-en.md", "replay-format.md"):
+        for name in ("arena.md", "doc-en.md", "replay-format.md"):
             shutil.copy(REPO / "docs" / name, tmp_path / "docs" / name)
         cfg = Config(Config.load(tmp_path).data, tmp_path)
         cfg.data["auth"]["base_url"] = "http://testserver"
@@ -236,9 +236,17 @@ def test_rest_dispatcher_read_tools_errors_and_get_with_query_params(env):
 def test_rules_whole_and_by_section(env):
     _, token = env.user()
     whole = env.client.get("/api/v1/rules", headers=bearer(token))
-    assert whole.status_code == 200 and whole.text.startswith("# About CodeCraft 2020")
+    assert whole.status_code == 200 and whole.text.startswith("# The arena")
+    assert "# CodeCraft 2020: the game" in whole.text and "{{" not in whole.text
+    flat = " ".join(whole.text.split())
+    assert "plays 10 rated games a few minutes apart. After that every strategy plays one rated game a day" in flat
+    arena = env.client.get("/api/v1/rules?section=the arena", headers=bearer(token)).text
+    assert arena.startswith("# The arena") and "## Leagues" in arena and "## Game overview" not in arena
+    assert "one league until 40 players have settled ratings (30 rated games" in arena
     part = env.client.get("/api/v1/rules?section=entity properties", headers=bearer(token)).text
     assert part.startswith("## Entity properties values") and "## API description" not in part
+    objects = env.client.get("/api/v1/rules?section=objects description", headers=bearer(token)).text
+    assert "### `Vec2Int32`" in objects and "### `DebugState`" in objects
     r = env.client.get("/api/v1/rules?section=chess", headers=bearer(token))
     assert r.status_code == 400 and "Game overview" in r.json()["error"]
 

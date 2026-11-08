@@ -40,6 +40,7 @@ import anyio
 from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
 from . import replay as R
+from . import rules as RU
 from .auth import RateLimiter, hash_token
 from .builder import ANSI_RE, BuildError, engine_image
 from .config import LIMIT_KEYS, MAX_TICKS, SEATS, Config
@@ -737,6 +738,7 @@ def whoami(ax: Agents, user: dict) -> dict:
             "ticks": MAX_TICKS,
             "map_size": 80,
             "sandbox_games_per_build": int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0),
+            "sandbox_daily_games": int(cfg.get("worker", "sandbox_daily_games", default=1) or 0),
             "max_zip_mb": int(sub.get("max_zip_mb") or 20),
             "git_submissions": bool(sub.get("allow_git", True)),
             "engine": _engine(cfg),
@@ -746,38 +748,19 @@ def whoami(ax: Agents, user: dict) -> dict:
     }
 
 
-HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-
-
-def _headings(lines: list[str]) -> list[tuple[int, int, str]]:
-    """(line index, level, title) of the Markdown headings outside code fences."""
-    out, fenced = [], False
-    for i, line in enumerate(lines):
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
-            continue
-        m = None if fenced else HEADING_RE.match(line)
-        if m:
-            out.append((i, len(m[1]), m[2].replace("`", "")))
-    return out
-
-
 @tool(read=True)
 def rules(ax: Agents, user: dict, section: str | None = None) -> str:
-    path = ax.cfg.root / "docs" / "doc-en.md"
-    if not path.is_file():
+    """The arena (docs/arena.md with the numbers of config.yaml) and the game (docs/doc-en.md), as the web page."""
+    if not RU.exists(ax.cfg):
         raise AgentError("the rules are not installed on this server; read them at " + ax.url("/rules"))
-    text = path.read_text()
+    text = RU.rules_markdown(ax.cfg)
     if not section or not section.strip():
         return text
-    lines = text.splitlines()
-    heads = _headings(lines)
-    needle = section.strip().strip("#` ").lower()
-    for n, (i, level, title) in enumerate(heads):
-        if needle in title.lower():
-            end = next((j for j, lv, _ in heads[n + 1:] if lv <= level), len(lines))
-            return "\n".join(lines[i:end]).strip() + "\n"
-    raise AgentError(f"no section matching {section!r}; the headings: " + ", ".join(t for _, _, t in heads))
+    part = RU.section(text, section)
+    if part is None:
+        raise AgentError(f"no section matching {section!r}; the headings: "
+                         + ", ".join(t for _, _, t in RU.headings(text.splitlines())))
+    return part
 
 
 @tool(read=True)
@@ -807,11 +790,15 @@ def strategy(ax: Agents, user: dict, name: str) -> dict:
         overrides = json.loads(s["limits"]) if s["limits"] else {}
         out["limits"] = {k: overrides.get(k, cfg["limits"].get(k)) for k in sorted(LIMIT_KEYS)}
         per_build = int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0)
+        daily = int(cfg.get("worker", "sandbox_daily_games", default=1) or 0)
         out["sandbox"] = {
             "games_per_build": per_build or "unlimited",
             "played_by_active_build": db.sandbox_games_of_build(s["name"], s["image"]) if s["image"] else 0,
-            "about": "every new active version of an enabled strategy plays this many rated sandbox games, "
-                     "scheduled by the server; custom games (play) are unrated"}
+            "daily_games": daily,
+            "played_last_24h": db.sandbox_games_since(s["name"], since(24)),
+            "about": "every new active version of an enabled strategy plays games_per_build rated sandbox games, "
+                     "then daily_games a day for as long as it is enabled, all scheduled by the server; custom games "
+                     "(play) are unrated; no rounds, no deadlines (rules(section='The arena'))"}
     rows = db.games(limit=20, strategy=s["name"])   # one row per game, also when it held several seats
     seats = db.game_players_for([g["id"] for g in rows])
     out["games"] = [_game_row(ax, g, seats.get(g["id"], [])) for g in rows]

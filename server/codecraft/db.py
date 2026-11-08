@@ -437,6 +437,13 @@ class DB:
                        name, image)
         return int(row["n"]) if row else 0
 
+    def sandbox_games_since(self, name: str, since: str) -> int:
+        """Sandbox games (any seat, running or done) the strategy has been in since `since`, a db timestamp."""
+        row = self.one("SELECT COUNT(*) AS n FROM game_players p JOIN games g ON g.id=p.game_id "
+                       "WHERE p.strategy=? AND g.kind='sandbox' AND g.status IN ('running','finished','aborted') "
+                       "AND g.created_at>=?", name, since)
+        return int(row["n"]) if row else 0
+
     def reset_ratings(self, initial: float) -> None:
         with self.tx() as c:
             c.execute("UPDATE strategies SET rating=?, games=0, wins=0, crashes=0, points=0, place_sum=0", (initial,))

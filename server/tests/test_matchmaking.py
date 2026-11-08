@@ -50,3 +50,13 @@ def test_only_candidates_with_remaining_games_start_a_game():
     pool.append(Candidate("new", 1200, 0, remaining=3))
     names = pick_players(pool, 4, 200, random.Random(0))
     assert "new" in names and len(names) == 4   # exhausted strategies still fill the seats
+
+
+def test_sandbox_remaining_share_then_daily():
+    from codecraft.matchmaking import sandbox_remaining
+    assert sandbox_remaining(0, 1, 5, 0) is None       # no share = unlimited
+    assert sandbox_remaining(10, 1, 3, 0) == 7         # the build's share first
+    assert sandbox_remaining(10, 1, 10, 0) == 1        # then one a day
+    assert sandbox_remaining(10, 1, 10, 1) == 0        # already in a game today (a filler seat counts too)
+    assert sandbox_remaining(10, 0, 10, 0) == 0        # no heartbeat
+    assert sandbox_remaining(10, 2, 12, 1) == 1

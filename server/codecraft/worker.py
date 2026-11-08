@@ -14,9 +14,9 @@ import docker
 
 from .builder import Builder, BuildError, EngineImage
 from .config import SEATS, Config
-from .db import DB
+from .db import DB, since
 from .game import GameRunner, PlayerSpec
-from .matchmaking import Candidate, choose_format, pick_players
+from .matchmaking import Candidate, choose_format, pick_players, sandbox_remaining
 from .strategies import Strategy, strategy_for_version, strategy_from_row
 
 log = logging.getLogger("codecraft.worker")
@@ -70,6 +70,8 @@ class Worker:
         rows = {r["name"]: r for r in self.db.strategies()}
         specs = {s.name: s for s in self.runnable()}
         quota = int(self.cfg["worker"].get("sandbox_games_per_build") or 0)
+        daily = int(self.cfg["worker"].get("sandbox_daily_games") or 0)
+        day_ago = since(24)
         candidates = []
         for name, spec in specs.items():
             if spec.strategy.is_builtin and not mm.get("include_builtin", True):
@@ -83,7 +85,8 @@ class Worker:
                     remaining = 0          # the engine bot never starts a game, it only fills seats
                 else:
                     games = self.db.sandbox_games_of_build(name, spec.image)
-                    remaining = max(0, quota - games)
+                    last_day = self.db.sandbox_games_since(name, day_ago) if daily else 0
+                    remaining = sandbox_remaining(quota, daily, games, last_day)
             candidates.append(Candidate(name, rating, games, spec.strategy.is_builtin, spec.strategy.gpu, remaining))
         max_gpu = int(self.cfg.get("gpu", "max_per_game", default=1) or 0) if self.gpu else 0
         names = pick_players(candidates, seats, float(mm.get("rating_sigma", 200)), self.rng, max_gpu=max_gpu)
@@ -135,8 +138,9 @@ class Worker:
                 return False
         if len([p for p in players if p.strategy and not p.strategy.is_builtin]) < 1:
             if not self.idle:
-                log.info("sandbox idle: every build has played its %s games; waiting for new versions",
-                         self.cfg["worker"].get("sandbox_games_per_build"))
+                log.info("sandbox idle: every build has played its %s games and every strategy its %s of the day; "
+                         "waiting", self.cfg["worker"].get("sandbox_games_per_build"),
+                         self.cfg["worker"].get("sandbox_daily_games"))
                 self.idle = True
             return False
         self.idle = False

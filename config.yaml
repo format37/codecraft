@@ -50,6 +50,14 @@ rating:                             # sandbox-style multiplayer Elo
   k_min: 16                         # K decays towards k_min as a strategy accumulates games ("inertia")
   k_half_life_games: 50
 
+leagues:                            # the ladder is one league until this many players (each by their best strategy)
+  min_players: 40                   # have settled ratings; then it is clustered by rating once a week (/rules, "Leagues";
+  settled_games: 30                 # the clustering itself is phase 2 of docs/KICKOFF.md). Settled = this many rated games
+
+leagues:                            # the ladder is one league until this many players (each by their best strategy)
+  min_players: 40                   # have settled ratings; then it is clustered by rating once a week (/rules, "Leagues";
+  settled_games: 30                 # the clustering itself is phase 2 of docs/KICKOFF.md). Settled = this many rated games
+
 gpu:
   enabled: auto                     # true / false / auto = the nvidia runtime is registered in docker (or CW_GPU_ENABLED);
                                     # without a GPU the CUDA languages and the GPU option disappear from the UI
@@ -61,6 +69,10 @@ worker:                             # the `worker` service
   sandbox: true                     # play rated sandbox games when no custom game is queued
   sandbox_games_per_build: 10       # every build (version) plays this many sandbox games, then the worker rests;
                                     # a new version starts a fresh count. 0 = play forever
+  sandbox_daily_games: 1            # after its share, an enabled strategy starts this many rated games a day (every
+                                    # sandbox game it was in during the last day counts, a filler seat too); 0 = none
+  sandbox_daily_games: 1            # after its share, an enabled strategy starts this many rated games a day (every
+                                    # sandbox game it was in during the last day counts, a filler seat too); 0 = none
   builds: true                      # build submitted versions (one at a time)
 
 # A strategy compiles in a container made from its language's base image: no network, these limits, no

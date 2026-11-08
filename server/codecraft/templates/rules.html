@@ -1,6 +1,22 @@
 {% extends "base.html" %}{% block title %}Rules{% endblock %}
-{% block head %}<style>.rules { max-width:860px; } .rules img { max-width:100%; } .rules table { width:auto; } .rules pre { white-space:pre-wrap; }</style>{% endblock %}
+{% block head %}<style>
+  .rules-layout { display:grid; grid-template-columns: 230px minmax(0, 1fr); gap:30px; align-items:start; }
+  nav.toc { position:sticky; top:12px; max-height:calc(100vh - 24px); overflow:auto; font-size:13.5px; padding-right:6px; }
+  nav.toc ul { list-style:none; padding-left:0; margin:0; } nav.toc ul ul { padding-left:12px; margin:3px 0 10px; }
+  nav.toc li { margin:3px 0; } nav.toc a { text-decoration:none; color:var(--muted); } nav.toc a:hover { color:var(--accent); }
+  nav.toc > .toc > ul > li > a { font-weight:650; color:var(--fg); display:block; margin-top:12px; }
+  .rules { max-width:860px; min-width:0; } .rules img { max-width:100%; } .rules table { width:auto; } .rules pre { white-space:pre-wrap; }
+  .rules h1 { font-size:28px; margin-top:40px; padding-top:22px; border-top:1px solid var(--line); }
+  .rules h1:first-child { margin-top:0; padding-top:0; border-top:none; }
+  .rules h2 { margin-top:30px; } .rules h3 { margin-top:24px; }
+  .rules h1, .rules h2, .rules h3 { scroll-margin-top:12px; }
+  @media (max-width: 900px) { .rules-layout { grid-template-columns:1fr; } nav.toc { position:static; max-height:none; }
+    nav.toc > .toc > ul { columns:2; } nav.toc > .toc > ul > li > a { margin-top:0; } }
+</style>{% endblock %}
 {% block content %}
-<p class="muted">The official CodeCraft rules, as published by the organisers of the 2020 championship.</p>
-<div class="rules">{{ body|safe }}</div>
+<p class="muted">How this server runs the game, then the game itself: the rules, entity properties and client API of CodeCraft 2020.</p>
+<div class="rules-layout">
+  <nav class="toc">{{ toc|safe }}</nav>
+  <div class="rules">{{ body|safe }}</div>
+</div>
 {% endblock %}

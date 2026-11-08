@@ -23,7 +23,9 @@ Live instance: https://codecraft.day
   GPU (CUDA) and merge mode. Each submission is a numbered version; a successful build becomes
   the active one. Build logs and your bot's own output are visible only to you.
 - **Sandbox**: every new build plays a fixed number of rated games (Round1 / Round2 / Finals,
-  rating-aware matchmaking, multiplayer Elo); then the worker rests until the next submission.
+  rating-aware matchmaking, multiplayer Elo), then one game a day per strategy, so the ladder never stands
+  still. No rounds, no deadlines; leagues by strength once the ladder is big enough ([docs/arena.md](docs/arena.md),
+  rendered at `/rules` with the numbers of `config.yaml`).
 - **Custom games**: any format, any seats (including your own older versions), unrated.
 - **Replay viewer** in the browser, the local runner's own: the official `replay.dat` is decoded
   ([docs/replay-format.md](docs/replay-format.md)). A game link pasted into Telegram, Slack or Discord shows
@@ -78,7 +80,7 @@ address can come up after Docker starts (a WireGuard or other VPN interface), se
 the host (a file in `/etc/sysctl.d`): Docker cannot publish a port on an address that does not exist yet, and
 after a reboot the web service would run without its port. Everything else lives in
 [config.yaml](config.yaml): limits, formats, rating, GPU policy (`gpu.max_per_game`), sandbox
-size (`worker.sandbox_games_per_build`), quotas.
+size (`worker.sandbox_games_per_build`, `worker.sandbox_daily_games`), leagues, quotas.
 
 CLI (`./cw`, through the compose `cli` service or a local venv):
 
@@ -138,7 +140,8 @@ clients/     official v1.3.0 clients (GPL-3.0)
 templates/   base-image overrides per language
 strategies/  seed strategy manifests
 server/      codecraft package: web, worker, builder, game, replay, auth, db, monitoring; tests; Dockerfile
-docs/        official rules and changelog, replay format, tournament formats, plan (KICKOFF.md)
+docs/        the arena's rules (arena.md), the game's official rules and changelog, replay format, 2020 tournament
+             formats, plan (KICKOFF.md)
 data/        database, submissions, build cache, games (git-ignored)
 ```
 

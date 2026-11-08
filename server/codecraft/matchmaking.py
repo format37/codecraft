@@ -23,6 +23,17 @@ def choose_format(weights: dict, rng: random.Random) -> str:
     return rng.choices(names, weights=[weights[n] for n in names])[0]
 
 
+def sandbox_remaining(per_build: int, daily: int, games_of_build: int, games_last_day: int) -> int | None:
+    """Sandbox games a build may still start: its share (`per_build`; 0 = unlimited, None) and, once that is played,
+    `daily` a day, counting every sandbox game the strategy was in during the last day, as a filler too."""
+    if not per_build:
+        return None
+    left = per_build - games_of_build
+    if left > 0:
+        return left
+    return max(0, daily - games_last_day) if daily else 0
+
+
 def pick_players(candidates: list[Candidate], seats: int, sigma: float, rng: random.Random,
                  max_gpu: int | None = None) -> list[str]:
     """Pick up to `seats` distinct names. The anchor is the candidate with the fewest games;
