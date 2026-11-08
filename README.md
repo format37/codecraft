@@ -13,7 +13,7 @@ official clients play it unchanged; it is written from the rules and tested agai
 this repository does not include ([sim/README.md](sim/README.md) says how to run those tests with it).
 `config.yaml` picks the engine. See [docs/KICKOFF.md](docs/KICKOFF.md).
 
-Live instance: https://codecraft.latentstate.dev
+Live instance: https://codecraft.day
 
 ## Features
 
@@ -50,7 +50,7 @@ Live instance: https://codecraft.latentstate.dev
 Claude Code, Codex, Cursor, Gemini CLI, a claude.ai connector or any MCP client can play with your account:
 read the rules, submit strategies, wait for builds, queue games and analyse them (a timeline decoded from the
 replay, your bot's own log). Create a token and copy the setup line at
-[/agents](https://codecraft.latentstate.dev/agents); the same tools answer at `/api/v1/<tool>` for scripts.
+[/agents](https://codecraft.day/agents); the same tools answer at `/api/v1/<tool>` for scripts.
 
 ## Run it
 

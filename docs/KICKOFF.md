@@ -11,8 +11,8 @@ Alex's own game(s) with other mechanics and player counts:
   in a loop (sandbox, Elo rating), plus tournaments in the official formats and custom games;
 - a web replay viewer, leaderboard, game history, build logs;
 - GPU for strategies, with a sharing policy;
-- runs on a dedicated machine in Alex's flat, published through a VPN to a VPS at
-  `latentstate.dev`; first used privately with friends to shake out the rough edges;
+- runs on a dedicated machine in Alex's flat, published through a VPN to a VPS as
+  `codecraft.day`; first used privately with friends to shake out the rough edges;
 - a Kaggle-style competition is a later idea (see "Kaggle" below).
 
 ## Phase 0 — engine orchestration (done, commit 09e904e)
@@ -98,19 +98,22 @@ Agreed with Alex:
 ## Phase 3 — deployment (done 2026-11-05)
 
 Renamed from CodeWars on 2026-11-05 (repo, domain, package, images, DB file, Resend domain, Sentry
-project); codewars.latentstate.dev 301-redirects here and github.com/format37/codewars redirects to
+project); codewars.latentstate.dev redirects here and github.com/format37/codewars redirects to
 the new repo.
+Moved to its own domain on 2026-11-08: codecraft.day (the site, the sign-in mail and the MCP endpoint);
+the temporary codecraft.latentstate.dev 308-redirects to it, which keeps the method and body of API
+and MCP calls, so old links and old agent setups keep working.
 
-Live at https://codecraft.latentstate.dev: the home node (8 cores, 14 GB, docker, **no NVIDIA GPU**
+Live at https://codecraft.day: the home node (8 cores, 14 GB, docker, **no NVIDIA GPU**
 for now — the GPU is not attached because of the machine's power budget, so `gpu.enabled: auto`
 resolves to false and the CUDA languages are hidden; the RTX 4090 stays on the dev machine) runs
 `web` + `worker` from a clone of the public repo; the web port is published on the node's WireGuard
 address only (since 2026-11-06; before, to the home LAN) and reached through that tunnel by the VPS Caddy
-(`codecraft.latentstate.dev` site block, auto-TLS, Cloudflare grey-cloud A record), whose address is the one
-trusted proxy (`CW_TRUSTED_PROXIES`). `.env` on the node: `CW_WEB_PORT`,
-`CW_BASE_URL=https://codecraft.latentstate.dev`, `CW_ADMINS`, `CW_REGISTRATION=open` (invite-only
+(`codecraft.day` site block, auto-TLS, Cloudflare grey-cloud A record; `www.codecraft.day` redirects to it),
+whose address is the one trusted proxy (`CW_TRUSTED_PROXIES`). `.env` on the node: `CW_WEB_PORT`,
+`CW_BASE_URL=https://codecraft.day`, `CW_ADMINS`, `CW_REGISTRATION=open` (invite-only
 during the first hours, open since 2026-11-05 evening), the Resend key + `CW_MAIL_FROM` (domain
-`codecraft.latentstate.dev` verified in Resend), `DOCKER_GID` of the node, `CW_SENTRY_DSN` (Sentry
+`codecraft.day` verified in Resend), `DOCKER_GID` of the node, `CW_SENTRY_DSN` (Sentry
 org personal-htg, project `codecraft`, since 2026-11-05). Deploy a change: push to GitHub, on the node `git pull && docker compose build && docker
 compose up -d --force-recreate web worker`. The image holds only the requirements and the code is mounted from the checkout, so a plain
 `up -d` leaves a code-only change unloaded; the worker finishes its running games before it stops (new seed strategies: `docker compose run

@@ -34,7 +34,7 @@ def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
 
 
 def site_host(base_url: str | None) -> str:
-    """'codecraft.latentstate.dev' from the configured base URL (footer of the image)."""
+    """'codecraft.day' from the configured base URL (footer of the image)."""
     if not base_url:
         return ""
     return urlparse(base_url).netloc or base_url
