@@ -54,11 +54,21 @@ curl -L {{ release }}/codecraft-runner-linux-arm64.tar.gz | tar xz && ./codecraf
 curl -L {{ release }}/codecraft-runner-macos.tar.gz | tar xz && ./codecraft-runner
 ```
 
-The macOS binary is not signed: unpacked from a curl download, as above, it runs as it is; downloaded with the browser
-it needs `xattr -d com.apple.quarantine codecraft-runner` once. Our CI builds it and we have not run it ourselves yet:
-tell us how it goes. **Windows**: Docker Desktop with the line above, or the Linux binary in WSL2 (a strategy
-started in Windows reaches `127.0.0.1 31001` inside WSL2 as it is). **From source**: `make -C sim-cpp` in the
-[server repository]({{ repo }}) with g++ or clang and C++17.
+**Windows** 10 or 11, in PowerShell or cmd (both have `curl.exe` and `tar`): one exe, nothing to install.
+
+```powershell
+curl.exe -L -o runner.zip {{ release }}/codecraft-runner-windows-x86_64.zip
+tar xf runner.zip
+.\codecraft-runner.exe
+```
+
+The macOS and Windows binaries are not signed. On macOS, unpacked from a curl download as above, the binary runs as
+it is; downloaded with the browser it needs `xattr -d com.apple.quarantine codecraft-runner` once. On Windows, after
+a browser download, SmartScreen may say "Windows protected your PC" once: **More info**, then **Run anyway**. A fresh
+unsigned exe can also trip Microsoft Defender; if it does, tell us. Before every release our CI plays the same game
+with each binary on its own system and checks that the replays agree, but we have not run the macOS and Windows ones
+ourselves yet: tell us how it goes. **From source**: `make -C sim-cpp` in the [server repository]({{ repo }}) with
+g++ or clang and C++17 (on Windows, MSYS2's UCRT64 g++).
 
 Either way the viewer opens at <http://127.0.0.1:31000/> (the binary opens the browser for you; with Docker, open it
 yourself). Its config screen offers a Round 1 game: seat 1 is a TCP seat on port 31001 for your strategy, the other
@@ -73,7 +83,8 @@ lines above take the newest: `{{ image }}` is `:latest` and `{{ release }}/...` 
 ## 3. Run your strategy
 
 In a second terminal, in the starter's folder. Every client takes `host port [token]` and connects to `127.0.0.1
-31001` when given nothing; the game starts the moment it connects.
+31001` when given nothing; the game starts the moment it connects. On Windows, Python is `python` or `py` where these
+lines say `python3`.
 
 <div class="chips"></div>
 

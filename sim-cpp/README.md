@@ -20,6 +20,12 @@ build/codecraft-sim-cpp --config game.json --batch-mode --save-results results.j
 build/codecraft-sim-cpp --version            # the version of its source, as the server tags the engine image
 ```
 
+It builds on Linux and macOS (g++ or clang) and on Windows: in MSYS2's UCRT64 shell `make` gives
+`build/codecraft-sim-cpp.exe` (the environment says `OS=Windows_NT`), one file linked statically; a cross compiler
+does the same with `make OS=Windows_NT CXX=x86_64-w64-mingw32-g++-posix` (MinGW-w64 with posix threads). Everything
+that differs between the systems, sockets (Winsock on Windows) and the browser, is in `src/net.cpp`, the one file
+that sees their headers. The Windows binary plays the same games byte for byte (the sim tests pass with it under Wine).
+
 The server builds the engine image from the Dockerfile and the files it copies (Makefile, src, viewer) and tags it
 with their hash: `codecraft/sim-cpp:<version>`, the version that `--version`, `make version` and the viewer's help
 show. Each game page on the server names the engine it was played on, so a local runner with the same version
@@ -46,7 +52,8 @@ new game has the same map and dice. "New game…" after a game opens the config 
 Players get it without building it: `.github/workflows/runner.yml` publishes every engine version of `master` as the
 image `ghcr.io/format37/codecraft-runner:<version>` (and `:latest`; the same Dockerfile as the server's engine
 image, linux/amd64 and arm64) and as binaries on the GitHub release `runner-<version>` (Linux x86_64 and arm64,
-macOS universal); the guide is https://codecraft.day/quickstart. In the image `CODECRAFT_RUNNER_CONTAINER=1`
+macOS universal, Windows x86_64), each of which has played the same game as the others, replay for replay, before the
+release goes out (`.github/runner-game.sh`); the guide is https://codecraft.day/quickstart. In the image `CODECRAFT_RUNNER_CONTAINER=1`
 stands for `--bind 0.0.0.0 --no-browser`, so `docker run -p 31000:31000 -p 31001-31004:31001-31004 -v "$PWD":/game
 ...` is the runner with the current folder's files; `--bind ADDR` is the address the viewer and the TCP seats
 without a host listen on (127.0.0.1 by default). The viewer answers only requests whose Host is `127.0.0.1`,
@@ -104,6 +111,7 @@ src/
   debug.*            the debug messages and DebugState
   engine.*           the game loop (engine.py), the GUI mode's loop
   live.*             the viewer's HTTP server: the page, the game as server-sent events, the viewer's input
+  net.*              the system's side: TCP sockets (POSIX, or Winsock on Windows), the browser
   history.*          the game's states, tick by tick, for the viewer, its rewinding and Ctrl-E
   jsonout.hpp        compact JSON for the event stream
   main.cpp           the command line (cli.py)

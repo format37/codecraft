@@ -112,13 +112,14 @@ entries carry a `-2020` suffix and are disabled, so their authors can register u
 
 The engine is also a local runner, with the game live in the browser and the official GUI's debug interface (your
 strategy draws lines, triangles, text and logs, and reads the mouse and the keys). It is published for everyone by
-`.github/workflows/runner.yml`: the image `ghcr.io/format37/codecraft-runner` (linux/amd64 and arm64) and Linux and
-macOS binaries on [GitHub Releases](https://github.com/format37/codecraft/releases), one release per engine version.
+`.github/workflows/runner.yml`: the image `ghcr.io/format37/codecraft-runner` (linux/amd64 and arm64) and Linux,
+macOS and Windows binaries on [GitHub Releases](https://github.com/format37/codecraft/releases), one release per
+engine version.
 The guide, with the commands of every language, is <https://codecraft.day/quickstart>.
 
 ```bash
 docker run --rm -it -p 31000:31000 -p 31001-31004:31001-31004 -v "$PWD":/game ghcr.io/format37/codecraft-runner
-# or a binary (also linux-arm64 and macos):
+# or a binary (also linux-arm64, macos, and windows-x86_64.zip with codecraft-runner.exe):
 curl -L https://github.com/format37/codecraft/releases/latest/download/codecraft-runner-linux-x86_64.tar.gz | tar xz && ./codecraft-runner
 # or from source:
 make -C sim-cpp && sim-cpp/build/codecraft-sim-cpp

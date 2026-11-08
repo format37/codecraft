@@ -306,8 +306,19 @@ their own machine within ten minutes (Linux, macOS or Windows, without compiling
   bot's token) created the channels and manages them. One fix on the way: the compose file forwards an explicit
   list of variables, and the two new ones had to be added to it (d27f314).
 
-Not in this phase: leagues clustering (phase 2), tournaments, a Windows exe (the Winsock port of `players.cpp`,
-`live.cpp`, `trans.cpp`; Docker Desktop or WSL2 meanwhile), notarization of the Mac binary, Homebrew/winget. A
+- **Addendum, the same evening: the runner for Windows.** `sim-cpp/src/net.cpp` is now the one file that sees the
+  system's headers and holds what differs: POSIX sockets or Winsock 2 (`WSAStartup` before `main`, `SOCKET` handles,
+  `WSAPoll`, receive and send timeouts in milliseconds, `FormatMessage` for the error texts, no `SO_REUSEADDR`, which
+  on Windows would let a socket take a port another one listens on), sockets not inherited by the processes the
+  runner starts, the browser (`ShellExecute`); `windows.h` and its macros stay out of the game's code. The release
+  gets a fourth asset, `codecraft-runner-windows-x86_64.zip` with `codecraft-runner.exe`: MSYS2's UCRT64 g++ on
+  `windows-latest`, linked statically. And every binary now plays the same game on its own system before a release
+  (`.github/runner-game.sh`: the starter over TCP against the built-in bot, in batch mode and in the viewer, with the
+  Host check), and the release goes out only when the replays agree byte for byte. The games did not change (the sim
+  tests pass, with the Windows exe under Wine as well); the engine's version did, with its sources. A
+  `.gitattributes` keeps the engine's sources byte for byte in Windows checkouts, where CRLF would change the version.
+
+Not in this phase: leagues clustering (phase 2), tournaments, notarization of the Mac binary, Homebrew/winget. A
 hosted runner (the viewer served by our site, the strategy on the player's machine connecting over the internet)
 was weighed and parked: a raw TCP seat per session on a public port, untrusted bytes into the decoder, the latency
 inside the tick budget, for an audience that has a toolchain anyway. The variant that fits the architecture, if

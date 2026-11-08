@@ -193,6 +193,10 @@ def test_the_quick_start_and_the_cover_point_a_newcomer_the_same_way(tmp_path):
     assert ('docker run --rm -it -p 31000:31000 -p 31001-31004:31001-31004 -v &quot;$PWD&quot;:/game '
             'ghcr.io/format37/codecraft-runner') in qs.text
     assert "releases/latest/download/codecraft-runner-macos.tar.gz" in qs.text
+    assert ('<code class="language-powershell">curl.exe -L -o runner.zip https://github.com/format37/codecraft/releases'
+            '/latest/download/codecraft-runner-windows-x86_64.zip\ntar xf runner.zip\n.\\codecraft-runner.exe') in qs.text
+    assert "<strong>More info</strong>, then <strong>Run anyway</strong>" in qs.text     # SmartScreen, unsigned exe
+    assert "On Windows, Python is <code>python</code> or <code>py</code>" in qs.text
     assert '<div class="chips"></div>' in qs.text                          # the language picker's place
     assert qs.text.count('<div class="lang" data-lang="') == 15 and 'data-lang="python-pypy"' in qs.text
     assert '<p class="lang-label">Java (GraalVM native)</p>' in qs.text   # the label for readers without JavaScript
