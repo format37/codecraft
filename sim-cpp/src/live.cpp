@@ -240,20 +240,24 @@ void Live::stream(int fd) {
     int generation = -1;
     size_t sent = 0;
     bool ok = send_all(fd, head);
-    while (ok && !stop_) {
+    while (ok) {
         std::string out;
+        bool stopping;
         {
             std::unique_lock<std::mutex> lock(mutex_);
             events_cv_.wait_for(lock, std::chrono::seconds(5), [&] {
                 return stop_ || generation_ != generation || events_.size() > sent;
             });
-            if (stop_) break;
+            stopping = stop_;
             if (generation_ != generation) {
                 generation = generation_;
                 sent = 0;
             }
             for (; sent < events_.size() && out.size() < (4u << 20); sent++) out += events_[sent];
         }
+        // A runner that exits (--viewer-exit) stops right after its last events ("over" among them): they go out
+        // first, the destructor waits for that.
+        if (stopping && out.empty()) break;
         ok = send_all(fd, out.empty() ? std::string(": ping\n\n") : out);
     }
     close(fd);
