@@ -3,7 +3,8 @@ is played again by `sim/codecraft-sim` through the same oracle tools (`loadfrom.
 comes out must be what the official engine gave: the exit code, the log lines, the crashes and their comments,
 the views and the `Finish` each puppet got, and every tick, until a turn that the official engine plays differently
 from seed to seed comes out as another of its outcomes (from there on our game is another game). Plus the
-command line, `Create` games, determinism and results.json."""
+command line, `Create` games, determinism and results.json. Our engines play the 2020 rules here (`--rules 2020`):
+the arena's change (rules.FogMemory) is checked in test_fog_memory.py."""
 from __future__ import annotations
 
 import json
@@ -28,12 +29,15 @@ FIXTURES = fixture.all_fixtures()
 NAMES = [fx["name"] for fx in FIXTURES]
 
 
+RULES_2020 = ("--rules", "2020")
+
+
 def play_fixture(fx: dict, engine: Path = SIM, seed: int | None = None) -> loadfrom.EngineRun:
-    """A fixture played by `engine` (its own seed unless given), its puppets over TCP."""
+    """A fixture played by `engine` (its own seed unless given) under the 2020 rules, its puppets over TCP."""
     players = [Puppet.from_spec(p) if isinstance(p, dict) else p for p in fx["players"]]
     model = fixture.state_from_json(fx["state"])
     return loadfrom.run(model, players, seed=fx["seed"] if seed is None else seed, timeout=fx.get("timeout", 1.0),
-                        accept_timeout=fx.get("accept_timeout", 5.0), engine=engine)
+                        accept_timeout=fx.get("accept_timeout", 5.0), engine=engine, args=RULES_2020)
 
 
 def play_all(engine: Path) -> dict[str, loadfrom.EngineRun]:

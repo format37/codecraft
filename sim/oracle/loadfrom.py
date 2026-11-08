@@ -59,10 +59,11 @@ def free_port() -> int:
 
 def run(model: Model, players: list, seed: int | None = 1, timeout: float | None = 1.0,
         accept_timeout: float | None = 5.0, engine: Path = ENGINE, keep: bool = False,
-        wall_timeout: float = 120.0) -> EngineRun:
+        wall_timeout: float = 120.0, args: tuple[str, ...] = ()) -> EngineRun:
     """Play `model` on the official engine. `timeout` is the per-tick reply budget of the TCP seats (seconds,
     None = unlimited), `accept_timeout` how long the engine waits for them to connect. `keep` leaves the work
-    directory (config, state, replay, results) in place and on the result."""
+    directory (config, state, replay, results) in place and on the result. `args` go to the engine's command line
+    (ours: `--rules 2020` to compare with the official engine)."""
     workdir = Path(tempfile.mkdtemp(prefix="oracle-", dir=os.environ.get("ORACLE_TMP")))
     state_path = workdir / "state.json"
     state_path.write_text(json.dumps(model_json(model)))
@@ -81,7 +82,7 @@ def run(model: Model, players: list, seed: int | None = 1, timeout: float | None
     (workdir / "config.json").write_text(json.dumps(config, indent=1))
     results_path, replay_path = workdir / "results.json", workdir / "replay.dat"
     cmd = [str(engine), "--config", str(workdir / "config.json"), "--batch-mode", "--save-results",
-           str(results_path), "--save-replay", str(replay_path), "--log-level", "info"]
+           str(results_path), "--save-replay", str(replay_path), "--log-level", "info", *args]
     proc = subprocess.Popen(cmd, cwd=workdir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     lines: list[str] = []
     listening: dict[int, threading.Event] = {int(port): threading.Event() for port in tokens}

@@ -5,6 +5,8 @@ CodeCraft 2020 local runner, engine @VERSION@                           https://
   ./codecraft-runner --config game.json    a game from a config file (the viewer's config screen shows the format)
   ./codecraft-runner --replay replay.dat   watch a saved game (Ctrl-S in the viewer saves the one shown)
   ./codecraft-runner --limits warn         wait for a strategy stopped at a breakpoint instead of cutting it off
+  ./codecraft-runner --rules 2020          the 2020 engine's rules exactly (the arena improves one: under fog of
+                                           war a path search remembers what its player has seen; /rules)
   ./codecraft-runner --help                every flag
 
 The same engine plays the games at codecraft.day: every game page names the version that played it, and

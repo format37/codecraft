@@ -7,6 +7,8 @@ same replay and results.json, byte for byte. It draws from a copy of CPython's r
 `init_by_array`, `random()`, `getrandbits`, `_randbelow`, `shuffle`, `choice`), makes the same draws in the same
 order, and keeps the Python engine's orders of iteration (players, entities and orders by id; the property table in
 its own order). The Python engine stays the executable spec: a change of the rules is made there first, then here.
+Like it, it plays the arena's rules by default (under fog of war a path search remembers the resources and
+buildings its player has seen, `FogMemory` in `src/rules.cpp`) and the official ones exactly with `--rules 2020`.
 
 It is also **the local runner**: without `--batch-mode`, as the official runner opens its window, it shows the game
 live in the browser, with the official GUI's debug interface for your strategy (below). Its viewer is the server's

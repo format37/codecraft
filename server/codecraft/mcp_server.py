@@ -60,7 +60,9 @@ def instructions(ax: A.Agents) -> str:
     per_build = int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0)
     daily = int(cfg.get("worker", "sandbox_daily_games", default=1) or 0)
     daily_text = f", then {'one' if daily == 1 else daily} a day" if daily else ""
-    engine = "our own open-source engine (the rules, protocol and replays of the official one)"
+    engine = ("our own open-source engine (the rules, protocol and replays of the official one, with one change: "
+              "under fog of war a path search remembers the resources and buildings its player has seen, "
+              "rules(section=\"The engine\"))")
     community = cfg.get("community", "url")
     community_text = (f" The players talk in {cfg.get('community', 'name') or 'the community'}: {community}."
                       if community else "")

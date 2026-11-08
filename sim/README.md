@@ -5,6 +5,12 @@ A re-implementation of the CodeCraft 2020 game simulator, to replace the closed 
 same `results.json`, same replay format, same TCP protocol. Python first, as the executable spec; a C++ clone
 later for the ladder.
 
+One rule is changed on purpose, by default (`--rules 2020` plays the official rules exactly, and is what every
+comparison with the official engine below uses): under fog of war a path search also knows the resources and
+buildings its player has been shown (`rules.FogMemory`), where the official search takes every cell out of sight
+for free, so that a unit sent far away along an obstacle longer than its sight no longer walks to and fro forever
+(`tests/test_fog_memory.py`; the arena's rules page, `docs/arena.md`, "The engine").
+
 Status: a complete engine. Every turn of the 92 distinct stored official games replays exactly through our rules
 when they make the record's random choices, and every game played from its first state with our own state
 carried forward ends with the official scores (`oracle/corpus.py`); every view the official engine sends, fog of

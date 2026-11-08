@@ -10,7 +10,9 @@
 namespace cc {
 
 constexpr int PANIC = 101;
-int run(const Json& config, const std::string& save_results, const std::string& save_replay, Log& log);
+// `rules_2020`: the 2020 rules exactly; by default the arena's (rules.hpp, FogMemory).
+int run(const Json& config, const std::string& save_results, const std::string& save_replay, Log& log,
+        bool rules_2020 = false);
 
 struct LiveOptions {
     std::string bind = "127.0.0.1";    // --bind: where the viewer and the TCP seats without a host listen
@@ -25,6 +27,7 @@ struct LiveOptions {
     bool server_limits = true;
     double tick_limit = 1.0;           // seconds to answer a tick
     double game_limit = 40.0;          // seconds of answers in all (the server counts CPU time)
+    bool rules_2020 = false;           // --rules 2020: the 2020 rules exactly (default: the arena's, FogMemory)
 };
 
 // The GUI mode; without a config (null) the viewer's config screen comes first.

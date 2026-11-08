@@ -1,6 +1,7 @@
 """The game loop of `aicup2020 --batch-mode`, as the server runs it (docs/KICKOFF.md, server/codecraft/game.py):
 
     code = run(config, save_results="/game/results.json", save_replay="/game/replay.dat", log=Log("info"))
+    code = run(config, ..., rules="2020")      # the 2020 rules exactly (default "codecraft": rules.FogMemory)
 
 1. The game: `{"Create": "Round1" | "Round2" | "Finals" | {"Custom": {...}}}` (mapgen.py), or `{"LoadFrom": path}`, a
    state file: the engine's serde JSON of a Model (model.py).
@@ -123,9 +124,14 @@ def take_orders(model: Model, player_id: int, seat: int, actions: dict, log: Log
             model.entity_actions[eid] = action_from_view(seat, action, model)
 
 
-def play(model: Model, seats: list[Seat], rng: random.Random, replay: ReplayWriter | None, log: Log) -> None:
+RULES = ("codecraft", "2020")      # the arena's rules (the default), the 2020 ones exactly
+
+
+def play(model: Model, seats: list[Seat], rng: random.Random, replay: ReplayWriter | None, log: Log,
+         rules_name: str = "codecraft") -> None:
     """Play the game from `model` (changed in place) to its end."""
     by_seat = {p.index: p.id for p in model.players.values()}
+    memory = rules.FogMemory() if rules_name == "codecraft" else None
     while not rules.game_over(model):
         seen = {}
         if model.fog_of_war:
@@ -145,7 +151,7 @@ def play(model: Model, seats: list[Seat], rng: random.Random, replay: ReplayWrit
             asked = True
         if asked:
             model.entity_actions = dict(sorted(model.entity_actions.items()))
-        events = rules.process_turn(model, rng, seen)
+        events = rules.process_turn(model, rng, seen, memory)
         if replay is not None:
             replay.tick(events, model)
 
@@ -156,8 +162,12 @@ def results(model: Model, seats: list[Seat], seed: int) -> dict:
             "results": [score[i] for i in range(len(seats))], "seed": seed}
 
 
-def run(config: dict, save_results: str | None = None, save_replay: str | None = None, log: Log | None = None) -> int:
+def run(config: dict, save_results: str | None = None, save_replay: str | None = None, log: Log | None = None,
+        rules_name: str = "codecraft") -> int:
     log = log or Log()
+    if rules_name not in RULES:
+        log.error(f"panicked at 'unknown rules {rules_name!r}, expected codecraft or 2020'")
+        return PANIC
     try:
         seed = config.get("seed")
         if seed is None:
@@ -185,7 +195,7 @@ def run(config: dict, save_results: str | None = None, save_replay: str | None =
             replay = ReplayWriter(save_replay)
             replay.start(model)
         if not rules.game_over(model):
-            play(model, seats, rng, replay, log)
+            play(model, seats, rng, replay, log, rules_name)
     except Exception as exc:  # noqa: BLE001 - a bug of ours: no results, the code of a panic
         log.error(f"panicked at '{type(exc).__name__}: {exc}'")
         return PANIC

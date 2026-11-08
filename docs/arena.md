@@ -52,6 +52,27 @@ level has a race of its own, the ladder is split into leagues by strength, not b
 - Each league gets its own standings and, as this server's next step, its own tournaments in the 2020 formats.
   Custom games know no leagues: play whoever you like.
 
+## The engine
+
+The game is played on our own open-source engine, with the 2020 rules, protocol, maps and replays, and one
+deliberate change, in how units find their path under fog of war (the path of a move order, and that of an
+auto-attack heading for an enemy):
+
+- **2020:** a unit's path search took every cell its player did not see at that moment as free, whatever stood there.
+  A unit sent far away along a forest or a wall longer than its sight could walk to and fro forever: each step moved
+  the edge of its sight, the cells it uncovered or lost changed the shortest path, and the path flipped from one end
+  of the obstacle to the other.
+- **Here:** the search also remembers the resources and buildings its player has already seen (not units, which
+  move), where they stood and with the health they had then. A remembered one is forgotten when a cell it stood on
+  comes into sight again and it is gone. Cells never seen still count as free. So a unit learns an obstacle as it
+  walks along it and goes round it (or through it, with `break_through`, when that is shorter: digging a resource
+  costs its health divided by the damage, 30 steps for a builder).
+
+The searches use nothing the player has not been shown, and everything else (`break_through`, the random choice
+among equally short paths, the 1000 cells a search may visit, what an auto-attack may target) is as in 2020. The local runner
+plays these rules by default; `--rules 2020` plays the 2020 engine's rules exactly. Strong strategies usually plan
+their own paths and give one-cell moves; the change matters to the built-in long moves.
+
 ## Limits
 
 A strategy has {{ limits_text }}; a game lasts up to 1000 ticks on an 80x80 map. Past a limit the strategy is cut

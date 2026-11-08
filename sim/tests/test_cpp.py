@@ -83,20 +83,20 @@ def test_same_games_as_python_on_the_fixtures():
     assert not bad, bad
 
 
-def engine_files(engine: Path, config: dict, out: Path) -> tuple:
+def engine_files(engine: Path, config: dict, out: Path, args: tuple[str, ...] = ()) -> tuple:
     out.mkdir(parents=True, exist_ok=True)
     (out / "config.json").write_text(json.dumps(config))
     r = subprocess.run([str(engine), "--config", str(out / "config.json"), "--batch-mode", "--save-results",
-                        str(out / "results.json"), "--save-replay", str(out / "replay.dat"), "--log-level", "info"],
-                       capture_output=True, text=True, timeout=1800)
+                        str(out / "results.json"), "--save-replay", str(out / "replay.dat"), "--log-level", "info",
+                        *args], capture_output=True, text=True, timeout=1800)
     res = out / "results.json"
     return (r.returncode, r.stderr, (out / "replay.dat").read_bytes(), res.read_text() if res.exists() else None)
 
 
-def same_files(configs: list[dict], tmp_path: Path) -> list[str]:
+def same_files(configs: list[dict], tmp_path: Path, args: tuple[str, ...] = ()) -> list[str]:
     def differs(k):
-        a = engine_files(SIM, configs[k], tmp_path / f"py{k}")
-        b = engine_files(CPP, configs[k], tmp_path / f"cpp{k}")
+        a = engine_files(SIM, configs[k], tmp_path / f"py{k}", args)
+        b = engine_files(CPP, configs[k], tmp_path / f"cpp{k}", args)
         return None if a == b else json.dumps(configs[k])[:200]
 
     with ThreadPoolExecutor(WORKERS) as pool:
@@ -156,6 +156,21 @@ def test_same_games_of_the_sparring_bot():
     with ThreadPoolExecutor(WORKERS) as pool:
         bad = [d for d in pool.map(differs, games) if d]
     assert not bad, bad
+
+
+def test_same_games_under_both_rules(tmp_path):
+    """The arena's rules (rules.FogMemory, the default) and `--rules 2020`: the wall the 2020 rules cannot get past
+    (test_fog_memory.py), from several seeds, and QuickStart games under fog of war."""
+    from test_fog_memory import wall
+    m, _ = wall(150)
+    (tmp_path / "wall.json").write_text(json.dumps(model_json(m)))
+    configs = [{"seed": seed, "game": {"LoadFrom": str(tmp_path / "wall.json")},
+                "players": [{"Empty": None}, {"Empty": None}]} for seed in (1, 2, 3)]
+    configs += [custom(seed, ROUND1[:2], seats, True, 300 if SLOW else 120, resource=100)
+                for seed in (1, 2) for seats in (2, 4)]
+    for rules in ("codecraft", "2020"):
+        assert same_files(configs, tmp_path / rules, ("--rules", rules)) == [], rules
+    assert subprocess.run([str(CPP), "--rules", "1999"], capture_output=True).returncode == 2
 
 
 @needs_corpus

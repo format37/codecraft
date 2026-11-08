@@ -5,6 +5,7 @@
 
 The options of the official runner that only its GUI or its client generator uses are accepted and ignored. There is
 no GUI: `--config` is required, with or without `--batch-mode` (the official runner without it opens a window).
+`--rules 2020` plays the 2020 rules exactly; the default, `codecraft`, is the arena's (rules.py, FogMemory).
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import json
 import sys
 
 from . import __version__
-from .engine import PANIC, run
+from .engine import PANIC, RULES, run
 from .players import Log
 
 
@@ -26,6 +27,9 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--save-replay", help="write the replay here")
     p.add_argument("--log-level", default="info", help="off, error, warn, info (default), debug, trace")
     p.add_argument("--player-names", nargs="*", help="ignored (shown by the official GUI)")
+    p.add_argument("--rules", choices=RULES, default="codecraft",
+                   help="codecraft (default): path searches under fog of war remember the resources and buildings "
+                        "their player has seen; 2020: the 2020 engine's rules exactly")
     for name in ("--repeat", "--replay", "--lang", "--client-gen", "--client-gen-options",
                  "--client-gen-host-from-docker", "--client-gen-test-mode"):
         p.add_argument(name, help=argparse.SUPPRESS)
@@ -52,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(config, dict):
         log.error("panicked at 'Could not load config: not a JSON object'")
         return PANIC
-    return run(config, args.save_results, args.save_replay, log)
+    return run(config, args.save_results, args.save_replay, log, args.rules)
 
 
 if __name__ == "__main__":

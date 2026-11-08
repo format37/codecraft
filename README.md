@@ -9,8 +9,10 @@ restored it for ourselves, to sharpen our coding skills.
 
 Our engine (`sim-cpp/` in C++, which the server runs, and `sim/` in Python, its executable spec, which plays the
 same games) has the official rules, the official engine's command line, protocol and replay format, so the 15
-official clients play it unchanged; it is written from the rules and tested against the official binary, which
-this repository does not include ([sim/README.md](sim/README.md) says how to run those tests with it).
+official clients play it unchanged. One rule is improved on purpose: under fog of war a path search remembers the
+resources and buildings its player has seen ([docs/arena.md](docs/arena.md#the-engine)); `--rules 2020` plays the
+official rules exactly. It is written from the rules and tested against the official binary, which this
+repository does not include ([sim/README.md](sim/README.md) says how to run those tests with it).
 `config.yaml` picks the engine. See [docs/KICKOFF.md](docs/KICKOFF.md).
 
 Live instance: https://codecraft.day

@@ -48,6 +48,9 @@ int main(int argc, char** argv) {
                    "  --config FILE           the game: seed, preset or state, seats (the official runner's config)\n"
                    "  --batch-mode            no viewer: play and exit (the server's way)\n"
                    "  --save-results FILE --save-replay FILE --log-level LEVEL --player-names NAME...\n"
+                   "  --rules codecraft|2020  codecraft (default): under fog of war, path searches remember the\n"
+                   "                          resources and buildings their player has seen; 2020: the rules of\n"
+                   "                          the 2020 engine exactly (a cell out of sight is free to a search)\n"
                    "Without --batch-mode the game is shown live in the browser, with the debug interface of the\n"
                    "official GUI for TCP clients; without --config the viewer asks for one:\n"
                    "  --viewer-port PORT      the viewer's port (default 31000; 0 = any free one)\n"
@@ -86,6 +89,13 @@ int main(int argc, char** argv) {
                 return 2;
             }
             live.server_limits = v == "server";
+        } else if (a == "--rules") {
+            std::string v = value();
+            if (v != "codecraft" && v != "2020") {
+                fprintf(stderr, "error: --rules is codecraft or 2020, not %s\n", v.c_str());
+                return 2;
+            }
+            live.rules_2020 = v == "2020";
         } else if (a == "--tick-limit" || a == "--game-limit") {
             double v = atof(value().c_str());
             if (!(v > 0)) {
@@ -143,5 +153,5 @@ int main(int argc, char** argv) {
         return cc::PANIC;
     }
     if (!batch) return cc::run_live(&config, live, log);
-    return cc::run(config, save_results, save_replay, log);
+    return cc::run(config, save_results, save_replay, log, live.rules_2020);
 }

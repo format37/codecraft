@@ -40,24 +40,49 @@ struct Grid {
     }
 };
 
+// A resource or building of another player as a player was last shown it (FogMemory).
+struct Remembered {
+    std::optional<int32_t> player_id;
+    Vec2 position;
+    int size;
+    int32_t health;
+};
+
 // The price of entering a cell for a path of a player's unit (-1: it cannot be entered): 1 for a free cell, or under
-// fog of war for a cell the player does not see; with break_through, another player's entity or a resource costs the
-// hits it takes, ceil(health / damage) (rules.py, entry_cost).
+// fog of war for a cell the player does not see (2020 rules) or where its FogMemory remembers nothing (the arena's);
+// with break_through, another player's entity or a resource costs the hits it takes, ceil(health / damage), with
+// the health last seen for a remembered one (rules.py, entry_cost).
 struct Cost {
     const std::vector<int32_t>* cells;
     const std::vector<uint8_t>* seen = nullptr;      // under fog of war
+    const std::vector<int32_t>* memory = nullptr;    // under fog of war, the arena's rules: FogMemory::cells
+    const std::map<int32_t, Remembered>* known = nullptr;
     bool break_through = false;
     int damage = 0;
     std::optional<int32_t> own;
     const std::map<int32_t, Entity>* entities = nullptr;
 
     int operator()(int i) const {
-        int32_t o = (*cells)[static_cast<size_t>(i)];
-        if (o == FREE || (seen && !(*seen)[static_cast<size_t>(i)])) return 1;
-        if (!break_through) return -1;
-        const Entity& b = entities->at(o);
-        if (b.player_id == own || damage <= 0) return -1;
-        int h = std::max(b.health, 1);
+        const size_t k = static_cast<size_t>(i);
+        std::optional<int32_t> player;
+        int32_t health;
+        if (seen && !(*seen)[k]) {
+            int32_t o = memory ? (*memory)[k] : FREE;
+            if (o == FREE) return 1;
+            if (!break_through) return -1;
+            const Remembered& r = known->at(o);
+            player = r.player_id;
+            health = r.health;
+        } else {
+            int32_t o = (*cells)[k];
+            if (o == FREE) return 1;
+            if (!break_through) return -1;
+            const Entity& b = entities->at(o);
+            player = b.player_id;
+            health = b.health;
+        }
+        if (player == own || damage <= 0) return -1;
+        int h = std::max(health, 1);
         return (h + damage - 1) / damage;
     }
 };

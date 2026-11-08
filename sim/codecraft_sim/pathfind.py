@@ -8,7 +8,8 @@ code in step 4 of the engine plan):
 - the price of entering a cell (`cost`, from rules.py) is 1 for a free cell; an entity is an obstacle, the player's
   own units included, except that with `break_through` another player's entity or a resource costs the hits it takes
   to destroy it, ceil(health / damage) (`move-break-through-*`); under fog of war a cell the player does not see
-  costs 1, whatever stands there;
+  costs 1, whatever stands there (the 2020 rules; under the arena's, it is what the player's rules.FogMemory
+  remembers there);
 - cells are expanded by the lowest estimate (cost so far + heuristic), a random draw deciding between equal
   estimates; a cell is re-priced only for a strictly cheaper path; at most `max_pathfind_nodes` cells are expanded;
 - the path goes to the best cell the search reached (expanded or merely put on its heap): the lowest heuristic, then

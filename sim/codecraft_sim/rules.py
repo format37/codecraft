@@ -1,7 +1,16 @@
-"""The rules of CodeCraft 2020: one tick of the game, as the official engine (aicup2020 1.3.0) plays it.
+"""The rules of CodeCraft 2020: one tick of the game, as the official engine (aicup2020 1.3.0) plays it, and the one
+change this arena makes to them.
 
     events = process_turn(model, rng)   # plays the turn from model.current_tick to the next tick, in place
+    events = process_turn(model, rng, seen, memory)   # the arena's rules: path searches remember (FogMemory)
     game_over(model)                    # at most one player owns entities, or the ticks are spent
+
+The change (the engine's default; `--rules 2020` plays the 2020 rules exactly): under fog of war the 2020 engine's
+path searches take every cell their player does not see for free, so a unit at an obstacle wider than its sight
+can walk to and fro for ever while the edge of its sight moves (the two engines alike). Ours also know the
+resources and buildings their player has been shown (FogMemory), where they stood, with the health they had:
+"assume free what you have never seen" with a memory reaches every reachable target. Without a `memory` the turn is
+the 2020 one.
 
 The orders are the actions stored in `model.entity_actions`. The engine loop stores each player's new orders there
 before the turn; an order stays until the player replaces it (the orders of dead entities stay too, unused). An
@@ -88,14 +97,73 @@ def population(model: Model, player_id: int) -> tuple[int, int]:
     return provided, used
 
 
-def process_turn(model: Model, rng: random.Random, seen: dict[int, bytearray] | None = None) -> list[Event]:
+class FogMemory:
+    """What the path searches of each player know under fog of war besides what it sees (the arena's rules, not the
+    2020 ones): the resources and buildings (entities that cannot move) of others it has been shown, as last shown.
+    One per game, updated at the start of every turn from the sight maps the players' views were made from:
+
+    - an entity with a cell in sight is shown, so it is remembered, its health refreshed;
+    - a remembered entity that is gone is forgotten once the player sees one of its cells (it would be shown if it
+      were still there); until then it stays, as the player cannot know;
+    - units are never remembered, and a player knows its own entities anyway.
+
+    A search of the player's units then takes a cell it does not see for what is remembered there (the entity of the
+    highest id when two overlap), or for free."""
+
+    def __init__(self) -> None:
+        self.known: dict[int, dict[int, tuple]] = {}    # player id -> entity id -> (player id, x, y, size, health)
+        self._cells: dict[int, list[int]] = {}           # player id -> the remembered entity on each cell, or FREE
+
+    def update(self, model: Model, sight: dict[int, bytearray]) -> None:
+        n, props = model.map_size, model.entity_properties
+        for pid in sorted(model.players):
+            seen = sight[pid]
+            known = self.known.setdefault(pid, {})
+            changed = False                             # what is remembered where (not just a health)
+            for eid in [i for i, k in known.items() if i not in model.entities and _any_seen(seen, n, *k[1:4])]:
+                del known[eid]
+                changed = True
+            for e in model.entities.values():
+                if e.player_id == pid or props[e.entity_type].can_move:
+                    continue
+                size = props[e.entity_type].size
+                if _any_seen(seen, n, e.position.x, e.position.y, size):
+                    changed = changed or e.id not in known
+                    known[e.id] = (e.player_id, e.position.x, e.position.y, size, e.health)
+            if changed:
+                self._cells.pop(pid, None)
+
+    def cells(self, player_id: int, n: int) -> list[int]:
+        """The remembered entity on each cell (y * n + x) for the player, FREE where none."""
+        cells = self._cells.get(player_id)
+        if cells is None:
+            cells = [FREE] * (n * n)
+            for eid in sorted(self.known.get(player_id, {})):
+                _, x0, y0, size, _ = self.known[player_id][eid]
+                for y in range(y0, min(y0 + size, n)):
+                    for x in range(x0, min(x0 + size, n)):
+                        cells[y * n + x] = eid
+            self._cells[player_id] = cells
+        return cells
+
+
+def _any_seen(seen: bytearray, n: int, x0: int, y0: int, size: int) -> bool:
+    if size == 1:
+        return bool(seen[y0 * n + x0])
+    return any(seen[y * n + x] for y in range(y0, min(y0 + size, n)) for x in range(x0, min(x0 + size, n)))
+
+
+def process_turn(model: Model, rng: random.Random, seen: dict[int, bytearray] | None = None,
+                 memory: FogMemory | None = None) -> list[Event]:
     """Play one turn on `model` (changed in place) and return its events, in the order they happened. `seen`: the
-    players' sight maps at the start of the turn (view.sight_map), when they were made already for the views."""
-    return _Turn(model, rng, seen).play()
+    players' sight maps at the start of the turn (view.sight_map), when they were made already for the views.
+    `memory`: the game's FogMemory under the arena's rules (None: the 2020 rules)."""
+    return _Turn(model, rng, seen, memory).play()
 
 
 class _Turn:
-    def __init__(self, model: Model, rng: random.Random, seen: dict[int, bytearray] | None = None) -> None:
+    def __init__(self, model: Model, rng: random.Random, seen: dict[int, bytearray] | None = None,
+                 memory: FogMemory | None = None) -> None:
         self.m = model
         self.rng = rng
         self.props = model.entity_properties
@@ -105,8 +173,11 @@ class _Turn:
         self.busy: set[int] = set()             # attacked, built or repaired this tick
         self._goals: dict[tuple, set[int]] = {}
         self._seen: dict[int | None, bytearray] = dict(seen or {})
+        self.memory = memory if model.fog_of_war else None
 
     def play(self) -> list[Event]:
+        if self.memory is not None:
+            self.memory.update(self.m, {pid: self.seen(pid) for pid in self.m.players})
         playing = players_with_entities(self.m)
         steps = self.plan()
         self.attacks(steps)
@@ -163,27 +234,41 @@ class _Turn:
     def entry_cost(self, e: Entity, break_through: bool):
         """The price of entering each cell for a path of `e` (None: it cannot), see pathfind.py."""
         cells, seen = self.grid.cells, self.seen(e.player_id)
+        mem, known = None, {}
+        if seen is not None and self.memory is not None:
+            mem = self.memory.cells(e.player_id, self.m.map_size)
+            known = self.memory.known.get(e.player_id, {})
         if not break_through:
             if seen is None:
                 return lambda i: 1 if cells[i] == FREE else None
-            return lambda i: 1 if cells[i] == FREE or not seen[i] else None
+            if mem is None:
+                return lambda i: 1 if cells[i] == FREE or not seen[i] else None
+            return lambda i: 1 if (cells[i] if seen[i] else mem[i]) == FREE else None
         entities, own = self.m.entities, e.player_id
         damage = self.props[e.entity_type].attack.damage if self.props[e.entity_type].attack else 0
 
         def cost(i: int) -> int | None:
-            o = cells[i]
-            if o == FREE or (seen is not None and not seen[i]):
-                return 1
-            b = entities[o]
-            if b.player_id == own or damage <= 0:
+            if seen is not None and not seen[i]:
+                o = FREE if mem is None else mem[i]
+                if o == FREE:
+                    return 1
+                player, health = known[o][0], known[o][4]       # as the player last saw it
+            else:
+                o = cells[i]
+                if o == FREE:
+                    return 1
+                b = entities[o]
+                player, health = b.player_id, b.health
+            if player == own or damage <= 0:
                 return None
-            return -(-max(b.health, 1) // damage)        # the hits it takes, in place of the step's 1
+            return -(-max(health, 1) // damage)          # the hits it takes, in place of the step's 1
         return cost
 
     def seen(self, player_id: int | None) -> bytearray | None:
         """Under fog of war, the cells the player sees (within the sight range of one of its entities, inactive
         ones included), 1 for each; a path search of the player's units takes every other cell for free, whatever
-        stands there (the official engine plans with what the player sees). None without fog."""
+        stands there (the official engine plans with what the player sees), or under the arena's rules for what
+        its FogMemory remembers there. None without fog."""
         if not self.m.fog_of_war:
             return None
         if player_id not in self._seen:

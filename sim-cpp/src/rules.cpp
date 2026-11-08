@@ -48,18 +48,70 @@ static std::pair<int, int> population(const Model& m, int32_t player_id) {
     return {provided, used};
 }
 
+static bool any_seen(const std::vector<uint8_t>& seen, int n, Vec2 pos, int size) {
+    if (size == 1) return seen[static_cast<size_t>(pos.y * n + pos.x)] != 0;
+    for (int y = pos.y; y < std::min(pos.y + size, n); y++)
+        for (int x = pos.x; x < std::min(pos.x + size, n); x++)
+            if (seen[static_cast<size_t>(y * n + x)]) return true;
+    return false;
+}
+
+void FogMemory::update(const Model& m, const SightMaps& sight) {
+    const int n = m.map_size;
+    for (const auto& pk : m.players) {
+        const int32_t pid = pk.first;
+        const std::vector<uint8_t>& seen = sight.at(pid);
+        std::map<int32_t, Remembered>& known = known_[pid];
+        bool changed = false;                                   // what is remembered where (not just a health)
+        for (auto it = known.begin(); it != known.end();) {
+            if (!m.entities.count(it->first) && any_seen(seen, n, it->second.position, it->second.size)) {
+                it = known.erase(it);
+                changed = true;
+            } else {
+                ++it;
+            }
+        }
+        for (const auto& kv : m.entities) {
+            const Entity& e = kv.second;
+            const EntityProperties& p = m.props[e.entity_type];
+            if (e.player_id == pid || p.can_move || !any_seen(seen, n, e.position, p.size)) continue;
+            auto [it, added] = known.insert_or_assign(e.id, Remembered{e.player_id, e.position, p.size, e.health});
+            changed = changed || added;
+        }
+        if (changed) cells_.erase(pid);
+    }
+}
+
+const std::vector<int32_t>& FogMemory::cells(int32_t player_id, int n) {
+    auto it = cells_.find(player_id);
+    if (it != cells_.end()) return it->second;
+    std::vector<int32_t> cells(static_cast<size_t>(n) * n, FREE);
+    for (const auto& kv : known_[player_id]) {
+        const Remembered& r = kv.second;
+        for (int y = r.position.y; y < std::min(r.position.y + r.size, n); y++)
+            for (int x = r.position.x; x < std::min(r.position.x + r.size, n); x++)
+                cells[static_cast<size_t>(y * n + x)] = kv.first;
+    }
+    return cells_.emplace(player_id, std::move(cells)).first->second;
+}
+
 namespace {
 
 bool contains(const std::vector<EntityType>& v, EntityType t) { return std::find(v.begin(), v.end(), t) != v.end(); }
 
 class Turn {
 public:
-    Turn(Model& m, PyRandom& rng, const SightMaps* seen) : m(m), rng(rng), props(m.props), grid(Grid::of(m)) {
+    Turn(Model& m, PyRandom& rng, const SightMaps* seen, FogMemory* memory)
+        : m(m), rng(rng), props(m.props), grid(Grid::of(m)), memory(m.fog_of_war ? memory : nullptr) {
         for (const auto& kv : m.entities) ids.push_back(kv.first);
         if (seen) seen_ = *seen;
     }
 
     std::vector<Event> play() {
+        if (memory) {
+            for (const auto& kv : m.players) sight(kv.first);
+            memory->update(m, seen_);
+        }
         std::set<int32_t> playing = players_with_entities(m);
         plan();
         attacks();
@@ -82,6 +134,7 @@ private:
     std::unordered_map<int32_t, Vec2> step_of;
     std::map<std::pair<int32_t, std::vector<EntityType>>, std::vector<char>> goals_;
     SightMaps seen_;
+    FogMemory* memory;
 
     const EntityAction* order_of(const Entity& e) const {
         if (!e.active) return nullptr;
@@ -129,6 +182,10 @@ private:
         Cost c;
         c.cells = &grid.cells;
         c.seen = sight(e.player_id);
+        if (c.seen && memory) {
+            c.memory = &memory->cells(*e.player_id, m.map_size);
+            c.known = &memory->known(*e.player_id);
+        }
         c.break_through = break_through;
         if (break_through) {
             const auto& attack = props[e.entity_type].attack;
@@ -375,6 +432,8 @@ private:
 
 }  // namespace
 
-std::vector<Event> process_turn(Model& m, PyRandom& rng, const SightMaps* seen) { return Turn(m, rng, seen).play(); }
+std::vector<Event> process_turn(Model& m, PyRandom& rng, const SightMaps* seen, FogMemory* memory) {
+    return Turn(m, rng, seen, memory).play();
+}
 
 }  // namespace cc

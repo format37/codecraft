@@ -128,9 +128,11 @@ void take_orders(Model& m, int32_t player_id, int seat, const Action& actions, L
     }
 }
 
-void play(Model& m, std::vector<std::unique_ptr<Seat>>& seats, PyRandom& rng, ReplayWriter* replay, Log& log) {
+void play(Model& m, std::vector<std::unique_ptr<Seat>>& seats, PyRandom& rng, ReplayWriter* replay, Log& log,
+          bool rules_2020) {
     std::map<int, int32_t> by_seat;
     for (const auto& kv : m.players) by_seat[kv.second.index] = kv.first;
+    FogMemory memory;
     while (!game_over(m)) {
         SightMaps seen;
         if (m.fog_of_war)
@@ -149,7 +151,8 @@ void play(Model& m, std::vector<std::unique_ptr<Seat>>& seats, PyRandom& rng, Re
             }
             take_orders(m, pid, static_cast<int>(seat), actions, log);
         }
-        std::vector<Event> events = process_turn(m, rng, m.fog_of_war ? &seen : nullptr);
+        std::vector<Event> events =
+            process_turn(m, rng, m.fog_of_war ? &seen : nullptr, rules_2020 ? nullptr : &memory);
         if (replay) replay->tick(events, m);
     }
 }
@@ -200,7 +203,8 @@ Game setup(const Json& config, Log& log, const std::string& default_host = "127.
 
 }  // namespace
 
-int run(const Json& config, const std::string& save_results, const std::string& save_replay, Log& log) {
+int run(const Json& config, const std::string& save_results, const std::string& save_replay, Log& log,
+        bool rules_2020) {
     Game g;
     try {
         g = setup(config, log);
@@ -226,7 +230,7 @@ int run(const Json& config, const std::string& save_results, const std::string& 
             replay = std::make_unique<ReplayWriter>(save_replay);
             replay->start(model);
         }
-        if (!game_over(model)) play(model, seats, *rng, replay.get(), log);
+        if (!game_over(model)) play(model, seats, *rng, replay.get(), log, rules_2020);
     } catch (const std::exception& e) {
         log.error(std::string("panicked at '") + e.what() + "'");
         code = PANIC;
@@ -354,6 +358,7 @@ void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& re
     Model& m = g.model;
     std::map<int, int32_t> by_seat;
     for (const auto& kv : m.players) by_seat[kv.second.index] = kv.first;
+    FogMemory memory;
     using clock = std::chrono::steady_clock;
     auto last = clock::now();
     Model before = m;
@@ -444,7 +449,8 @@ void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& re
             live.wait(pause);
         }
         last = clock::now();
-        std::vector<Event> events = process_turn(m, *g.rng, m.fog_of_war ? &seen : nullptr);
+        std::vector<Event> events =
+            process_turn(m, *g.rng, m.fog_of_war ? &seen : nullptr, opts.rules_2020 ? nullptr : &memory);
         {
             std::lock_guard<std::mutex> lock(rec.replay_mutex);
             rec.replay->tick(events, m);
