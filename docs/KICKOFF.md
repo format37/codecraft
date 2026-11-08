@@ -300,9 +300,11 @@ their own machine within ten minutes (Linux, macOS or Windows, without compiling
   `announce.Announcer` in the worker posts to the webhook: a strategy's first build, Monday's top ten (once a week,
   the state in `data/announce.json`), a changed engine version (the first engine seen is only remembered). One POST,
   5 s, failures logged and swallowed; nothing that is not public already. Discord was chosen over Telegram
-  (English-first, the GitHub crowd, no phone number, forum threads, webhooks, roles per league later); the server,
-  the bot, the invite and the webhooks are Alex's to create; a local `discord` skill (the REST API with the bot's
-  token) manages the channels.
+  (English-first, the GitHub crowd, no phone number, forum threads, webhooks, roles per league later). The server
+  went live the same day: `#announcements` for the worker's posts, `#general`, `#help`, `#runner`, `#strategies`
+  (a forum), `#agents`, `#changelog` fed by GitHub's own webhook; a local `discord` skill (the REST API with the
+  bot's token) created the channels and manages them. One fix on the way: the compose file forwards an explicit
+  list of variables, and the two new ones had to be added to it (d27f314).
 
 Not in this phase: leagues clustering (phase 2), tournaments, a Windows exe (the Winsock port of `players.cpp`,
 `live.cpp`, `trans.cpp`; Docker Desktop or WSL2 meanwhile), notarization of the Mac binary, Homebrew/winget. A
