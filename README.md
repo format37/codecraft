@@ -69,7 +69,8 @@ Without a mail provider the sign-in codes are printed in `docker compose logs we
 `CW_RESEND_API_KEY` + `CW_MAIL_FROM` (Resend) or `mail.smtp` in `config.yaml` for real mail.
 `CW_REGISTRATION=invite` makes new accounts need an invitation link (admins create them at
 `/admin`). `CW_SENTRY_DSN` turns on error reporting to Sentry (unhandled exceptions and ERROR log
-lines of the web and the worker; no request bodies, addresses and tokens scrubbed; off when unset). GPU strategies
+lines of the web and the worker, but not a coding agent's refused call; no request bodies, addresses and
+tokens scrubbed; off when unset). GPU strategies
 need `CW_GPU_ENABLED=true` on a host with the `nvidia` docker runtime (the web service has no Docker socket, so
 the default `gpu.enabled: auto` cannot see the GPU there); without it the CUDA languages and the GPU option are
 simply absent. Behind a reverse proxy, publish the port on the address the proxy uses (`CW_WEB_PORT=ADDRESS:PORT`)

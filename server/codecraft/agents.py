@@ -21,6 +21,7 @@ import hashlib
 import inspect
 import io
 import json
+import logging
 import os
 import re
 import secrets
@@ -44,6 +45,8 @@ from .builder import ANSI_RE, BuildError, engine_image
 from .config import LIMIT_KEYS, MAX_TICKS, SEATS, Config
 from .db import DB, since
 from .submissions import SubmissionError, submit
+
+log = logging.getLogger("codecraft.agents")
 
 # Limits. Promote one to config.yaml when somebody needs to change it. ------------------------------
 TOKEN_PREFIX = "cc_"
@@ -926,6 +929,9 @@ def game_timeline(ax: Agents, user: dict, game_id: int, every: int = 50) -> dict
     try:
         tl = R.timeline(R.load(path), every)
     except R.ReplayError as exc:
+        # the server's fault, not the agent's: logged as an error for Sentry, which drops the AgentError as
+        # the agent's mistake (monitoring.agent_mistake)
+        log.error("game #%s: the replay cannot be decoded: %s", game_id, exc)
         raise AgentError(f"the replay of game #{game_id} cannot be decoded: {exc}") from None
     seats = [{"slot": p["slot"], "label": p["label"] or p["strategy"] or "empty", "strategy": p["strategy"],
               "score": p["score"], "place": p["place"], "mine": p["owner_id"] is not None and p["owner_id"] == user["id"]}

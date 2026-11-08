@@ -4,8 +4,9 @@ and the `worker` process alike (`cli._context` inits it); tracing is off. `send_
 cookies, headers and client addresses out, request bodies are never attached (a sign-in form carries the
 address and the code, a submission a zip), and what the code itself puts into a message or a local
 variable is scrubbed on the way out by `scrub_event` / `scrub_breadcrumb`: an e-mail address becomes
-`[email]`, a sign-in code, session token or API key `[token]`. The scrubbers are pure functions with no
-SDK import, so the tests need no DSN. Modelled on Phonyx's `monitoring.py`."""
+`[email]`, a sign-in code, session token or API key `[token]`. A coding agent's mistake (`agent_mistake`)
+is not sent at all. The filters are pure functions with no SDK import, so the tests need no DSN. Modelled
+on Phonyx's `monitoring.py`."""
 from __future__ import annotations
 
 import logging
@@ -155,6 +156,36 @@ def scrub_event(event: dict, hint: Any = None) -> dict:
     return event
 
 
+# What FastMCP raises itself for a call to a tool or resource it does not have (mcp 1.29).
+UNKNOWN_CALLS = ("Unknown tool: ", "Unknown resource: ")
+
+
+def agent_mistake(hint: Any) -> bool:
+    """True when an event's exception is a coding agent's mistake, not the server's error. Sentry's MCP
+    integration reports every exception out of a tool call or a resource read as unhandled, though the agent
+    gets it as an error to act on: a call refused for its input, quotas or rights (an exception with a true
+    `agent_mistake`, as `mcp_server.Refused`), arguments that do not fit the tool (FastMCP's model of them is
+    `<tool>Arguments`), a tool or resource that does not exist. FastMCP wraps a tool's exception in a
+    ToolError of its own, so the causes are followed; its refusal of an unknown name is never wrapped."""
+    exc = ((hint or {}).get("exc_info") or (None, None, None))[1]
+    if type(exc).__name__ in ("ToolError", "ValueError") and str(exc).startswith(UNKNOWN_CALLS):
+        return True
+    for _ in range(8):                                  # a chain of causes: short, and never a cycle
+        if exc is None:
+            return False
+        if getattr(exc, "agent_mistake", False) is True:
+            return True
+        if type(exc).__name__ == "ValidationError" and str(getattr(exc, "title", "")).endswith("Arguments"):
+            return True
+        exc = exc.__cause__
+    return False
+
+
+def before_send(event: dict, hint: Any = None) -> dict | None:
+    """`before_send`: an agent's mistake dropped, any other event scrubbed."""
+    return None if agent_mistake(hint) else scrub_event(event, hint)
+
+
 def scrub_breadcrumb(crumb: dict, hint: Any = None) -> dict | None:
     """`before_breadcrumb`: message and data scrubbed, category and level kept. The console mailer's
     log line (the whole sign-in mail, code included) is dropped rather than scrubbed."""
@@ -192,6 +223,6 @@ def init(cfg) -> bool:
     version = release(cfg.root)
     sentry_sdk.init(dsn=dsn, environment=environment, release=version,
                     send_default_pii=False, max_request_body_size="never", traces_sample_rate=0.0,
-                    before_send=scrub_event, before_breadcrumb=scrub_breadcrumb)
+                    before_send=before_send, before_breadcrumb=scrub_breadcrumb)
     log.info("monitoring: sentry on (%s, %s)", environment, version)
     return True

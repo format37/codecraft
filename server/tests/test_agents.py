@@ -564,6 +564,51 @@ def test_every_mcp_wrapper_matches_its_tool_function(env):
 
 
 # Logs and error reports ---------------------------------------------------------------------------------------
+def test_an_agents_mistakes_are_not_reported_to_sentry_a_bug_in_a_tool_is(env, monkeypatch):
+    """Sentry's MCP integration reported every exception of a tool call as the server's error, though the agent
+    gets it as a tool error to act on: the ten open issues of 2026-11-08 were all agents' mistakes. Here the
+    exceptions as FastMCP raises them to its handlers, where the integration catches them."""
+    from mcp.server.fastmcp.resources.resource_manager import ResourceManager
+    from mcp.server.fastmcp.tools.tool_manager import ToolManager
+
+    raised = []
+
+    def record(original):
+        async def wrapper(self, *args, **kwargs):
+            try:
+                return await original(self, *args, **kwargs)
+            except Exception as exc:
+                raised.append(exc)
+                raise
+        return wrapper
+
+    monkeypatch.setattr(ToolManager, "call_tool", record(ToolManager.call_tool))
+    monkeypatch.setattr(ResourceManager, "get_resource", record(ResourceManager.get_resource))
+    user, token = env.user()
+
+    def reported(method, params):
+        raised.clear()
+        r = rpc(env, token, method, params).json()
+        assert r.get("error") or r["result"].get("isError"), r
+        (exc,) = raised
+        return monitoring.before_send({}, {"exc_info": (type(exc), exc, exc.__traceback__)}) is not None
+
+    def call(name, args):
+        return reported("tools/call", {"name": name, "arguments": args})
+
+    assert not call("game", {"game_id": 999})                                   # refused: an AgentError
+    assert not call("play", {"opponents": [], "seed": 11249517513654704000})    # the seed's own validator
+    assert not call("game", {"game_id": "x"})                                   # FastMCP's model of the arguments
+    assert not call("no_such_tool", {})
+    assert not reported("resources/read", {"uri": "codecraft://nothing"})
+
+    def bug(*args, **kwargs):
+        raise KeyError("status")
+
+    monkeypatch.setattr(A, "call", bug)
+    assert call("whoami", {})
+
+
 def test_tokens_and_tickets_are_masked_in_logs_and_error_reports():
     token = "cc_" + "Ab3" * 13 + "x"
     event = monitoring.scrub_event({"request": {"url": f"https://h/mcp/{token}/"},

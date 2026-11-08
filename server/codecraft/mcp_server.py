@@ -30,6 +30,14 @@ from pydantic import BeforeValidator  # noqa: E402
 from . import agents as A  # noqa: E402
 
 
+class Refused(ToolError):
+    """A call refused for the agent's input, quotas or rights (an AgentError): the agent gets it as a tool
+    error to act on, and Sentry, whose MCP integration reports every exception of a tool, does not
+    (monitoring.agent_mistake)."""
+
+    agent_mistake = True
+
+
 def _seed_in(value):
     """play's seed has a string-only schema, so clients send it as a JSON string; a small number still
     passes, one above 2^53 (possibly rounded on the way) is refused with the reason."""
@@ -104,7 +112,7 @@ def _user(ctx: Context) -> dict:
     request = ctx.request_context.request
     user = getattr(getattr(request, "state", None), "user", None)
     if not user:
-        raise ToolError("no user: this server needs a token (see /agents on the site)")
+        raise Refused("no user: this server needs a token (see /agents on the site)")
     return user
 
 
@@ -131,7 +139,7 @@ def build(ax: A.Agents) -> FastMCP:
         try:
             result = await A.call(ax, tool, user, args)
         except A.AgentError as exc:
-            raise ToolError(str(exc)) from None
+            raise Refused(str(exc)) from None
         text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, separators=(",", ":"))
         return CallToolResult(content=[TextContent(type="text", text=text)])
 

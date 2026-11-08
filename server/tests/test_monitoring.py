@@ -67,7 +67,36 @@ def test_init_is_off_without_a_dsn_and_configures_the_sdk_with_one(tmp_path, mon
     assert kw["release"] == "codecraft@unknown"           # tmp_path is no git checkout
     assert kw["send_default_pii"] is False and kw["max_request_body_size"] == "never"
     assert kw["traces_sample_rate"] == 0.0
-    assert kw["before_send"] is monitoring.scrub_event and kw["before_breadcrumb"] is monitoring.scrub_breadcrumb
+    assert kw["before_send"] is monitoring.before_send and kw["before_breadcrumb"] is monitoring.scrub_breadcrumb
+
+
+def test_an_agents_mistake_is_not_sent_any_other_event_is_scrubbed():
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from codecraft.mcp_server import Refused
+
+    def hint(exc):
+        return {"exc_info": (type(exc), exc, None)}
+
+    def wrapped(cause):                                 # as FastMCP raises a tool's exception
+        outer = ToolError(f"Error executing tool play: {cause}")
+        outer.__cause__ = cause
+        return outer
+
+    def sent(h):
+        event = monitoring.before_send({"message": "for ann@example.com"}, h)
+        assert event is None or event["message"] == "for [email]"
+        return event is not None
+
+    assert not sent(hint(wrapped(Refused("you own 2 strategies; say which one plays: mine=<name>"))))
+    assert not sent(hint(ToolError("Unknown tool: nope")))
+    assert not sent(hint(ValueError("Unknown resource: codecraft://nope")))
+    assert sent(hint(wrapped(KeyError("status"))))      # a bug in a tool
+    assert sent(hint(wrapped(ValueError("Unknown resource: x"))))   # only FastMCP's own, unwrapped
+    assert sent(None) and sent({"exc_info": None}) and sent({})     # a log line
+    looped = ToolError("x")
+    looped.__cause__ = looped
+    assert sent(hint(looped))
 
 
 def test_release_names_the_checkout():
