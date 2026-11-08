@@ -317,6 +317,10 @@ their own machine within ten minutes (Linux, macOS or Windows, without compiling
   Host check), and the release goes out only when the replays agree byte for byte. The games did not change (the sim
   tests pass, with the Windows exe under Wine as well); the engine's version did, with its sources. A
   `.gitattributes` keeps the engine's sources byte for byte in Windows checkouts, where CRLF would change the version.
+  The first run stopped before its release, as designed, when the Windows build reported another version: MSYS2's
+  `sha256sum` marks its lines `<hash> *<path>`, which the Makefile now writes as the other systems do. The release
+  `runner-5869ac46fa50` is the first with the Windows zip; the server plays that engine, and the quick start, the
+  release notes and the READMEs of the three repositories give the Windows lines.
 
 Not in this phase: leagues clustering (phase 2), tournaments, notarization of the Mac binary, Homebrew/winget. A
 hosted runner (the viewer served by our site, the strategy on the player's machine connecting over the internet)

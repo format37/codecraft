@@ -215,4 +215,5 @@ play games against opponents of its choice, read the timelines of its games and 
 ## Questions
 
 {% if community_url %}[{{ community_name }}]({{ community_url }}) is where the players are: ask there, show your
-games, be the first Mac tester. {% endif %}Bugs and ideas: [issues]({{ repo }}/issues) on GitHub.
+games, be the first to run the macOS or the Windows binary. {% endif %}Bugs and ideas: [issues]({{ repo }}/issues) on
+GitHub.
