@@ -409,8 +409,11 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                 "download": f"/games/{game_id}/files/replay.dat", "labels": player_labels(players),
                 "seed": row["seed"] or "", "engine": engine, "autoplay": autoplay,
                 "speed": speed if speed in VIEWER_SPEEDS else None}
+        # frame-ancestors makes browsers ignore X-Frame-Options, which a reverse proxy may add (the live one adds
+        # DENY to every response, and DENY with SAMEORIGIN is DENY)
         return HTMLResponse(viewer_page(site, engine.rpartition(":")[2] or "unknown"),
-                            headers={"X-Frame-Options": "SAMEORIGIN", "Cache-Control": "no-cache"})
+                            headers={"Content-Security-Policy": "frame-ancestors 'self'",
+                                     "X-Frame-Options": "SAMEORIGIN", "Cache-Control": "no-cache"})
 
     @app.get("/games/{game_id}/files/{name}")
     def game_file(request: Request, game_id: int, name: str):

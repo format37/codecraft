@@ -144,6 +144,7 @@ def test_a_replay_plays_in_the_local_runners_viewer(tmp_path):
 
     r = client.get(f"/games/{gid}/viewer?autoplay=true&speed=20")
     assert r.status_code == 200 and r.headers["x-frame-options"] == "SAMEORIGIN"
+    assert r.headers["content-security-policy"] == "frame-ancestors 'self'"  # over a proxy's X-Frame-Options
     page = r.text
     runner = VIEWER.read_text()
     assert VIEWER_SLOT in runner and VIEWER_SLOT not in page
