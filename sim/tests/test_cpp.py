@@ -4,23 +4,28 @@
 - Against the Python engine, which it copies seed for seed (the same rules, the same draws from CPython's generator,
   in the same order): from the same config and seed, with the same players, the same bytes: the replay, results.json
   and the log lines. On every fixture (puppets over TCP included) with other seeds, on generated maps, on games of
-  QuickStart bots, and from states of stored official games.
+  QuickStart bots and of the sparring bot (over TCP: its games use the whole rules), and from states of stored
+  official games.
 
 `make -C sim-cpp` builds the engine; these tests are skipped when that cannot be done (no compiler)."""
 from __future__ import annotations
 
 import json
 import os
+import random
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
+from codecraft_sim import mapgen
 from codecraft_sim import replay as replay_io
 from codecraft_sim.model import model_json
-from oracle import fixture
+from oracle import fixture, loadfrom
+from oracle.puppet import Puppet
 
+import sparring
 from conftest import ROOT, SLOW, needs_corpus, replays
 from test_engine import FIXTURES, NAMES, SIM, check_fixture_run, play_all, play_fixture
 
@@ -104,10 +109,10 @@ ROUND1 = [["BuilderBase", {"x": 5, "y": 5}], ["BuilderUnit", {"x": 4, "y": 4}], 
 
 
 def custom(seed: int, entities: list, seats: int, fog: bool, ticks: int, players: str = "QuickStart",
-           size: int = 80) -> dict:
+           size: int = 80, resource: int = 0) -> dict:
     return {"seed": seed, "game": {"Create": {"Custom": {
-        "map_size": size, "initial_resource": 0, "passive_income": 0, "max_pathfind_nodes": 1000, "fog_of_war": fog,
-        "max_tick_count": ticks, "starting_entities": entities}}}, "players": [players] * seats}
+        "map_size": size, "initial_resource": resource, "passive_income": 0, "max_pathfind_nodes": 1000,
+        "fog_of_war": fog, "max_tick_count": ticks, "starting_entities": entities}}}, "players": [players] * seats}
 
 
 def test_same_maps(tmp_path):
@@ -118,14 +123,39 @@ def test_same_maps(tmp_path):
 
 
 def test_same_quickstart_games(tmp_path):
-    """Games of QuickStart bots, with and without fog of war, two and four seats; full presets with SIM_SLOW=1."""
+    """Games of QuickStart bots, with and without fog of war, two and four seats; full presets with SIM_SLOW=1. The
+    bots start with the money for their house (most of these maps leave its spot free): they build, repair, mine."""
     ticks = 300 if SLOW else 80
-    configs = [custom(seed, ents, seats, fog, ticks) for seed in (1, 2)
+    configs = [custom(seed, ents, seats, fog, ticks, resource=100) for seed in (1, 2)
                for ents, seats, fog in ((ROUND1, 4, False), (ROUND1[:2], 4, True), (ROUND1[:2], 2, True))]
     if SLOW:
         configs += [{"seed": seed, "game": {"Create": fmt}, "players": ["QuickStart"] * seats}
                     for seed in (1, 2, 3) for fmt, seats in (("Round1", 4), ("Round2", 4), ("Finals", 2))]
     assert same_files(configs, tmp_path) == []
+
+
+def test_same_games_of_the_sparring_bot():
+    """Games that use the whole rules, which the minimal QuickStart's do not (no army, no fight): the sparring bot
+    over TCP in every seat, with and without fog of war, two and four seats, full presets with SIM_SLOW=1. The same
+    states tick by tick, results and log."""
+    ticks = 300 if SLOW else 80
+    games = [(seed, mapgen.options_from_json(custom(seed, ents, seats, fog, ticks)["game"]["Create"]["Custom"]), seats)
+             for seed in (1, 2)
+             for ents, seats, fog in ((ROUND1, 4, False), (ROUND1[:2], 4, True), (ROUND1[:2], 2, True))]
+    if SLOW:
+        games += [(seed, mapgen.preset(fmt), seats)
+                  for seed in (1, 2, 3) for fmt, seats in (("Round1", 4), ("Round2", 4), ("Finals", 2))]
+
+    def differs(game):
+        seed, options, seats = game
+        model = mapgen.create(options, seats, random.Random(seed))
+        a, b = (outcome(loadfrom.run(model, [Puppet(sparring.get_action) for _ in range(seats)], seed=seed,
+                                     timeout=None, engine=engine, wall_timeout=3600)) for engine in (SIM, CPP))
+        return None if a == b else f"seed {seed}, {seats} seats, fog {options.fog_of_war}"
+
+    with ThreadPoolExecutor(WORKERS) as pool:
+        bad = [d for d in pool.map(differs, games) if d]
+    assert not bad, bad
 
 
 @needs_corpus

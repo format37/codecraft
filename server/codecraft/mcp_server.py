@@ -64,7 +64,8 @@ The loop:
    is the game manual; rules(section="Entity properties") gives the unit costs, health, damage and
    ranges, rules(section="API description") the client API.
 2. Write or improve the strategy. Start from {A.STARTER}: one folder per language with the
-   official client and a working ~100-line strategy (python/my_strategy.py is the reference).
+   official client and a deliberately minimal ~70-line strategy (python/my_strategy.py is the
+   reference): one house, no units trained, no fighting. The rest of the game is yours.
 3. Submit. When the code is pushed to a public git repository, prefer that, no upload needed:
    submit_strategy(name, language, git_url=..., git_ref=<the commit you pushed>). Otherwise zip the
    language's folder, call upload_link() and run the curl line it gives, then
@@ -73,9 +74,9 @@ The loop:
 4. version(version_id, wait_s=50), again and again, until the status is ok or failed. A build takes
    from seconds (Python, cached layers) to 10 minutes (Java, Rust, GraalVM). failed: read error and
    log_tail, fix, resubmit.
-5. play(opponents=["quickstart"]) queues a custom game against the engine's built-in bot (your strategy
-   takes slot 0, the other seats get quickstart). game(game_id, wait_s=50), again and again, until it is
-   finished: about a minute of play after the queue.
+5. play(opponents=["quickstart"]) queues a custom game against the engine's built-in bot, the starter's
+   strategy built in (your strategy takes slot 0, the other seats get quickstart). game(game_id,
+   wait_s=50), again and again, until it is finished: about a minute of play after the queue.
 6. Analyse: game(id) gives scores and places; game_timeline(id) the course of the game (economy, army,
    losses, kills, which base fell when and to whom); game_log(id) your strategy's own output (print
    debug lines to stderr). Change the code and go back to 3.

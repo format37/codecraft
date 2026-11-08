@@ -87,10 +87,12 @@ viewer/viewer.html   the viewer (built into the binary)
 
 Tests (`sim/tests/test_cpp.py` and `test_live.py`, run with the Python tests from `sim/`): every fixture of the
 official engine, as the Python engine is checked; the same bytes as the Python engine on every fixture with other
-seeds (puppets over TCP included), on generated maps, on games of QuickStart bots, and from states of the stored
-official games; and the GUI mode: the batch mode's game, the debug interface through the official Python client's
-classes, the viewer's controls, saves and config screen, replays of ours and of the official engine.
-`SIM_SLOW=1` adds full 1000-tick games of the three presets and more seeds and states.
+seeds (puppets over TCP included), on generated maps, on games of QuickStart bots and of the sparring bot (the old
+QuickStart, over TCP: its games use the whole rules), and from states of the stored official games; and the GUI
+mode: the batch mode's game, the debug interface through the official Python client's classes, the viewer's
+controls, saves and config screen, replays of ours and of the official engine. `test_quickstart.py` checks that
+the built-in bot plays the starter's game, byte for byte. `SIM_SLOW=1` adds full 1000-tick games of the three
+presets and more seeds and states.
 
-Speed: a Round1 game of four QuickStart bots takes 2 to 6 s on one core (the Python engine: 1 to 3 minutes), most
-of it in the bots; memory under 5 MB.
+Speed: a game of four QuickStart bots takes about a second on one core (the Python engine: 13 to 30 s); memory
+under 5 MB.

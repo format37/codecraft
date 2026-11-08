@@ -77,8 +77,11 @@ the official outcomes, must be what the official engine gave. The map tests (`te
 presets' starting entities against the stored official games, id for id, and our maps' symmetry, free corners and
 paths. The C++ tests (`tests/test_cpp.py`, after `make -C ../sim-cpp`, which they run) check the C++ engine on every
 fixture as the Python engine is checked, and that it writes the same bytes as this engine from the same config and
-seed: on the fixtures with other seeds, on maps, on games of QuickStart bots and from stored official states. The
-local runner's tests (`tests/test_live.py`) check the C++ engine's GUI mode: the batch mode's game, the official
+seed: on the fixtures with other seeds, on maps, on games of QuickStart bots and of the sparring bot
+(`tests/sparring.py`, the old QuickStart, over TCP: its games use the whole rules) and from stored official
+states. The QuickStart tests (`tests/test_quickstart.py`) check that the built-in bot plays the game the starter
+strategy plays through the official Python client (a copy in `tests/starter/`), byte for byte. The local runner's
+tests (`tests/test_live.py`) check the C++ engine's GUI mode: the batch mode's game, the official
 GUI's debug interface through the official Python client's classes, the viewer's controls and saves, replays; and
 the official configs' null host and token in the official engine and in both of ours. The
 replay tests use the stored games in `data/games/` (skipped when there are none) and cross-check against the

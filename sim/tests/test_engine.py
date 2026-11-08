@@ -126,22 +126,23 @@ def custom(ticks: int, fog: bool = False, entities=(("BuilderBase", 5, 5), ("Bui
 
 def test_create_game_is_deterministic(tmp_path):
     """A seed and deterministic players replay a game exactly: the same replay, byte for byte, and results.json as
-    the official engine writes it; the server's decoder reads the replay."""
-    a, da = create_game(tmp_path, custom(60, fog=True), ["QuickStart"] * 4, name="a")
-    b, db = create_game(tmp_path, custom(60, fog=True), ["QuickStart"] * 4, name="b")
+    the official engine writes it; the server's decoder reads the replay. (A seed whose map leaves the QuickStart
+    house's fixed spot free: the bots build, repair and mine.)"""
+    a, da = create_game(tmp_path, custom(60, fog=True), ["QuickStart"] * 4, seed=15, name="a")
+    b, db = create_game(tmp_path, custom(60, fog=True), ["QuickStart"] * 4, seed=15, name="b")
     assert a.returncode == b.returncode == 0, a.stderr
     assert (da / "replay.dat").read_bytes() == (db / "replay.dat").read_bytes()
     text = (da / "results.json").read_text()
     res = json.loads(text)
     assert text == json.dumps(res, indent=2) and not text.endswith("\n")
-    assert res["seed"] == 5 and len(res["players"]) == len(res["results"]) == 4
+    assert res["seed"] == 15 and len(res["players"]) == len(res["results"]) == 4
     assert res["players"] == [{"crashed": False, "comment": None}] * 4
     rep = replay_io.load(da / "replay.dat")
     assert rep.tick_count == 60
     final = list(rep.states())[-1]
     assert res["results"] == [p.score for p in sorted(final.players.values(), key=lambda p: p.index)]
-    assert any(e.entity_type == EntityType.BUILDER_UNIT and e.id > 40 for e in final.entities.values()), \
-        "the bots trained builders"
+    assert sum(e.entity_type == EntityType.HOUSE and e.active for e in final.entities.values()) == 4, \
+        "every bot built its house"
     sys.path.insert(0, str(ROOT / "server"))
     try:
         from codecraft import replay as server_replay

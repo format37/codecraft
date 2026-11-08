@@ -226,15 +226,18 @@ games: from the same config and seed, the same replay and results, byte for byte
 - every fixture played by our engine as a whole, in place of the binary (TCP seats, crashes, log lines,
   results), gives what the binary gave; the 15 starter languages played it with `./cw play`;
 - the C++ engine writes the Python engine's bytes on every fixture with other seeds, on generated maps, on full
-  games of QuickStart bots in the three presets and from states of the stored official games.
+  games of QuickStart bots and of the sparring bot (the old QuickStart, over TCP) in the three presets and from
+  states of the stored official games.
 
 What differs from the official engine, by design: the maps (ours are the same under the eight symmetries of the
 square, so every seat sees the same field from its corner; the official ones only under a half turn), the
 QuickStart bot (ours is the starter strategy of
-[codecraft-starter](https://github.com/format37/codecraft-starter); the official bot is closed, so the
-`quickstart` rating will drift), and the random draws (the same seed gives another game than the official engine;
-our engine replays its own games exactly). Speed: a game of four QuickStart bots takes 1 to 5 minutes in the
-Python engine and 2 to 10 seconds in the C++ one, under 5 MB; with real players their thinking time dominates.
+[codecraft-starter](https://github.com/format37/codecraft-starter), since 2026-11-08 the minimal one: one house,
+no units trained, no fighting; the official bot is closed, so the `quickstart` rating will drift), and the random
+draws (the same seed gives another game than the official engine; our engine replays its own games exactly).
+Speed: a game of four QuickStart bots takes 13 to 30 seconds in the Python engine and about a second in the C++
+one, under 5 MB (with the old QuickStart, which played a whole game: 1 to 5 minutes and 2 to 10 seconds); with
+real players their thinking time dominates.
 
 Since 2026-11-07 the server runs the C++ engine by default: `engine: {image: codecraft/sim-cpp, context:
 sim-cpp}` in `config.yaml`. Another engine is picked there or with `CW_ENGINE_IMAGE` and `CW_ENGINE_CONTEXT` in
