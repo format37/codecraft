@@ -1,0 +1,133 @@
+# The runner for everyone: the engine image on GHCR and binaries on GitHub Releases, from sim-cpp/ on master.
+# One version = one engine: `make -C sim-cpp version`, the hash of the engine's sources, is the tag the server
+# gives its own image and the version every game page names. A push that leaves that version as it is publishes
+# nothing new. docs/QUICKSTART.md tells players how to use what this publishes.
+# Once, by hand: the package ghcr.io/<owner>/codecraft-runner is private when first pushed; make it public on
+# GitHub (Packages -> codecraft-runner -> Package settings -> Change visibility).
+name: runner
+
+on:
+  push:
+    branches: [master]
+    paths: ["sim-cpp/**", ".github/workflows/runner.yml", ".github/runner-*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write    # the release and its tag
+  packages: write    # ghcr.io/<owner>/codecraft-runner
+
+concurrency:
+  group: runner
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/codecraft-runner
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: echo "version=$(make -s -C sim-cpp version)" | tee -a "$GITHUB_OUTPUT"
+
+  image:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      V: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Is this version on GHCR already?
+        id: have
+        run: |
+          if docker manifest inspect "$IMAGE:$V" >/dev/null 2>&1; then
+            echo "$IMAGE:$V exists: nothing to push"; echo "have=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-qemu-action@v3
+        if: steps.have.outputs.have == 'false'
+      - uses: docker/setup-buildx-action@v3
+        if: steps.have.outputs.have == 'false'
+      - name: Build and push linux/amd64 + linux/arm64
+        if: steps.have.outputs.have == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: sim-cpp
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.V }}
+            ${{ env.IMAGE }}:latest
+      - name: The image says its version
+        run: |
+          docker run --rm --platform linux/amd64 "$IMAGE:$V" --version | tee out
+          grep -qx "codecraft-sim-cpp $V" out
+
+  binaries:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04        # an old glibc (2.35), so the binary runs on the distributions of 2022 and later
+            asset: codecraft-runner-linux-x86_64
+            make: LDFLAGS="-pthread -static-libstdc++ -static-libgcc"
+          - os: ubuntu-22.04-arm
+            asset: codecraft-runner-linux-arm64
+            make: LDFLAGS="-pthread -static-libstdc++ -static-libgcc"
+          - os: macos-14            # one universal binary: Apple silicon and Intel
+            asset: codecraft-runner-macos
+            make: CXXFLAGS="-O2 -std=c++17 -Wall -Wextra -ffp-contract=off -arch arm64 -arch x86_64" LDFLAGS="-pthread -arch arm64 -arch x86_64"
+    runs-on: ${{ matrix.os }}
+    env:
+      V: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: make -C sim-cpp -j3 ${{ matrix.make }}
+      - name: The binary says its version
+        run: |
+          sim-cpp/build/codecraft-sim-cpp --version | tee out
+          grep -qx "codecraft-sim-cpp $V" out
+          file sim-cpp/build/codecraft-sim-cpp
+          if [ "$RUNNER_OS" = macOS ]; then lipo -archs sim-cpp/build/codecraft-sim-cpp | grep -q x86_64; fi
+      - name: Pack
+        run: |
+          mkdir out
+          cp sim-cpp/build/codecraft-sim-cpp out/codecraft-runner
+          sed "s/@VERSION@/$V/g; s/@OWNER@/${{ github.repository_owner }}/g" .github/runner-README.txt > out/README.txt
+          COPYFILE_DISABLE=1 tar czf "${{ matrix.asset }}.tar.gz" -C out codecraft-runner README.txt
+          tar tzf "${{ matrix.asset }}.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: [version, image, binaries]
+    runs-on: ubuntu-latest
+    env:
+      V: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Release runner-<version>
+        run: |
+          if gh release view "runner-$V" >/dev/null 2>&1; then echo "runner-$V exists: nothing to release"; exit 0; fi
+          sed "s/@VERSION@/$V/g; s/@OWNER@/${{ github.repository_owner }}/g" .github/runner-release.md > notes.md
+          gh release create "runner-$V" assets/*.tar.gz --target "$GITHUB_SHA" --title "Runner $V" \
+            --notes-file notes.md --latest

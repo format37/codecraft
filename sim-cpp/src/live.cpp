@@ -13,6 +13,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0  // macOS has no such flag: no_sigpipe (trans.hpp) sets the socket option instead
+#endif
+
 #include "jsonout.hpp"
 
 extern const char VIEWER_HTML[];     // build/viewer_html.cpp, made from viewer/viewer.html by the Makefile
@@ -46,6 +50,17 @@ const std::string& viewer_page() {
         return s;
     }();
     return page;
+}
+
+// The page's own address, as the browser writes it in Host: 127.0.0.1, localhost or [::1], with any port (behind
+// `docker -p HOSTPORT:31000` the browser names the host's port, not ours). A rebound DNS name is none of these.
+bool own_host(const std::string& host) {
+    for (const char* own : {"127.0.0.1", "localhost", "[::1]"}) {
+        std::string h = own;
+        if (host == h || (host.size() > h.size() && host.compare(0, h.size(), h) == 0 && host[h.size()] == ':'))
+            return true;
+    }
+    return false;
 }
 
 void respond(int fd, int code, const char* type, const std::string& body) {
@@ -188,6 +203,7 @@ void Live::accept_loop() {
         if (poll(&p, 1, 300) <= 0) continue;
         int fd = accept(listener_, nullptr, nullptr);
         if (fd < 0) continue;
+        no_sigpipe(fd);
         timeval tv{10, 0};                         // a request is read, an event written, within 10 s
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
@@ -207,8 +223,7 @@ void Live::serve(int fd) {
         close(fd);
         return;
     }
-    std::string port = std::to_string(port_);
-    if (req.host != "127.0.0.1:" + port && req.host != "localhost:" + port && req.host != "[::1]:" + port) {
+    if (!own_host(req.host)) {
         respond(fd, 403, "text/plain", "forbidden\n");
     } else if (req.method == "GET" && (req.path == "/" || req.path == "/index.html")) {
         respond(fd, 200, "text/html; charset=utf-8", viewer_page());

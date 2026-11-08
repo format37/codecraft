@@ -5,6 +5,7 @@
 // local runner: the game is shown live in the browser (http://127.0.0.1:31000/) with the official GUI's debug
 // interface for the TCP clients; without --config the viewer asks for one.
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <set>
@@ -21,6 +22,13 @@ int main(int argc, char** argv) {
     std::string config_path, save_results, save_replay, replay_path, log_level = "info";
     bool replay_mode = false, client_gen = false, batch = false;
     cc::LiveOptions live;
+    // The image ghcr.io/format37/codecraft-runner sets CODECRAFT_RUNNER_CONTAINER=1 (sim-cpp/Dockerfile): the viewer
+    // and the seats listen on every address, to be reached through `docker -p`, and no browser is opened. Flags on
+    // the command line still win; batch mode (the server) uses neither.
+    if (const char* c = getenv("CODECRAFT_RUNNER_CONTAINER"); c && *c && strcmp(c, "0") != 0) {
+        live.bind = "0.0.0.0";
+        live.open_browser = false;
+    }
     const std::set<std::string> ignored_with_value = {"--repeat", "--lang", "--client-gen-options",
                                                      "--client-gen-host-from-docker", "--client-gen-test-mode"};
     for (int k = 1; k < argc; k++) {
@@ -42,7 +50,10 @@ int main(int argc, char** argv) {
                    "  --save-results FILE --save-replay FILE --log-level LEVEL --player-names NAME...\n"
                    "Without --batch-mode the game is shown live in the browser, with the debug interface of the\n"
                    "official GUI for TCP clients; without --config the viewer asks for one:\n"
-                   "  --viewer-port PORT      the viewer's port on 127.0.0.1 (default 31000; 0 = any free one)\n"
+                   "  --viewer-port PORT      the viewer's port (default 31000; 0 = any free one)\n"
+                   "  --bind ADDR             the address the viewer and the TCP seats without a host listen on\n"
+                   "                          (default 127.0.0.1; the container image, which sets\n"
+                   "                          CODECRAFT_RUNNER_CONTAINER=1, listens on 0.0.0.0 and opens no browser)\n"
                    "  --viewer-speed TPS      ticks per second at the start (default 10; 0 = as fast as it goes)\n"
                    "  --no-browser            do not open the browser\n"
                    "  --viewer-exit           exit when the game is over (default: wait for the next game)\n"
@@ -60,6 +71,8 @@ int main(int argc, char** argv) {
             batch = true;
         } else if (a == "--viewer-port") {
             live.port = atoi(value().c_str());
+        } else if (a == "--bind") {
+            live.bind = value();
         } else if (a == "--viewer-speed") {
             live.speed = atof(value().c_str());
         } else if (a == "--no-browser") {

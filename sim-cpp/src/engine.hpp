@@ -13,7 +13,8 @@ constexpr int PANIC = 101;
 int run(const Json& config, const std::string& save_results, const std::string& save_replay, Log& log);
 
 struct LiveOptions {
-    int port = 31000;                  // the viewer's (127.0.0.1); 0 = any free port
+    std::string bind = "127.0.0.1";    // --bind: where the viewer and the TCP seats without a host listen
+    int port = 31000;                  // the viewer's port; 0 = any free port
     bool open_browser = true;
     double speed = 10;                 // ticks per second at the start; 0 = as fast as it goes
     bool exit_when_over = false;       // end after the game instead of waiting for the next one (tests)

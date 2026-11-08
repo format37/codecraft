@@ -13,6 +13,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0  // macOS has no such flag: no_sigpipe (trans.hpp) sets the socket option instead
+#endif
+
 #include "quickstart.hpp"
 
 namespace cc {
@@ -125,6 +129,7 @@ void TcpPlayer::start() {
     log_.info("Got connection on port " + std::to_string(port_));
     int one = 1;
     setsockopt(conn, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
+    no_sigpipe(conn);
     set_timeout(conn, accept_timeout_);
     std::string token;
     try {

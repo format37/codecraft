@@ -11,6 +11,15 @@ std::string os_error(int err) {
     return std::string("IO error: ") + strerror(err) + " (os error " + std::to_string(err) + ")";
 }
 
+void no_sigpipe(int fd) {
+#ifdef SO_NOSIGPIPE
+    int one = 1;
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
+#else
+    (void)fd;
+#endif
+}
+
 void SocketReader::read(void* out, size_t n) {
     char* dst = static_cast<char*>(out);
     while (n > 0) {

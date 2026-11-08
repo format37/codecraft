@@ -74,7 +74,7 @@ std::optional<double> opt_seconds(const Json* v) {
     return v->as_double();
 }
 
-std::unique_ptr<Seat> make_seat(const Json& spec, Log& log) {
+std::unique_ptr<Seat> make_seat(const Json& spec, const std::string& default_host, Log& log) {
     std::string kind;
     const Json* value = nullptr;
     if (spec.kind == Json::String) {
@@ -89,12 +89,13 @@ std::unique_ptr<Seat> make_seat(const Json& spec, Log& log) {
     if (kind == "QuickStart") return std::make_unique<QuickStartPlayer>();
     if (kind == "Tcp" && value) {
         try {
-            // null host: 127.0.0.1; null token: any token is taken (as the official runner)
+            // null host: the runner's own address (127.0.0.1, or --bind); null token: any token is taken (as the
+            // official runner)
             const Json* host = value->get("host");
             const Json* token = value->get("token");
             std::optional<std::string> tok;
             if (token && !token->is_null()) tok = token->as_string();
-            return std::make_unique<TcpPlayer>(host && !host->is_null() ? host->as_string() : "127.0.0.1",
+            return std::make_unique<TcpPlayer>(host && !host->is_null() ? host->as_string() : default_host,
                                                static_cast<int>(value->at("port").as_int()),
                                                opt_seconds(value->get("accept_timeout")),
                                                opt_seconds(value->get("timeout")), tok, log);
@@ -176,7 +177,7 @@ struct Game {
     std::vector<std::unique_ptr<Seat>> seats;
 };
 
-Game setup(const Json& config, Log& log) {
+Game setup(const Json& config, Log& log, const std::string& default_host = "127.0.0.1") {
     Game g;
     const Json* s = config.get("seed");
     if (!s || s->is_null()) {
@@ -192,7 +193,7 @@ Game setup(const Json& config, Log& log) {
         throw ConfigError("`players` must list 1 to 4 seats");
     g.rng = std::make_unique<PyRandom>(g.seed);
     g.model = load_game(config, static_cast<int>(specs->arr.size()), *g.rng);
-    for (const Json& spec : specs->arr) g.seats.push_back(make_seat(spec, log));
+    for (const Json& spec : specs->arr) g.seats.push_back(make_seat(spec, default_host, log));
     return g;
 }
 
@@ -558,12 +559,13 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
     Live live(log, opts.speed, opts.server_limits);
     int port;
     try {
-        port = live.listen("127.0.0.1", opts.port);
+        port = live.listen(opts.bind, opts.port);
     } catch (const std::exception& e) {
         log.error(std::string("panicked at 'Could not start the viewer: ") + e.what() + "'");
         return PANIC;
     }
     live.start();
+    // always 127.0.0.1, whatever --bind: in a container, `docker -p` brings the host's 127.0.0.1 here
     std::string url = "http://127.0.0.1:" + std::to_string(port) + "/";
     log.info("Viewer: " + url);
     if (opts.open_browser) open_browser(url);
@@ -590,7 +592,7 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
         if (from_file) base = cfg;
         Game g;
         try {
-            g = setup(cfg, log);
+            g = setup(cfg, log, opts.bind);
         } catch (const std::exception& e) {
             log.error(std::string("panicked at '") + e.what() + "'");
             if (from_file) return PANIC;        // a bad --config file ends the runner, as in batch mode
@@ -633,12 +635,13 @@ int run_replay(const std::string& path, const LiveOptions& opts, Log& log) {
     Live live(log, opts.speed);
     int port;
     try {
-        port = live.listen("127.0.0.1", opts.port);
+        port = live.listen(opts.bind, opts.port);
     } catch (const std::exception& e) {
         log.error(std::string("panicked at 'Could not start the viewer: ") + e.what() + "'");
         return PANIC;
     }
     live.start();
+    // always 127.0.0.1, whatever --bind: in a container, `docker -p` brings the host's 127.0.0.1 here
     std::string url = "http://127.0.0.1:" + std::to_string(port) + "/";
     log.info("Viewer: " + url);
     if (opts.open_browser) open_browser(url);

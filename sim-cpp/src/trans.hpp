@@ -32,6 +32,10 @@ struct Writer {
     }
 };
 
+// A peer that hangs up must not end the process with SIGPIPE: on Linux every send passes MSG_NOSIGNAL; macOS has
+// no such flag and takes this socket option instead (set on every connected socket, a no-op on Linux).
+void no_sigpipe(int fd);
+
 // A failure of a seat's connection or of its bytes; the text is the official engine's ("IO error: ...").
 struct IoError : std::runtime_error {
     using std::runtime_error::runtime_error;

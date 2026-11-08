@@ -19,6 +19,7 @@ docs/private/engine-probes/step9); and the official configs' null host and token
 from __future__ import annotations
 
 import json
+import os
 import re
 import socket
 import subprocess
@@ -141,13 +142,14 @@ class Stream(threading.Thread):
         return [d for n, d in list(self.events) if n == name]
 
 
-def live(tmp_path: Path, config: dict | None, *args: str) -> tuple[subprocess.Popen, int, list]:
+def live(tmp_path: Path, config: dict | None, *args: str, env: dict | None = None,
+         no_browser: bool = True) -> tuple[subprocess.Popen, int, list]:
     """The GUI mode without a browser, on a free port; returns the process, the viewer's port and its log lines."""
-    cmd = [str(CPP), "--no-browser", "--viewer-port", "0", *args]
+    cmd = [str(CPP), *(["--no-browser"] if no_browser else []), "--viewer-port", "0", *args]
     if config is not None:
         (tmp_path / "config.json").write_text(json.dumps(config))
         cmd += ["--config", str(tmp_path / "config.json")]
-    p = subprocess.Popen(cmd, cwd=tmp_path, stderr=subprocess.PIPE, text=True)
+    p = subprocess.Popen(cmd, cwd=tmp_path, stderr=subprocess.PIPE, text=True, env=env)
     log, port = [], None
     for line in p.stderr:
         log.append(line)
@@ -528,3 +530,98 @@ def test_warn_only_lets_a_strategy_think(tmp_path):
         assert stream.named("seat")[-1]["comment"].startswith("Player crashed: 0.5 s of answers in all")
     finally:
         p.kill()
+
+
+def loopback_get(port: int, address: str, host: str) -> int:
+    """GET / at a loopback address, with the Host header of the test's choosing (the browser's, behind docker -p)."""
+    req = urllib.request.Request(f"http://{address}:{port}/", headers={"Host": host})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
+def listening(log: list) -> bool:
+    return any("Waiting for connection on port" in line for line in log)
+
+
+@needs_cpp
+@pytest.mark.skipif(sys.platform != "linux", reason="every 127.x.y.z address is loopback on Linux only")
+def test_bind_listens_on_every_address(tmp_path):
+    """`--bind 0.0.0.0` (the container image's setting): the viewer and the TCP seats without a host answer on another
+    loopback address too, and the Host check still wants the page's own address, with any port (docker -p remaps
+    it). Without --bind they listen on 127.0.0.1 alone."""
+    seat = free_port()
+    config = {"seed": 1, "game": {"Create": "Round1"},
+              "players": [tcp_seat(seat), "QuickStart", "QuickStart", "QuickStart"]}
+    p, port, log = live(tmp_path, config, "--bind", "0.0.0.0", "--viewer-speed", "0", "--viewer-exit")
+    try:
+        assert loopback_get(port, "127.0.0.2", f"127.0.0.1:{port}") == 200
+        assert loopback_get(port, "127.0.0.2", "localhost:31000") == 200         # docker -p 31000:<our port>
+        assert loopback_get(port, "127.0.0.2", "[::1]") == 200
+        assert loopback_get(port, "127.0.0.2", f"127.0.0.2:{port}") == 403        # not the page's own address
+        assert loopback_get(port, "127.0.0.2", f"evil.example:{port}") == 403
+        assert loopback_get(port, "127.0.0.2", f"localhost.evil.example:{port}") == 403
+        assert until(lambda: listening(log))
+        socket.create_connection(("127.0.0.2", seat), timeout=10).close()       # the seat, from another address
+        assert p.wait(timeout=120) == 0, "".join(log)
+        assert any("Got connection on port" in line for line in log), "".join(log)
+    finally:
+        p.kill()
+    seat = free_port()
+    config["players"][0] = tcp_seat(seat)
+    p, port, log = live(tmp_path, config, "--viewer-exit")
+    try:
+        assert until(lambda: listening(log))
+        with pytest.raises(OSError):
+            socket.create_connection(("127.0.0.2", seat), timeout=5)
+        with pytest.raises(urllib.error.URLError):
+            urllib.request.urlopen(f"http://127.0.0.2:{port}/", timeout=5)
+        assert loopback_get(port, "127.0.0.1", f"127.0.0.1:{port}") == 200
+        socket.create_connection(("127.0.0.1", seat), timeout=10).close()
+    finally:
+        p.kill()
+
+
+@needs_cpp
+def test_the_container_image_defaults(tmp_path):
+    """CODECRAFT_RUNNER_CONTAINER=1 (the image's environment) stands for --bind 0.0.0.0 --no-browser: the viewer's URL
+    is printed and no browser is launched, while on a machine the browser opens on that URL; a flag on the command
+    line wins over the environment."""
+    opener = "open" if sys.platform == "darwin" else "xdg-open"       # what the runner launches the browser with
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / opener).write_text(f'#!/bin/sh\necho "$1" > "{tmp_path}/opened"\n')
+    (bin_dir / opener).chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+    container = {**env, "CODECRAFT_RUNNER_CONTAINER": "1"}
+    config = {"seed": 1, "game": {"Create": "Round1"}, "players": ["QuickStart"] * 4}
+    fast = ("--viewer-speed", "0", "--viewer-exit")
+
+    p, port, log = live(tmp_path, config, *fast, env=container, no_browser=False)
+    try:
+        if sys.platform == "linux":
+            assert loopback_get(port, "127.0.0.2", f"127.0.0.1:{port}") == 200   # 0.0.0.0
+        assert p.wait(timeout=120) == 0, "".join(log)
+    finally:
+        p.kill()
+    assert f"INFO - Viewer: http://127.0.0.1:{port}/\n" in log, "".join(log)
+    assert not (tmp_path / "opened").exists()
+
+    p, port, log = live(tmp_path, config, *fast, env=env, no_browser=False)
+    try:
+        assert p.wait(timeout=120) == 0, "".join(log)
+    finally:
+        p.kill()
+    assert until(lambda: (tmp_path / "opened").exists(), 5)
+    assert (tmp_path / "opened").read_text().strip() == f"http://127.0.0.1:{port}/"
+
+    if sys.platform == "linux":
+        p, port, log = live(tmp_path, config, *fast, "--bind", "127.0.0.1", env=container)
+        try:
+            with pytest.raises(urllib.error.URLError):
+                urllib.request.urlopen(f"http://127.0.0.2:{port}/", timeout=5)
+            assert p.wait(timeout=120) == 0, "".join(log)
+        finally:
+            p.kill()
