@@ -23,11 +23,12 @@ class FakeMailer:
 REPO = Path(__file__).resolve().parents[2]
 
 
-def make(tmp_path):
+def make(tmp_path, community: str | None = None):
     (tmp_path / "docs").mkdir(exist_ok=True)
-    for name in ("arena.md", "doc-en.md"):
+    for name in ("arena.md", "doc-en.md", "QUICKSTART.md"):
         shutil.copy(REPO / "docs" / name, tmp_path / "docs" / name)
     cfg = Config(Config.load(tmp_path).data, tmp_path)
+    cfg.data["community"]["url"] = community
     cfg.data["auth"]["base_url"] = "http://testserver"
     cfg.data["auth"]["cookie_secure"] = False
     cfg.resolve_gpu(None)                       # no docker in the tests
@@ -182,3 +183,34 @@ def test_a_replay_plays_in_the_local_runners_viewer(tmp_path):
     cover = client.get("/").text
     assert f'src="/games/{gid}/viewer?autoplay=true&amp;speed=20"' in cover
     assert client.get(f"/games/{gid + 1}/viewer").status_code == 404
+
+
+def test_the_quick_start_and_the_cover_point_a_newcomer_the_same_way(tmp_path):
+    client, auth, db = make(tmp_path)
+    qs = client.get("/quickstart")
+    assert qs.status_code == 200
+    assert '<h1 id="quick-start">Quick start</h1>' in qs.text and 'href="#3-run-your-strategy"' in qs.text
+    assert ('docker run --rm -it -p 31000:31000 -p 31001-31004:31001-31004 -v &quot;$PWD&quot;:/game '
+            'ghcr.io/format37/codecraft-runner') in qs.text
+    assert "releases/latest/download/codecraft-runner-macos.tar.gz" in qs.text
+    assert '<div class="chips"></div>' in qs.text                          # the language picker's place
+    assert qs.text.count('<div class="lang" data-lang="') == 15 and 'data-lang="python-pypy"' in qs.text
+    assert '<p class="lang-label">Java (GraalVM native)</p>' in qs.text   # the label for readers without JavaScript
+    assert '<code class="language-bash">cd python\npython3 main.py' in qs.text   # the fence inside the block renders
+    assert "plays 10 rated games against strategies of similar rating, then one rated game a day" in qs.text
+    assert "1 s to answer a tick and 40 s of CPU time for the whole game" in qs.text
+    assert "today (every game page names" not in qs.text                 # no engine source in the test root: no version
+    cover = client.get("/").text
+    assert "Start here" in cover
+    assert cover.index('<a class="btn" href="/quickstart">Quick start</a>') < cover.index('href="/login">Sign in / join')
+    assert '<a href="/quickstart">Quick start</a>' in cover               # the header, every page
+    assert "Discord" not in cover and "Discord" not in qs.text and "Discord" not in client.get("/agents").text
+
+
+def test_the_community_link_appears_once_configured(tmp_path):
+    client, auth, db = make(tmp_path, community="https://discord.gg/example")
+    link = '<a href="https://discord.gg/example">Discord</a>'
+    cover = client.get("/").text
+    assert cover.count(link) == 3                                          # the header, Start here, Join
+    assert link in client.get("/agents").text and link in client.get("/leaderboard").text
+    assert "is where the players are" in client.get("/quickstart").text

@@ -7,7 +7,8 @@
   .hero .actions { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0 6px; }
   .hero .actions .btn.secondary { background:transparent; color:var(--accent); }
   .caption { color:var(--muted); font-size:14px; margin:6px 0 0; }
-  .cols { display:grid; grid-template-columns: repeat(3, 1fr); gap:18px; margin-top:22px; }
+  .cols { display:grid; grid-template-columns: repeat(2, 1fr); gap:18px; margin-top:22px; }
+  .cols ol { padding-left:20px; margin:6px 0; } .cols ol li { margin:4px 0; }
   @media (max-width: 900px) { .cols { grid-template-columns:1fr; } .hero h1 { font-size:32px; } }
   .cols h3 { margin:0 0 8px; }
   .cols p, .cols li { font-size:14.5px; }
@@ -25,7 +26,8 @@
     We brought it back for ourselves, to sharpen our coding skills: write a strategy, upload it, watch it fight.</p>
   <div class="actions">
     {% if user %}<a class="btn" href="/submit">Submit a strategy</a><a class="btn secondary" href="/games/new">Custom game</a>
-    {% else %}<a class="btn" href="/login">Sign in / join</a>{% endif %}
+    <a class="btn secondary" href="/quickstart">Quick start</a>
+    {% else %}<a class="btn" href="/quickstart">Quick start</a><a class="btn secondary" href="/login">Sign in / join</a>{% endif %}
     <a class="btn secondary" href="/leaderboard">Leaderboard</a>
     <a class="btn secondary" href="/games">Games</a>
     <a class="btn secondary" href="/rules">Rules of the game</a>
@@ -48,11 +50,23 @@
 
 <div class="cols">
   <div class="card">
+    <h3>Start here</h3>
+    <ol>
+      <li>Clone the <a href="https://github.com/format37/codecraft-starter">starter</a>: the official client of your
+        language, with a small strategy in it, in any of the 15 languages.</li>
+      <li>Run the runner, a Docker image or a binary: the server's engine on your machine, the game live in your
+        browser, your strategy connected to it.</li>
+      <li>Change the strategy, submit your fork's URL, and it is on the ladder a few minutes later.</li>
+    </ol>
+    <p><a class="btn" href="/quickstart">Quick start</a> <span class="muted">ten minutes</span></p>
+    {% if cfg.community.url %}<p>Stuck, or after a sparring partner? <a href="{{ cfg.community.url }}">{{ cfg.community.name }}</a>.</p>{% endif %}
+  </div>
+  <div class="card">
     <h3>The game</h3>
     <p>An 80×80 map, 1000 ticks. Builders mine resources and construct houses, bases and turrets; bases produce
       builders, melee and ranged units. Score comes from building and from destroying the enemy. Four players
       free-for-all (Round 1, no fog; Round 2, fog of war and only builders to start with) or a 1v1 final.</p>
-    <p><a href="/rules">Full rules</a> ·
+    <p><a href="/rules">Full rules</a> · <a href="/rules#the-arena">the arena</a> ·
       <a href="https://github.com/format37/codecraft#credits-and-licence">credits</a></p>
   </div>
   <div class="card">
@@ -75,7 +89,7 @@
       and your bot enters the arena a few minutes later. Build logs and your bot's own output are visible only to you.</p>
     <p>Or let a coding agent play: Claude Code, Codex or any MCP client can write, submit and test strategies with
       your token (<a href="/agents">Agents</a>).</p>
-    <p>{% if registration == 'invite' %}New accounts need an invitation from an admin.{% elif registration == 'closed' %}Registration is currently closed.{% else %}Registration is open.{% endif %}</p>
+    <p>{% if registration == 'invite' %}New accounts need an invitation from an admin.{% elif registration == 'closed' %}Registration is currently closed.{% else %}Registration is open.{% endif %}{% if cfg.community.url %} The players talk in <a href="{{ cfg.community.url }}">{{ cfg.community.name }}</a>.{% endif %}</p>
   </div>
 </div>
 <p class="muted" style="margin-top:22px;font-size:13px">Not affiliated with the organisers of the original

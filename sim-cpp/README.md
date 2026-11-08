@@ -43,6 +43,16 @@ official clients end as after a game; one that does not answer, at a breakpoint,
 1.5 s), so you change your code, run it again, and play on without restarting the runner; with **same seed** the
 new game has the same map and dice. "New game…" after a game opens the config screen.
 
+Players get it without building it: `.github/workflows/runner.yml` publishes every engine version of `master` as the
+image `ghcr.io/format37/codecraft-runner:<version>` (and `:latest`; the same Dockerfile as the server's engine
+image, linux/amd64 and arm64) and as binaries on the GitHub release `runner-<version>` (Linux x86_64 and arm64,
+macOS universal); the guide is https://codecraft.day/quickstart. In the image `CODECRAFT_RUNNER_CONTAINER=1`
+stands for `--bind 0.0.0.0 --no-browser`, so `docker run -p 31000:31000 -p 31001-31004:31001-31004 -v "$PWD":/game
+...` is the runner with the current folder's files; `--bind ADDR` is the address the viewer and the TCP seats
+without a host listen on (127.0.0.1 by default). The viewer answers only requests whose Host is `127.0.0.1`,
+`localhost` or `[::1]`, on any port (`docker -p` remaps it): a page from another site, even one whose DNS now points
+at 127.0.0.1, gets 403.
+
 **Server limits.** On the server a strategy has 1 s to answer a tick and 40 s of CPU time for the game
 (`tick_timeout_sec` and `cpu_time_sec` in the server's `config.yaml`), and is cut off past them. The runner holds
 TCP seats to the same numbers. By default it cuts a strategy off as the server would: after a tick's time with no

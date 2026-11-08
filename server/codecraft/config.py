@@ -29,7 +29,6 @@ DEFAULTS: dict = {
     "matchmaking": {"rating_sigma": 200, "include_builtin": True, "fill_with_builtin": True},
     "rating": {"initial": 1200, "k": 32, "k_min": 16, "k_half_life_games": 50},
     "leagues": {"min_players": 40, "settled_games": 30},   # one league below min_players settled players (docs/arena.md)
-    "leagues": {"min_players": 40, "settled_games": 30},   # one league below min_players settled players (docs/arena.md)
     "gpu": {
         "enabled": "auto",          # true / false / auto (nvidia runtime visible to docker)
         "max_per_game": 1,          # how many GPU strategies may share one game (whole GPU each)
@@ -39,7 +38,6 @@ DEFAULTS: dict = {
         "pause_sec": 5,
         "sandbox": True,            # play rated sandbox games when no custom game is queued
         "sandbox_games_per_build": 10,  # each build plays this many sandbox games, then rests (0 = endless)
-        "sandbox_daily_games": 1,   # after its share, an enabled strategy starts this many rated games a day (0 = none)
         "sandbox_daily_games": 1,   # after its share, an enabled strategy starts this many rated games a day (0 = none)
         "builds": True,             # build submitted strategy versions
     },
@@ -84,6 +82,11 @@ DEFAULTS: dict = {
         "title": "CodeCraft",
         "trusted_proxies": [],      # peers whose X-Forwarded-For/-Proto count (or env CW_TRUSTED_PROXIES); [] = none
     },
+    "community": {              # where the players talk: a link in the header, on the cover, on /agents, in whoami
+        "name": "Discord",
+        "url": None,            # or env CW_COMMUNITY_URL; None = no link anywhere
+        "discord_webhook": None,  # or env CW_DISCORD_WEBHOOK: the worker announces first builds, Monday's top ten,
+    },                          # a new engine version there (worker.Announcer)
     "docker": {
         "prefix": "cw",
         "label": "codecraft.game",
@@ -165,6 +168,10 @@ class Config:
             data["engine"]["image"] = env["CW_ENGINE_IMAGE"].strip()
         if env.get("CW_ENGINE_CONTEXT", "").strip():
             data["engine"]["context"] = env["CW_ENGINE_CONTEXT"].strip()
+        if env.get("CW_COMMUNITY_URL", "").strip():
+            data["community"]["url"] = env["CW_COMMUNITY_URL"].strip()
+        if env.get("CW_DISCORD_WEBHOOK", "").strip():
+            data["community"]["discord_webhook"] = env["CW_DISCORD_WEBHOOK"].strip()
         proxies = data["web"].get("trusted_proxies") or []
         if isinstance(proxies, str):
             proxies = proxies.split(",")

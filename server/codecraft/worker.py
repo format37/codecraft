@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import docker
 
+from .announce import Announcer
 from .builder import Builder, BuildError, EngineImage
 from .config import SEATS, Config
 from .db import DB, since
@@ -31,6 +32,7 @@ class Worker:
         self.seeds = seeds
         self.builder = Builder(cfg, client)
         self.runner = GameRunner(cfg, client, db, EngineImage(self.builder))
+        self.announcer = Announcer(cfg, db)          # the community webhook, when configured
         self.gpu = cfg.resolve_gpu(client)
         w = cfg["worker"]
         self.sandbox = bool(w.get("sandbox", True)) if sandbox is None else sandbox
@@ -161,6 +163,10 @@ class Worker:
             except Exception:  # noqa: BLE001
                 log.exception("worker %d: game failed", worker_id)
                 played = True
+            try:
+                self.announcer.tick(engine=self.runner.engine.image)
+            except Exception:  # noqa: BLE001
+                log.exception("announcement failed")
             if played:
                 with self.lock:
                     self.started += 1
@@ -182,6 +188,7 @@ class Worker:
                                    log_path=str(self.builder.log_path(strategy).relative_to(self.cfg.data_dir)),
                                    commit_hash=self.builder.last_commit)
             log.info("%s v%d: %s", version["strategy"], version["number"], image)
+            self.announcer.built(self.db.version(version["id"]), srow)
         except Exception as exc:  # noqa: BLE001
             err = str(exc) if isinstance(exc, BuildError) else f"{type(exc).__name__}: {exc}"
             log.warning("%s v%d: build failed: %s", version["strategy"], version["number"], err[:500])
@@ -213,7 +220,9 @@ class Worker:
         stale = self.db.abort_stale_builds()
         if stale:
             log.info("marked %d interrupted build(s) as failed", stale)
-        log.info("engine: %s", self.runner.engine.current())     # and again before every game
+        engine = self.runner.engine.current()                    # and again before every game
+        log.info("engine: %s", engine)
+        self.announcer.tick(engine=engine)
         workers = max(1, int(self.cfg["worker"].get("parallel_games") or 1))
         log.info("worker: %d game thread(s), sandbox=%s, builds=%s, gpu=%s, players: %s", workers, self.sandbox,
                  self.builds, self.gpu, ", ".join(s.name for s in self.runnable()) or "-")

@@ -61,6 +61,9 @@ def instructions(ax: A.Agents) -> str:
     daily = int(cfg.get("worker", "sandbox_daily_games", default=1) or 0)
     daily_text = f", then {'one' if daily == 1 else daily} a day" if daily else ""
     engine = "our own open-source engine (the rules, protocol and replays of the official one)"
+    community = cfg.get("community", "url")
+    community_text = (f" The players talk in {cfg.get('community', 'name') or 'the community'}: {community}."
+                      if community else "")
     return f"""\
 CodeCraft is a self-hosted arena for CodeCraft 2020, the real-time strategy game of a 2020 AI championship.
 A program ("strategy") commands builders, melee and ranged units, bases, houses and turrets on an 80x80
@@ -107,7 +110,8 @@ leagues by strength once it is big enough (rules(section="The arena")).
 
 Slots (seats) are numbered from 0 everywhere (seat 1 on the web page is slot 0). Times are UTC.
 Show the human the pages: {ax.url("/games/<id>")} for a game with its replay viewer,
-{ax.url("/strategies/<name>")} for a strategy.
+{ax.url("/strategies/<name>")} for a strategy, {ax.url("/quickstart")} to run games on their own machine (the
+local runner: a Docker image or a binary, with the game live in the browser).{community_text}
 """
 
 

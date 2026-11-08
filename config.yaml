@@ -54,10 +54,6 @@ leagues:                            # the ladder is one league until this many p
   min_players: 40                   # have settled ratings; then it is clustered by rating once a week (/rules, "Leagues";
   settled_games: 30                 # the clustering itself is phase 2 of docs/KICKOFF.md). Settled = this many rated games
 
-leagues:                            # the ladder is one league until this many players (each by their best strategy)
-  min_players: 40                   # have settled ratings; then it is clustered by rating once a week (/rules, "Leagues";
-  settled_games: 30                 # the clustering itself is phase 2 of docs/KICKOFF.md). Settled = this many rated games
-
 gpu:
   enabled: auto                     # true / false / auto = the nvidia runtime is registered in docker (or CW_GPU_ENABLED);
                                     # without a GPU the CUDA languages and the GPU option disappear from the UI
@@ -69,8 +65,6 @@ worker:                             # the `worker` service
   sandbox: true                     # play rated sandbox games when no custom game is queued
   sandbox_games_per_build: 10       # every build (version) plays this many sandbox games, then the worker rests;
                                     # a new version starts a fresh count. 0 = play forever
-  sandbox_daily_games: 1            # after its share, an enabled strategy starts this many rated games a day (every
-                                    # sandbox game it was in during the last day counts, a filler seat too); 0 = none
   sandbox_daily_games: 1            # after its share, an enabled strategy starts this many rated games a day (every
                                     # sandbox game it was in during the last day counts, a filler seat too); 0 = none
   builds: true                      # build submitted versions (one at a time)
@@ -121,6 +115,12 @@ web:
   title: CodeCraft
   trusted_proxies: []               # reverse proxies whose X-Forwarded-For/-Proto count, e.g. [10.66.0.1]
                                     # (or CW_TRUSTED_PROXIES=a,b); [] = nobody's, the peer address is the client
+
+community:                          # where the players talk: a link in the header, on the cover, on /agents and in
+  name: Discord                     # the agents' whoami (or CW_COMMUNITY_URL in .env); url null = no link anywhere
+  url: null
+  discord_webhook: null             # a webhook of the announcements channel (CW_DISCORD_WEBHOOK in .env, never here):
+                                    # the worker posts a strategy's first build, Monday's top ten, a new engine version
 
 docker:
   prefix: cw                        # container and network names: cw-<game>-engine, cw-<game>-p<slot>, cw-<game>-s<slot>

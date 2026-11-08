@@ -293,6 +293,22 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
             body, toc = "<pre>" + text.replace("&", "&amp;").replace("<", "&lt;") + "</pre>", ""
         return render(request, "rules.html", body=body, toc=toc)
 
+    @app.get("/quickstart", response_class=HTMLResponse)
+    def quickstart(request: Request):
+        """From the starter to a game on your machine to the ladder: docs/QUICKSTART.md with the numbers of
+        config.yaml and the engine's version; the page shows the blocks of the language picked."""
+        if not RU.quickstart_exists(cfg):
+            raise HTTPException(404, "quick start not found")
+        text = RU.quickstart_markdown(cfg)
+        try:
+            body, toc = RU.html(text)
+        except ImportError:
+            body, toc = "<pre>" + text.replace("&", "&amp;").replace("<", "&lt;") + "</pre>", ""
+        og = dict(title=f"{title} · quick start", url=absolute(request, "/quickstart"),
+                  description="From the starter to a game on your machine in ten minutes, in any of 15 languages; "
+                              "then the ladder.")
+        return render(request, "quickstart.html", body=body, toc=toc, languages=RU.LANGUAGES, og=og)
+
     @app.get("/leaderboard", response_class=HTMLResponse)
     def leaderboard(request: Request):
         recent = db.games(limit=15)

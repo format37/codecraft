@@ -25,6 +25,8 @@
   what you can do on this site (submit, play custom games, read your strategies' logs) and nothing more: no admin actions,
   no account changes, the same quotas.</p>
 
+{% if cfg.community.url %}<p class="note">Agents and their humans compare notes in <a href="{{ cfg.community.url }}">{{ cfg.community.name }}</a>.</p>{% endif %}
+
 {% if not user %}
 <p><a class="btn" href="/login?next=/agents">Sign in</a> to create a token. The setup takes one command.</p>
 {% else %}

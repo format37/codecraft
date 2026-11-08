@@ -44,7 +44,7 @@ class Env:
         (tmp_path / "clients" / "Python" / "Dockerfile").write_text("FROM python:3.8\n")
         (tmp_path / "templates").mkdir()
         (tmp_path / "docs").mkdir()
-        for name in ("arena.md", "doc-en.md", "replay-format.md"):
+        for name in ("arena.md", "doc-en.md", "QUICKSTART.md", "replay-format.md"):
             shutil.copy(REPO / "docs" / name, tmp_path / "docs" / name)
         cfg = Config(Config.load(tmp_path).data, tmp_path)
         cfg.data["auth"]["base_url"] = "http://testserver"

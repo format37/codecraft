@@ -69,8 +69,8 @@ jobs:
             ${{ env.IMAGE }}:latest
       - name: The image says its version
         run: |
-          docker run --rm --platform linux/amd64 "$IMAGE:$V" --version | tee out
-          grep -qx "codecraft-sim-cpp $V" out
+          docker run --rm --platform linux/amd64 "$IMAGE:$V" --version | tee version.txt
+          grep -qx "codecraft-sim-cpp $V" version.txt
 
   binaries:
     needs: version
@@ -84,7 +84,7 @@ jobs:
           - os: ubuntu-22.04-arm
             asset: codecraft-runner-linux-arm64
             make: LDFLAGS="-pthread -static-libstdc++ -static-libgcc"
-          - os: macos-14            # one universal binary: Apple silicon and Intel
+          - os: macos-latest        # Apple silicon; one universal binary for Apple silicon and Intel
             asset: codecraft-runner-macos
             make: CXXFLAGS="-O2 -std=c++17 -Wall -Wextra -ffp-contract=off -arch arm64 -arch x86_64" LDFLAGS="-pthread -arch arm64 -arch x86_64"
     runs-on: ${{ matrix.os }}
@@ -96,8 +96,8 @@ jobs:
         run: make -C sim-cpp -j3 ${{ matrix.make }}
       - name: The binary says its version
         run: |
-          sim-cpp/build/codecraft-sim-cpp --version | tee out
-          grep -qx "codecraft-sim-cpp $V" out
+          sim-cpp/build/codecraft-sim-cpp --version | tee version.txt
+          grep -qx "codecraft-sim-cpp $V" version.txt
           file sim-cpp/build/codecraft-sim-cpp
           if [ "$RUNNER_OS" = macOS ]; then lipo -archs sim-cpp/build/codecraft-sim-cpp | grep -q x86_64; fi
       - name: Pack

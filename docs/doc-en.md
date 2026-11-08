@@ -111,7 +111,7 @@ in the game, they are given enough score to win it.
 
 The local runner plays the server's games on your computer (the same engine, rules and maps), live in the browser,
 with the debug interface described below: your strategy draws on the map and logs, and reads the mouse and the keys.
-See [the server repository](https://github.com/format37/codecraft#test-a-strategy-on-your-machine).
+The [quick start](https://codecraft.day/quickstart) has the runner and the commands of every language.
 
 ## Entity properties values
 

@@ -1,6 +1,8 @@
 """The rules: the arena (ours, docs/arena.md, rendered with the numbers of config.yaml) and the game (the official
 document, docs/doc-en.md). The web page /rules shows both with a table of contents; the agents' rules() tool and the
-codecraft://rules resource return the same Markdown."""
+codecraft://rules resource return the same Markdown. The quick start (docs/QUICKSTART.md, /quickstart) is rendered
+the same way, with the engine's version and the runner's download lines, and its per-language blocks are marked
+for the page's language picker."""
 from __future__ import annotations
 
 import re
@@ -11,6 +13,17 @@ from .config import Config
 
 ARENA_FILE = "arena.md"
 GAME_FILE = "doc-en.md"
+QUICKSTART_FILE = "QUICKSTART.md"
+REPO = "https://github.com/format37/codecraft"
+STARTER = "https://github.com/format37/codecraft-starter"
+RUNNER_IMAGE = "ghcr.io/format37/codecraft-runner"      # the engine image, published by .github/workflows/runner.yml
+# The languages of the submit page (Config.languages(): the template and client directories) with their names, in
+# the quick start's order: the chips of /quickstart and the labels of its per-language blocks (```bash lang=<id>).
+LANGUAGES = [("python", "Python"), ("python-pypy", "Python (PyPy)"), ("cpp", "C++"), ("rust", "Rust"), ("go", "Go"),
+             ("java", "Java"), ("java-graalvm-native", "Java (GraalVM native)"), ("kotlin", "Kotlin"),
+             ("kotlin-graalvm-native", "Kotlin (GraalVM native)"), ("scala", "Scala"), ("csharp", "C#"),
+             ("fsharp", "F#"), ("javascript", "JavaScript"), ("ruby", "Ruby"), ("dlang", "D")]
+LANG_FENCE_RE = re.compile(r"^```(\w+) lang=([\w-]+)[ \t]*\n(.*?)^```[ \t]*$\n?", re.M | re.S)
 
 _env = jinja2.Environment(undefined=jinja2.StrictUndefined, autoescape=False, keep_trailing_newline=True)
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -65,6 +78,62 @@ def exists(cfg: Config) -> bool:
     return (cfg.root / "docs" / ARENA_FILE).is_file() and (cfg.root / "docs" / GAME_FILE).is_file()
 
 
+def quickstart_exists(cfg: Config) -> bool:
+    return (cfg.root / "docs" / QUICKSTART_FILE).is_file()
+
+
+def engine_version(cfg: Config) -> str | None:
+    """The version of the engine this server plays, the tag of its image (builder.engine_image); None when the
+    source is not at hand or the image is pinned to a tag of its own."""
+    from .builder import BuildError, engine_image, pinned
+    if pinned(cfg["engine"]["image"]):
+        return None
+    try:
+        return engine_image(cfg).rsplit(":", 1)[1]
+    except (OSError, BuildError):
+        return None
+
+
+def quickstart_numbers(cfg: Config) -> dict:
+    """What the quick start states: the arena's numbers, the runner's image and downloads, the engine's version, the
+    server's limits in a few words, the community link when there is one."""
+    lim = cfg["limits"]
+    tick, cpu = lim.get("tick_timeout_sec"), lim.get("cpu_time_sec")
+    parts = ([f"{_num(tick)} s to answer a tick"] if tick else []) + \
+        ([f"{_num(cpu)} s of CPU time for the whole game"] if cpu else [])
+    community = cfg.get("community") or {}
+    n = numbers(cfg)
+    n.update({
+        "starter": STARTER, "repo": REPO, "image": RUNNER_IMAGE,
+        "releases": REPO + "/releases", "release": REPO + "/releases/latest/download",
+        "runner_version": engine_version(cfg),
+        "runner_limits": " and ".join(parts) or "no time limits",
+        "community_url": community.get("url") or None,
+        "community_name": community.get("name") or "The community",
+    })
+    return n
+
+
+def _lang_blocks(text: str) -> str:
+    """A fenced block whose info string says `lang=<id>` (```bash lang=python: GitHub shows it as bash) becomes a
+    block the page shows or hides by language, labelled with the language's name (the label for readers without
+    JavaScript; the page hides it). md_in_html renders the Markdown inside the div."""
+    names = dict(LANGUAGES)
+
+    def block(m: re.Match) -> str:
+        syntax, lang, code = m.groups()
+        return (f'<div class="lang" data-lang="{lang}" markdown="1">\n\n<p class="lang-label">{names.get(lang, lang)}</p>'
+                f"\n\n```{syntax}\n{code}```\n\n</div>\n\n")
+
+    return LANG_FENCE_RE.sub(block, text)
+
+
+def quickstart_markdown(cfg: Config) -> str:
+    text = (cfg.root / "docs" / QUICKSTART_FILE).read_text()
+    text = re.sub(r"^<!--.*?-->\n", "", text, count=1, flags=re.S)     # the note for readers of the repository
+    return _lang_blocks(_env.from_string(text).render(**quickstart_numbers(cfg)))
+
+
 def arena_markdown(cfg: Config) -> str:
     text = (cfg.root / "docs" / ARENA_FILE).read_text()
     text = re.sub(r"^<!--.*?-->\n", "", text, count=1, flags=re.S)     # the note for readers of the repository
@@ -108,7 +177,7 @@ def section(text: str, needle: str) -> str | None:
 def html(text: str) -> tuple[str, str]:
     """(body, table of contents) as HTML; the contents two levels deep, the headings with ids."""
     import markdown
-    md = markdown.Markdown(extensions=["tables", "fenced_code", "toc"],
+    md = markdown.Markdown(extensions=["tables", "fenced_code", "toc", "md_in_html"],
                            extension_configs={"toc": {"toc_depth": "1-2"}})
     body = md.convert(text)
     return body, md.toc

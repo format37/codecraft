@@ -743,8 +743,9 @@ def whoami(ax: Agents, user: dict) -> dict:
             "git_submissions": bool(sub.get("allow_git", True)),
             "engine": _engine(cfg),
             "engine_about": ENGINE_ABOUT},
-        "links": {"site": ax.base, "rules": ax.url("/rules"), "leaderboard": ax.url("/leaderboard"),
-                  "agents": ax.url("/agents"), "starter": STARTER},
+        "links": {"site": ax.base, "rules": ax.url("/rules"), "quickstart": ax.url("/quickstart"),
+                  "leaderboard": ax.url("/leaderboard"), "agents": ax.url("/agents"), "starter": STARTER,
+                  **({"community": cfg.get("community", "url")} if cfg.get("community", "url") else {})},
     }
 
 

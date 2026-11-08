@@ -1,0 +1,50 @@
+{% extends "base.html" %}{% block title %}Quick start{% endblock %}
+{% block head %}<style>
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 14px; }
+  .chips:empty { display:none; }
+  .chips button { font-size:13px; padding:4px 11px; border-radius:14px; border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer; }
+  .chips button:hover { border-color:var(--accent); color:var(--accent); }
+  .chips button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .lang-label { font-weight:650; margin:16px 0 4px; } .js .lang-label { display:none; }
+  .lang pre { margin-top:4px; }
+</style>{% endblock %}
+{% block content %}
+<p class="muted">From the starter to a game on your machine, then to the ladder. Step 3 shows the commands of the language you pick there.</p>
+<div class="doc-layout">
+  <nav class="toc">{{ toc|safe }}</nav>
+  <div class="doc">{{ body|safe }}</div>
+</div>
+<script>
+(function () {
+  // The per-language blocks (div.lang[data-lang], from ```bash lang=<id> in docs/QUICKSTART.md) follow the chip
+  // picked: ?lang= first, then the last pick (localStorage), then the first language. Without JS all show.
+  var LANGS = {{ languages|tojson }};
+  var blocks = Array.prototype.slice.call(document.querySelectorAll('.lang[data-lang]'));
+  var holders = Array.prototype.slice.call(document.querySelectorAll('.chips'));
+  if (!blocks.length || !holders.length) return;
+  var known = {}, buttons = [];
+  LANGS.forEach(function (l) { known[l[0]] = l[1]; });
+  holders.forEach(function (holder) {
+    LANGS.forEach(function (l) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = l[1]; b.dataset.lang = l[0];
+      b.addEventListener('click', function () { pick(l[0], true); });
+      holder.appendChild(b); buttons.push(b);
+    });
+  });
+  function pick(lang, remember) {
+    buttons.forEach(function (b) { b.classList.toggle('on', b.dataset.lang === lang); });
+    blocks.forEach(function (d) { d.hidden = d.dataset.lang !== lang; });
+    if (remember) {
+      try { localStorage.setItem('codecraft-lang', lang); } catch (e) {}
+      var u = new URL(location.href); u.searchParams.set('lang', lang); history.replaceState(null, '', u);
+    }
+  }
+  var lang = new URL(location.href).searchParams.get('lang');
+  if (!known[lang]) { try { lang = localStorage.getItem('codecraft-lang'); } catch (e) { lang = null; } }
+  if (!known[lang]) lang = LANGS[0][0];
+  document.documentElement.classList.add('js');
+  pick(lang, false);
+})();
+</script>
+{% endblock %}

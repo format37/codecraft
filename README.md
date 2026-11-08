@@ -110,24 +110,25 @@ entries carry a `-2020` suffix and are disabled, so their authors can register u
 
 ## Test a strategy on your machine
 
-Our engine is also a local runner, with the official GUI's debug interface (your strategy draws lines, triangles,
-text and logs, and reads the mouse and the keys) and the game live in the browser:
+The engine is also a local runner, with the game live in the browser and the official GUI's debug interface (your
+strategy draws lines, triangles, text and logs, and reads the mouse and the keys). It is published for everyone by
+`.github/workflows/runner.yml`: the image `ghcr.io/format37/codecraft-runner` (linux/amd64 and arm64) and Linux and
+macOS binaries on [GitHub Releases](https://github.com/format37/codecraft/releases), one release per engine version.
+The guide, with the commands of every language, is <https://codecraft.day/quickstart>.
 
 ```bash
-make -C sim-cpp
-sim-cpp/build/codecraft-sim-cpp                        # pick the game and the seats in the browser, or
-sim-cpp/build/codecraft-sim-cpp --config batch1.json   # an official runner's config, as it is
-python3 main.py                                        # in your strategy's folder: it connects to 127.0.0.1:31001
+docker run --rm -it -p 31000:31000 -p 31001-31004:31001-31004 -v "$PWD":/game ghcr.io/format37/codecraft-runner
+# or a binary (also linux-arm64 and macos):
+curl -L https://github.com/format37/codecraft/releases/latest/download/codecraft-runner-linux-x86_64.tar.gz | tar xz && ./codecraft-runner
+# or from source:
+make -C sim-cpp && sim-cpp/build/codecraft-sim-cpp
 ```
 
-It plays the server's games (the same engine, rules and maps): `--version` shows the version of its source, and each
-game page names the engine it was played on, `codecraft/sim-cpp:<version>`; the server builds a changed engine
-before its next game. Pause, step, rewind, zoom, inspect entities, save a replay (Ctrl-S) or the state of a tick to
-start a game from (Ctrl-E), restart the game for your changed strategy (the same seed if you like) without
-restarting the runner; `--replay replay.dat` watches a replay (the game pages show theirs in this same viewer, and
-offer the replay.dat). It holds your strategy to the server's limits (1 s to answer a tick, 40 s for a game) and
-cuts it off past them as the server would, or only warns, so you can stop at a breakpoint; the viewer shows how long
-each answer took. See [sim-cpp/README.md](sim-cpp/README.md#the-local-runner).
+It plays the server's games (the same engine, rules and maps): `--version` shows the version of its source, each
+game page names the engine it was played on, and `ghcr.io/format37/codecraft-runner:<version>` is that very engine.
+Pause, step, rewind, zoom, inspect entities, save a replay (Ctrl-S) or the state of a tick (Ctrl-E), restart the
+game for your changed strategy without restarting the runner, `--replay replay.dat`, the server's limits held or only
+warned about (`--limits warn`, for breakpoints): [sim-cpp/README.md](sim-cpp/README.md#the-local-runner).
 
 ## Layout
 
