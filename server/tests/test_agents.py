@@ -186,7 +186,7 @@ def test_a_game_names_its_engine_and_whoami_the_current_one(env):
     page = env.client.get(f"/games/{gid}").text
     assert "40 s · engine <code" in page and ">codecraft/sim-cpp:7390f3fc2f58</code>" in page
     server = env.client.post("/api/v1/whoami", headers=h).json()["server"]
-    assert server["engine"] is None and "--version" in server["engine_about"]      # no sim-cpp in this root
+    assert server["engine"] is None and "codecraft-runner:<version>" in server["engine_about"]   # no sim-cpp here
     ctx = env.cfg.root / "sim-cpp"
     ctx.mkdir()
     (ctx / "Dockerfile").write_text("FROM debian\n")

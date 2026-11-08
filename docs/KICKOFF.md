@@ -1,4 +1,4 @@
-# CodeCraft platform — kickoff and status (updated 2026-11-07)
+# CodeCraft platform — kickoff and status (updated 2026-11-08)
 
 Entry point for a working session. Read this, then `README.md`, then `config.yaml`.
 
@@ -273,6 +273,44 @@ drawings per tick and a persistent `debug_update` layer, autoflush, DebugUpdate 
 DebugState from the browser's mouse, keys and camera. It takes the official configs as they are (a null host or
 token, as the official runner; the Python engine too), has a config screen, pause, steps, rewinding, Ctrl-S and
 Ctrl-E, and plays replays (`--replay`). See [sim-cpp/README.md](../sim-cpp/README.md#the-local-runner).
+
+## Phase 5 — quick start, the runner for everyone, the community (2026-11-08)
+
+Goal: a newcomer without an account understands in a minute what the game is and how to start, runs a first game on
+their own machine within ten minutes (Linux, macOS or Windows, without compiling the runner), and finds the people.
+
+- **Quick start.** `docs/QUICKSTART.md`, rendered at `/quickstart` by `rules.py` like the arena (the numbers of
+  `config.yaml`, the engine's version, the runner's download lines). Its per-language blocks are fenced code with
+  `lang=<id>` in the info string (GitHub shows them as bash); the page turns them into blocks shown by the language
+  picked (chips, `?lang=`, remembered in localStorage; all of them without JavaScript). The header links it, the
+  cover's first card is "Start here" and the Quick start button comes before Sign in, the READMEs of the three
+  repositories and `doc-en.md` point at it, `whoami.links.quickstart` and the MCP instructions name it.
+- **The runner for everyone.** `--bind ADDR` for the viewer and the TCP seats without a host (127.0.0.1 by
+  default); the engine image sets `CODECRAFT_RUNNER_CONTAINER=1`, read as `--bind 0.0.0.0 --no-browser`, so
+  `docker run -p 31000:31000 -p 31001-31004:31001-31004 -v "$PWD":/game ghcr.io/format37/codecraft-runner` is the
+  runner wherever Docker runs; the viewer's Host check takes the page's own address on any port (`docker -p`
+  remaps it); the sources build on macOS (no `MSG_NOSIGNAL` there: `SO_NOSIGPIPE`). `.github/workflows/runner.yml`
+  (a push to `master` touching `sim-cpp/`) publishes the image for linux/amd64 and arm64 as
+  `ghcr.io/format37/codecraft-runner:<version>` and `:latest`, and the binaries for Linux x86_64 (built on Ubuntu
+  22.04 for an old glibc), Linux arm64 and macOS (one universal binary, `-arch arm64 -arch x86_64` on the
+  Apple-silicon runner; GitHub's Intel macOS runners are gone) on the release `runner-<version>`; a version is
+  published once. The same version everywhere: the server's image tag, `--version`, the game pages, the release.
+- **Community.** `community.{name,url,discord_webhook}` (`CW_COMMUNITY_URL`, `CW_DISCORD_WEBHOOK`); once the url
+  is set, a link in the header, on the cover, on /agents, in `whoami.links` and the MCP instructions.
+  `announce.Announcer` in the worker posts to the webhook: a strategy's first build, Monday's top ten (once a week,
+  the state in `data/announce.json`), a changed engine version (the first engine seen is only remembered). One POST,
+  5 s, failures logged and swallowed; nothing that is not public already. Discord was chosen over Telegram
+  (English-first, the GitHub crowd, no phone number, forum threads, webhooks, roles per league later); the server,
+  the bot, the invite and the webhooks are Alex's to create; a local `discord` skill (the REST API with the bot's
+  token) manages the channels.
+
+Not in this phase: leagues clustering (phase 2), tournaments, a Windows exe (the Winsock port of `players.cpp`,
+`live.cpp`, `trans.cpp`; Docker Desktop or WSL2 meanwhile), notarization of the Mac binary, Homebrew/winget. A
+hosted runner (the viewer served by our site, the strategy on the player's machine connecting over the internet)
+was weighed and parked: a raw TCP seat per session on a public port, untrusted bytes into the decoder, the latency
+inside the tick budget, for an audience that has a toolchain anyway. The variant that fits the architecture, if
+players ask for server-side debugging, is "debug replays": custom games recorded with the strategy's debug drawings
+and logs, shown in the site's viewer.
 
 ## Kaggle
 

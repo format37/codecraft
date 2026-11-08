@@ -674,9 +674,10 @@ def _slot_of_file(name: str) -> int | None:
 
 
 # Read tools ----------------------------------------------------------------------------------------------
-ENGINE_ABOUT = ("the engine image the next games are played on; its tag is the version of its source, and a local "
-                "runner built from the same source (make -C sim-cpp in the server's repository) shows the same "
-                "version: sim-cpp/build/codecraft-sim-cpp --version. game() names the engine of each game")
+ENGINE_ABOUT = ("the engine image the next games are played on; its tag is the version of its source. The same build "
+                "runs on a player's machine as the local runner: ghcr.io/format37/codecraft-runner:<version> (Docker) or "
+                "the binaries of the GitHub release runner-<version>; links.quickstart tells how. game() names the "
+                "engine of each game")
 
 
 def _engine(cfg: Config) -> str | None:
