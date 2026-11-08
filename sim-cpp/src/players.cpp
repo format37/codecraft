@@ -1,22 +1,12 @@
 #include "players.hpp"
 
-#include <arpa/inet.h>
+#include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
-#include <cstring>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <poll.h>
 #include <stdexcept>
-#include <sys/socket.h>
-#include <unistd.h>
 
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0  // macOS has no such flag: no_sigpipe (trans.hpp) sets the socket option instead
-#endif
-
+#include "net.hpp"
 #include "quickstart.hpp"
 
 namespace cc {
@@ -56,41 +46,12 @@ TcpPlayer::TcpPlayer(std::string host, int port, std::optional<double> accept_ti
       timeout_(timeout), log_(log) {}
 
 TcpPlayer::~TcpPlayer() {
-    if (listener_ >= 0) ::close(listener_);
-    if (sock_ >= 0) ::close(sock_);
-}
-
-static void set_timeout(int fd, std::optional<double> seconds) {
-    timeval tv{0, 0};
-    if (seconds) {
-        double s = *seconds;
-        tv.tv_sec = static_cast<time_t>(s);
-        tv.tv_usec = static_cast<suseconds_t>((s - static_cast<double>(tv.tv_sec)) * 1e6);
-        if (tv.tv_sec == 0 && tv.tv_usec == 0) tv.tv_usec = 1;
-    }
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+    if (listener_ != net::INVALID) net::close(listener_);
+    if (sock_ != net::INVALID) net::close(sock_);
 }
 
 void TcpPlayer::listen() {
-    addrinfo hints{}, *res = nullptr;
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
-    std::string port = std::to_string(port_);
-    if (getaddrinfo(host_.c_str(), port.c_str(), &hints, &res) != 0 || !res)
-        throw std::runtime_error("cannot resolve " + host_);
-    int fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    int one = 1;
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-    if (fd < 0 || bind(fd, res->ai_addr, res->ai_addrlen) != 0 || ::listen(fd, 1) != 0) {
-        int err = errno;
-        freeaddrinfo(res);
-        if (fd >= 0) ::close(fd);
-        throw std::runtime_error(host_ + ":" + port + ": " + strerror(err));
-    }
-    freeaddrinfo(res);
-    listener_ = fd;
+    listener_ = net::listen_tcp(host_, port_, 1);
     log_.info("Waiting for connection on port " + std::to_string(port_));
 }
 
@@ -99,7 +60,6 @@ void TcpPlayer::start() {
     using clock = std::chrono::steady_clock;
     auto deadline = clock::now() + std::chrono::duration_cast<clock::duration>(
                                        std::chrono::duration<double>(accept_timeout_.value_or(0)));
-    pollfd p{listener_, POLLIN, 0};
     int ready = 0;
     while (!aborted_) {
         int slice = 250;
@@ -108,17 +68,17 @@ void TcpPlayer::start() {
             if (left <= 0) break;
             slice = static_cast<int>(std::min<long long>(slice, left));
         }
-        ready = poll(&p, 1, slice);
-        if (ready > 0 || (ready < 0 && errno != EINTR)) break;
+        ready = net::wait_readable(listener_, slice);
+        if (ready > 0 || (ready < 0 && !net::interrupted(net::last_error()))) break;
         ready = 0;
     }
-    int conn = ready > 0 && !aborted_ ? accept(listener_, nullptr, nullptr) : -1;
+    net::socket_t conn = ready > 0 && !aborted_ ? net::accept(listener_) : net::INVALID;
     auto stop_listening = [&] {
         std::lock_guard<std::mutex> lock(fd_mutex_);
-        ::close(listener_);
-        listener_ = -1;
+        net::close(listener_);
+        listener_ = net::INVALID;
     };
-    if (conn < 0) {
+    if (conn == net::INVALID) {
         if (!aborted_) log_.info("Timeout accepting player on port " + std::to_string(port_));
         stop_listening();
         log_.info("Stop listening port " + std::to_string(port_));
@@ -127,25 +87,23 @@ void TcpPlayer::start() {
     }
     stop_listening();
     log_.info("Got connection on port " + std::to_string(port_));
-    int one = 1;
-    setsockopt(conn, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
-    no_sigpipe(conn);
-    set_timeout(conn, accept_timeout_);
+    net::set_nodelay(conn);
+    net::set_timeout(conn, accept_timeout_);
     std::string token;
     try {
         SocketReader r(conn);
         token = r.string();
     } catch (const IoError&) {
-        ::close(conn);
+        net::close(conn);
         failure = NO_CONNECTION;
         return;
     }
     if (token_ && token != *token_) {
-        ::close(conn);
+        net::close(conn);
         failure = TOKEN_MISMATCH;
         return;
     }
-    set_timeout(conn, timeout_);
+    net::set_timeout(conn, timeout_);
     std::lock_guard<std::mutex> lock(fd_mutex_);
     sock_ = conn;
     reader_ = std::make_unique<SocketReader>(conn);
@@ -154,16 +112,17 @@ void TcpPlayer::start() {
 void TcpPlayer::interrupt(bool force) {
     aborted_ = true;
     std::lock_guard<std::mutex> lock(fd_mutex_);
-    if (force && sock_ >= 0) ::shutdown(sock_, SHUT_RDWR);
+    if (force && sock_ != net::INVALID) net::shutdown(sock_);
 }
 
 void TcpPlayer::send_all(const std::string& data) {
     size_t sent = 0;
     while (sent < data.size()) {
-        ssize_t k = send(sock_, data.data() + sent, data.size() - sent, MSG_NOSIGNAL);
+        long k = net::send(sock_, data.data() + sent, data.size() - sent);
         if (k < 0) {
-            if (errno == EINTR) continue;
-            throw IoError(os_error(errno));
+            int err = net::last_error();
+            if (net::interrupted(err)) continue;
+            throw IoError(os_error(err));
         }
         sent += static_cast<size_t>(k);
     }
@@ -180,8 +139,7 @@ void TcpPlayer::set_debug(DebugHost* host, int seat, int map_size) {
 // Under a limit (set_limit), each read waits only for what is left of it.
 int32_t TcpPlayer::next_tag() {
     if (debug_ && !unsent_.empty() && !reader_->buffered()) {
-        pollfd p{sock_, POLLIN, 0};
-        if (poll(&p, 1, 30) == 0) hand_over();
+        if (net::wait_readable(sock_, 30) == 0) hand_over();
     }
     if (limit_ && !reader_->buffered()) {
         double left = std::chrono::duration<double>(deadline_ - std::chrono::steady_clock::now()).count();
@@ -189,7 +147,7 @@ int32_t TcpPlayer::next_tag() {
             limit_hit_ = true;
             throw IoError(os_error(EAGAIN));
         }
-        set_timeout(sock_, left);
+        net::set_timeout(sock_, left);
         try {
             return reader_->i32();
         } catch (const IoError&) {
@@ -256,7 +214,7 @@ Action TcpPlayer::get_action(const PlayerView& view) {
         clock::time_point started;
         ~Done() {
             p.answer_seconds_ = std::chrono::duration<double>(clock::now() - started).count();
-            if (p.limit_ && p.sock_ >= 0) set_timeout(p.sock_, p.timeout_);
+            if (p.limit_ && p.sock_ != net::INVALID) net::set_timeout(p.sock_, p.timeout_);
         }
     } done{*this, started};
     SocketReader& r = *reader_;
@@ -305,7 +263,7 @@ void TcpPlayer::crash(const std::string& error, Log& log) {
 }
 
 void TcpPlayer::finish() {
-    if (sock_ < 0) return;
+    if (sock_ == net::INVALID) return;
     try {
         Writer w;
         write_finish(w);
@@ -318,10 +276,10 @@ void TcpPlayer::finish() {
 void TcpPlayer::drop() {
     {
         std::lock_guard<std::mutex> lock(fd_mutex_);
-        if (sock_ < 0) return;
+        if (sock_ == net::INVALID) return;
         reader_.reset();
-        ::close(sock_);
-        sock_ = -1;
+        net::close(sock_);
+        sock_ = net::INVALID;
     }
     log_.info("Dropping tcp player on port " + std::to_string(port_));
 }

@@ -1,35 +1,27 @@
 #include "trans.hpp"
 
-#include <cerrno>
 #include <cstring>
-#include <sys/socket.h>
 
 namespace cc {
 
+// A socket's error as the official engine words it; a timeout is the same words on every system.
 std::string os_error(int err) {
-    if (err == EAGAIN || err == EWOULDBLOCK) return "IO error: Resource temporarily unavailable (os error 11)";
-    return std::string("IO error: ") + strerror(err) + " (os error " + std::to_string(err) + ")";
-}
-
-void no_sigpipe(int fd) {
-#ifdef SO_NOSIGPIPE
-    int one = 1;
-    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
-#else
-    (void)fd;
-#endif
+    if (net::timed_out(err)) return "IO error: Resource temporarily unavailable (os error 11)";
+    return "IO error: " + net::error_text(err) + " (os error " + std::to_string(err) + ")";
 }
 
 void SocketReader::read(void* out, size_t n) {
     char* dst = static_cast<char*>(out);
     while (n > 0) {
         if (pos_ == len_) {
-            ssize_t got;
+            long got;
+            int err;
             do {
-                got = recv(fd_, buf_, sizeof buf_, 0);
-            } while (got < 0 && errno == EINTR);
+                got = net::recv(fd_, buf_, sizeof buf_);
+                err = got < 0 ? net::last_error() : 0;
+            } while (got < 0 && net::interrupted(err));
             if (got == 0) throw IoError("IO error: failed to fill whole buffer");
-            if (got < 0) throw IoError(os_error(errno));
+            if (got < 0) throw IoError(os_error(err));
             pos_ = 0;
             len_ = static_cast<size_t>(got);
         }

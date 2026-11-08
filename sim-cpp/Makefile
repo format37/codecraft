@@ -3,6 +3,16 @@
 CXX ?= g++
 CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -ffp-contract=off
 LDFLAGS ?= -pthread
+LDLIBS ?=
+EXE :=
+# Windows, with MinGW-w64 and its posix threads (MSYS2's UCRT64 g++, where the environment says OS=Windows_NT; or a
+# cross compiler: make OS=Windows_NT CXX=x86_64-w64-mingw32-g++-posix): build/codecraft-sim-cpp.exe, linked
+# statically (one file, no MinGW DLL beside it), with Winsock and the shell that opens the browser (src/net.cpp).
+ifeq ($(OS),Windows_NT)
+EXE := .exe
+LDFLAGS := -static -pthread
+LDLIBS := -lws2_32 -lshell32 -lole32
+endif
 SRC := $(wildcard src/*.cpp)
 OBJ := $(patsubst src/%.cpp,build/obj/%.o,$(SRC)) build/obj/viewer_html.o build/obj/version.o
 
@@ -14,8 +24,8 @@ SOURCES := Dockerfile Makefile src viewer
 SHA256 := $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || echo shasum -a 256)
 VERSION := $(shell find $(SOURCES) -type f | LC_ALL=C sort | xargs $(SHA256) | $(SHA256) | cut -c1-12)
 
-build/codecraft-sim-cpp: $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+build/codecraft-sim-cpp$(EXE): $(OBJ)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)
 
 build/obj/%.o: src/%.cpp $(wildcard src/*.hpp)
 	@mkdir -p build/obj

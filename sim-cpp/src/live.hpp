@@ -15,6 +15,7 @@
 
 #include "history.hpp"
 #include "json.hpp"
+#include "net.hpp"
 #include "players.hpp"
 #include "replay.hpp"
 
@@ -68,7 +69,8 @@ public:
 
 private:
     Log& log_;
-    int listener_ = -1, port_ = 0;
+    net::socket_t listener_ = net::INVALID;
+    int port_ = 0;
     std::thread acceptor_;
     std::atomic<bool> stop_{false};
     std::atomic<int> active_{0};               // connections being served
@@ -89,8 +91,8 @@ private:
     long inputs_ = 0;                          // counts the viewer's controls, for wait()
 
     void accept_loop();
-    void serve(int fd);
-    void stream(int fd);
+    void serve(net::socket_t fd);
+    void stream(net::socket_t fd);
     std::string post(const std::string& path, const Json& body);
     std::string save_state(int tick);
     std::string save_replay();

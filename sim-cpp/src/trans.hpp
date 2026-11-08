@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "model.hpp"
+#include "net.hpp"
 
 namespace cc {
 
@@ -32,10 +33,6 @@ struct Writer {
     }
 };
 
-// A peer that hangs up must not end the process with SIGPIPE: on Linux every send passes MSG_NOSIGNAL; macOS has
-// no such flag and takes this socket option instead (set on every connected socket, a no-op on Linux).
-void no_sigpipe(int fd);
-
 // A failure of a seat's connection or of its bytes; the text is the official engine's ("IO error: ...").
 struct IoError : std::runtime_error {
     using std::runtime_error::runtime_error;
@@ -44,7 +41,7 @@ struct IoError : std::runtime_error {
 // Reads from a socket through a buffer; each recv waits at most the socket's SO_RCVTIMEO.
 class SocketReader {
 public:
-    explicit SocketReader(int fd) : fd_(fd) {}
+    explicit SocketReader(net::socket_t fd) : fd_(fd) {}
     void read(void* out, size_t n);
     int32_t i32();
     float f32();
@@ -52,10 +49,10 @@ public:
     int32_t count();
     std::string string();
     bool buffered() const { return pos_ < len_; }    // bytes already read from the socket and not yet taken
-    int fd() const { return fd_; }
+    net::socket_t fd() const { return fd_; }
 
 private:
-    int fd_;
+    net::socket_t fd_;
     char buf_[8192];
     size_t pos_ = 0, len_ = 0;
 };

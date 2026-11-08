@@ -1,20 +1,16 @@
 #include "live.hpp"
 
-#include <arpa/inet.h>
 #include <cctype>
 #include <cerrno>
 #include <chrono>
-#include <climits>
 #include <cstdio>
 #include <cstring>
-#include <netinet/in.h>
-#include <poll.h>
 #include <stdexcept>
-#include <sys/socket.h>
-#include <unistd.h>
 
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0  // macOS has no such flag: no_sigpipe (trans.hpp) sets the socket option instead
+#ifdef _WIN32
+#include <direct.h>     // _getcwd
+#else
+#include <unistd.h>     // getcwd
 #endif
 
 #include "jsonout.hpp"
@@ -26,11 +22,11 @@ namespace cc {
 
 namespace {
 
-bool send_all(int fd, const char* data, size_t n) {
+bool send_all(net::socket_t fd, const char* data, size_t n) {
     while (n > 0) {
-        ssize_t k = send(fd, data, n, MSG_NOSIGNAL);
+        long k = net::send(fd, data, n);
         if (k < 0) {
-            if (errno == EINTR) continue;
+            if (net::interrupted(net::last_error())) continue;
             return false;
         }
         data += k;
@@ -39,7 +35,7 @@ bool send_all(int fd, const char* data, size_t n) {
     return true;
 }
 
-bool send_all(int fd, const std::string& s) { return send_all(fd, s.data(), s.size()); }
+bool send_all(net::socket_t fd, const std::string& s) { return send_all(fd, s.data(), s.size()); }
 
 // The page, with the engine's version where it says %ENGINE_VERSION%.
 const std::string& viewer_page() {
@@ -63,7 +59,7 @@ bool own_host(const std::string& host) {
     return false;
 }
 
-void respond(int fd, int code, const char* type, const std::string& body) {
+void respond(net::socket_t fd, int code, const char* type, const std::string& body) {
     const char* reason = code == 200 ? "OK" : code == 400 ? "Bad Request" : code == 403 ? "Forbidden" : "Not Found";
     std::string head = "HTTP/1.1 " + std::to_string(code) + " " + reason + "\r\nContent-Type: " + type +
                        "\r\nContent-Length: " + std::to_string(body.size()) +
@@ -85,13 +81,13 @@ struct Request {
     std::string method, path, host, type, body;
 };
 
-bool read_request(int fd, Request& req) {
+bool read_request(net::socket_t fd, Request& req) {
     std::string data;
     char buf[8192];
     size_t end;
     while ((end = data.find("\r\n\r\n")) == std::string::npos) {
         if (data.size() > 65536) return false;
-        ssize_t n = recv(fd, buf, sizeof buf, 0);
+        long n = net::recv(fd, buf, sizeof buf);
         if (n <= 0) return false;
         data.append(buf, static_cast<size_t>(n));
     }
@@ -122,7 +118,7 @@ bool read_request(int fd, Request& req) {
     if (length > (16u << 20)) return false;
     req.body = data.substr(end + 4);
     while (req.body.size() < length) {
-        ssize_t n = recv(fd, buf, sizeof buf, 0);
+        long n = net::recv(fd, buf, sizeof buf);
         if (n <= 0) return false;
         req.body.append(buf, static_cast<size_t>(n));
     }
@@ -151,8 +147,12 @@ std::string message(const std::string& text) {
 }
 
 std::string cwd_path(const std::string& name) {
-    char buf[PATH_MAX];
+    char buf[4096];
+#ifdef _WIN32
+    return _getcwd(buf, sizeof buf) ? std::string(buf) + "\\" + name : name;
+#else
     return getcwd(buf, sizeof buf) ? std::string(buf) + "/" + name : name;
+#endif
 }
 
 }  // namespace
@@ -168,30 +168,12 @@ Live::~Live() {
     input_cv_.notify_all();
     if (acceptor_.joinable()) acceptor_.join();
     for (int k = 0; k < 40 && active_ > 0; k++) std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    if (listener_ >= 0) close(listener_);
+    if (listener_ != net::INVALID) net::close(listener_);
 }
 
 int Live::listen(const std::string& host, int port) {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) throw std::runtime_error(strerror(errno));
-    int one = 1;
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(static_cast<uint16_t>(port));
-    if (inet_pton(AF_INET, host.c_str(), &addr.sin_addr) != 1) {
-        close(fd);
-        throw std::runtime_error("bad address " + host);
-    }
-    if (bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) != 0 || ::listen(fd, 16) != 0) {
-        int err = errno;
-        close(fd);
-        throw std::runtime_error(host + ":" + std::to_string(port) + ": " + strerror(err));
-    }
-    socklen_t len = sizeof addr;
-    getsockname(fd, reinterpret_cast<sockaddr*>(&addr), &len);
-    listener_ = fd;
-    port_ = ntohs(addr.sin_port);
+    listener_ = net::listen_tcp(host, port, 16);
+    port_ = net::local_port(listener_);
     return port_;
 }
 
@@ -199,14 +181,10 @@ void Live::start() { acceptor_ = std::thread([this] { accept_loop(); }); }
 
 void Live::accept_loop() {
     while (!stop_) {
-        pollfd p{listener_, POLLIN, 0};
-        if (poll(&p, 1, 300) <= 0) continue;
-        int fd = accept(listener_, nullptr, nullptr);
-        if (fd < 0) continue;
-        no_sigpipe(fd);
-        timeval tv{10, 0};                         // a request is read, an event written, within 10 s
-        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
-        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+        if (net::wait_readable(listener_, 300) <= 0) continue;
+        net::socket_t fd = net::accept(listener_);
+        if (fd == net::INVALID) continue;
+        net::set_timeout(fd, 10.0);                // a request is read, an event written, within 10 s
         active_++;
         std::thread([this, fd] {
             serve(fd);
@@ -217,10 +195,10 @@ void Live::accept_loop() {
 
 // Only the page itself may talk to the server: the Host must be this address (no DNS rebinding) and a POST must
 // carry JSON (another site's form or no-cors fetch cannot, without a preflight this server never answers).
-void Live::serve(int fd) {
+void Live::serve(net::socket_t fd) {
     Request req;
     if (!read_request(fd, req)) {
-        close(fd);
+        net::close(fd);
         return;
     }
     if (!own_host(req.host)) {
@@ -236,7 +214,7 @@ void Live::serve(int fd) {
             body = parse_json(req.body.empty() ? "{}" : req.body);
         } catch (const std::exception& e) {
             respond(fd, 400, "text/plain", std::string(e.what()) + "\n");
-            close(fd);
+            net::close(fd);
             return;
         }
         std::string reply = post(req.path, body);
@@ -245,11 +223,11 @@ void Live::serve(int fd) {
     } else {
         respond(fd, req.method == "POST" ? 403 : 404, "text/plain", "no\n");
     }
-    close(fd);
+    net::close(fd);
 }
 
 // The event stream: the game's events from its start, then each new one; a new game starts it again.
-void Live::stream(int fd) {
+void Live::stream(net::socket_t fd) {
     std::string head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\n"
                        "Connection: keep-alive\r\n\r\n";
     int generation = -1;
@@ -275,7 +253,7 @@ void Live::stream(int fd) {
         if (stopping && out.empty()) break;
         ok = send_all(fd, out.empty() ? std::string(": ping\n\n") : out);
     }
-    close(fd);
+    net::close(fd);
 }
 
 std::string Live::post(const std::string& path, const Json& body) {

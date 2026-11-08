@@ -152,7 +152,7 @@ EntityAction action_from_json(const Json& d) {
 static int32_t key_of(const std::string& k) {
     try {
         size_t used = 0;
-        long v = std::stol(k, &used);
+        long long v = std::stoll(k, &used);     // not stol: a long is 32 bits on Windows
         if (used != k.size()) throw JsonError("bad id " + k);
         return static_cast<int32_t>(v);
     } catch (const std::logic_error&) {

@@ -94,7 +94,7 @@ void write_debug_state(Writer& w, const DebugInput& in, int seat, int map_size) 
     w.f32(cx);                                    // camera: looking straight down, without perspective
     w.f32(cy);
     w.f32(0.0f);                                  // rotation
-    w.f32(static_cast<float>(M_PI / 2));          // attack
+    w.f32(static_cast<float>(1.57079632679489661923));     // attack: pi / 2 (M_PI is not standard C++)
     w.f32(in.distance);
     w.boolean(false);                             // perspective
     w.i32(seat);

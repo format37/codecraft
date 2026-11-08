@@ -83,7 +83,7 @@ public:
     void crash(const std::string& error, Log& log) override;
     std::optional<std::string> failure;
     int port() const { return port_; }
-    bool connected() const { return sock_ >= 0; }
+    bool connected() const { return sock_ != net::INVALID; }
 
     // The viewer's debug interface (GUI mode): `seat` turns the client's points into the global frame.
     void set_debug(DebugHost* host, int seat, int map_size);
@@ -111,7 +111,7 @@ private:
     int port_;
     std::optional<double> accept_timeout_, timeout_;
     Log& log_;
-    int listener_ = -1, sock_ = -1;
+    net::socket_t listener_ = net::INVALID, sock_ = net::INVALID;
     std::mutex fd_mutex_;                       // sock_ and listener_ are closed under it (interrupt() reads them)
     std::atomic<bool> aborted_{false};
     std::unique_ptr<SocketReader> reader_;

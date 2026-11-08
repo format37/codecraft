@@ -14,6 +14,7 @@
 #include "jsonout.hpp"
 #include "live.hpp"
 #include "mapgen.hpp"
+#include "net.hpp"
 #include "replay.hpp"
 #include "rules.hpp"
 #include "view.hpp"
@@ -526,18 +527,6 @@ int play_live(Game& g, Live& live, const LiveOptions& opts, Log& log) {
     return code;
 }
 
-void open_browser(const std::string& url) {
-#ifdef __APPLE__
-    std::string cmd = "open '" + url + "' >/dev/null 2>&1";
-#else
-    std::string cmd = "xdg-open '" + url + "' >/dev/null 2>&1";
-#endif
-    std::thread([cmd] {
-        if (std::system(cmd.c_str()) != 0) {
-        }
-    }).detach();
-}
-
 Json with_seed(Json config, uint64_t seed) {
     for (auto& kv : config.obj)
         if (kv.first == "seed") {
@@ -568,7 +557,7 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
     // always 127.0.0.1, whatever --bind: in a container, `docker -p` brings the host's 127.0.0.1 here
     std::string url = "http://127.0.0.1:" + std::to_string(port) + "/";
     log.info("Viewer: " + url);
-    if (opts.open_browser) open_browser(url);
+    if (opts.open_browser) net::open_browser(url);
     std::string offer = config ? dump_json(*config, -1) : default_config(), error;
     std::optional<Json> next;              // a config to play without the config screen
     if (config) next = *config;
@@ -644,7 +633,7 @@ int run_replay(const std::string& path, const LiveOptions& opts, Log& log) {
     // always 127.0.0.1, whatever --bind: in a container, `docker -p` brings the host's 127.0.0.1 here
     std::string url = "http://127.0.0.1:" + std::to_string(port) + "/";
     log.info("Viewer: " + url);
-    if (opts.open_browser) open_browser(url);
+    if (opts.open_browser) net::open_browser(url);
     Model m = reader->initial();
     std::vector<SeatInfo> seats;
     for (size_t k = 0; k < m.players.size(); k++) seats.push_back(SeatInfo{seat_label(opts, k), "replay", "replay", 0});

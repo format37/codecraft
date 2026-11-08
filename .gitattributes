@@ -1,0 +1,5 @@
+# The engine's sources are hashed into its version (sim-cpp/Makefile `make version`, server/codecraft/builder.py):
+# the same bytes in every checkout, Windows included, where git would otherwise turn their LF into CRLF.
+sim-cpp/** -text
+# bash takes its scripts with LF only (MSYS2's bash runs .github/runner-game.sh on Windows)
+*.sh text eol=lf

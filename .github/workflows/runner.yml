@@ -1,7 +1,9 @@
 # The runner for everyone: the engine image on GHCR and binaries on GitHub Releases, from sim-cpp/ on master.
 # One version = one engine: `make -C sim-cpp version`, the hash of the engine's sources, is the tag the server
 # gives its own image and the version every game page names. A push that leaves that version as it is publishes
-# nothing new. docs/QUICKSTART.md tells players how to use what this publishes.
+# nothing new. Every binary plays the same game on its own system before the release (.github/runner-game.sh), and
+# the release goes out only when their replays agree byte for byte. docs/QUICKSTART.md tells players how to use what
+# this publishes.
 # Once, by hand: the package ghcr.io/<owner>/codecraft-runner is private when first pushed; make it public on
 # GitHub (Packages -> codecraft-runner -> Package settings -> Change visibility).
 name: runner
@@ -87,30 +89,71 @@ jobs:
           - os: macos-latest        # Apple silicon; one universal binary for Apple silicon and Intel
             asset: codecraft-runner-macos
             make: CXXFLAGS="-O2 -std=c++17 -Wall -Wextra -ffp-contract=off -arch arm64 -arch x86_64" LDFLAGS="-pthread -arch arm64 -arch x86_64"
+          - os: windows-latest      # MSYS2's UCRT64 g++ (posix threads, the C runtime of Windows 10 and 11), one static .exe
+            asset: codecraft-runner-windows-x86_64
+            make: OS=Windows_NT
+            exe: .exe
+            shell: msys2 {0}
+            python: python
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell || 'bash' }}
     env:
       V: ${{ needs.version.outputs.version }}
+      BIN: sim-cpp/build/codecraft-sim-cpp${{ matrix.exe }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        if: runner.os == 'Windows'
+        with:
+          python-version: "3.12"    # `python` for the game, ahead of the Store's stub in PATH
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: UCRT64
+          update: false
+          install: make diffutils file zip unzip curl mingw-w64-ucrt-x86_64-gcc
+          path-type: inherit        # that Python, for the game
       - name: Build
         run: make -C sim-cpp -j3 ${{ matrix.make }}
       - name: The binary says its version
         run: |
-          sim-cpp/build/codecraft-sim-cpp --version | tee version.txt
+          "$BIN" --version | tr -d '\r' | tee version.txt
           grep -qx "codecraft-sim-cpp $V" version.txt
-          file sim-cpp/build/codecraft-sim-cpp
-          if [ "$RUNNER_OS" = macOS ]; then lipo -archs sim-cpp/build/codecraft-sim-cpp | grep -q x86_64; fi
+          file "$BIN"
+          if [ "$RUNNER_OS" = macOS ]; then lipo -archs "$BIN" | grep -q x86_64; fi
+          if [ "$RUNNER_OS" = Windows ]; then
+            objdump -p "$BIN" | grep "DLL Name" | tee dlls.txt
+            if grep -iE "libstdc|libgcc|libwinpthread" dlls.txt; then echo "not linked statically" >&2; exit 1; fi
+          fi
+      - name: A game, in batch mode and in the viewer
+        run: bash .github/runner-game.sh "$BIN" game ${{ matrix.python || 'python3' }}
       - name: Pack
         run: |
-          mkdir out
-          cp sim-cpp/build/codecraft-sim-cpp out/codecraft-runner
+          mkdir out games
+          cp "$BIN" "out/codecraft-runner${{ matrix.exe }}"
           sed "s/@VERSION@/$V/g; s/@OWNER@/${{ github.repository_owner }}/g" .github/runner-README.txt > out/README.txt
-          COPYFILE_DISABLE=1 tar czf "${{ matrix.asset }}.tar.gz" -C out codecraft-runner README.txt
-          tar tzf "${{ matrix.asset }}.tar.gz"
+          if [ "$RUNNER_OS" = Windows ]; then
+            (cd out && zip -X "../${{ matrix.asset }}.zip" codecraft-runner.exe README.txt)
+            unzip -l "${{ matrix.asset }}.zip"
+          else
+            COPYFILE_DISABLE=1 tar czf "${{ matrix.asset }}.tar.gz" -C out codecraft-runner README.txt
+            tar tzf "${{ matrix.asset }}.tar.gz"
+          fi
+          cp game/replay.dat "games/${{ matrix.asset }}.replay.dat"
+          cp game/results.json "games/${{ matrix.asset }}.results.json"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}.tar.gz
+          path: |
+            ${{ matrix.asset }}.tar.gz
+            ${{ matrix.asset }}.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: game-${{ matrix.asset }}
+          path: games/
           if-no-files-found: error
 
   release:
@@ -123,11 +166,24 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          pattern: codecraft-runner-*
           path: assets
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: game-*
+          path: games
+          merge-multiple: true
+      - name: Every binary played the same game
+        run: |
+          sha256sum games/*
+          set -- games/*.replay.dat && [ $# -eq 4 ]        # the four binaries
+          for kind in replay.dat results.json; do
+            for f in games/*."$kind"; do cmp "games/codecraft-runner-linux-x86_64.$kind" "$f"; done
+          done
       - name: Release runner-<version>
         run: |
           if gh release view "runner-$V" >/dev/null 2>&1; then echo "runner-$V exists: nothing to release"; exit 0; fi
           sed "s/@VERSION@/$V/g; s/@OWNER@/${{ github.repository_owner }}/g" .github/runner-release.md > notes.md
-          gh release create "runner-$V" assets/*.tar.gz --target "$GITHUB_SHA" --title "Runner $V" \
+          gh release create "runner-$V" assets/*.tar.gz assets/*.zip --target "$GITHUB_SHA" --title "Runner $V" \
             --notes-file notes.md --latest
