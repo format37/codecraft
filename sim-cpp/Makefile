@@ -18,11 +18,12 @@ OBJ := $(patsubst src/%.cpp,build/obj/%.o,$(SRC)) build/obj/viewer_html.o build/
 
 # The engine's version, which `--version` and the viewer show: the version of its source, as the server computes it
 # to tag the engine image (server/codecraft/builder.py, source_version): 12 hex digits of the sha256 of the
-# `sha256sum` lines of the Dockerfile and the files it copies (SOURCES), in the order of their paths. The same
-# version, the same engine. `make version` prints it.
+# `sha256sum` lines of the Dockerfile and the files it copies (SOURCES), in the order of their paths ("<hash>  <path>";
+# MSYS2's sha256sum writes "<hash> *<path>", binary mode, made the same here). The same version, the same engine.
+# `make version` prints it.
 SOURCES := Dockerfile Makefile src viewer
 SHA256 := $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || echo shasum -a 256)
-VERSION := $(shell find $(SOURCES) -type f | LC_ALL=C sort | xargs $(SHA256) | $(SHA256) | cut -c1-12)
+VERSION := $(shell find $(SOURCES) -type f | LC_ALL=C sort | xargs $(SHA256) | sed 's/ [*]/  /' | $(SHA256) | cut -c1-12)
 
 build/codecraft-sim-cpp$(EXE): $(OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)
