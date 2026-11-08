@@ -37,6 +37,9 @@
   pre { background:var(--card); border:1px solid var(--line); padding:10px; overflow:auto; border-radius:6px; }
   .grid { display:grid; grid-template-columns: 1fr 1fr; gap:24px; } @media (max-width: 900px) { .grid { grid-template-columns:1fr; } }
   .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:10px 0; }
+  iframe.viewer { display:block; width:100%; height:min(78vh, 720px); margin:10px 0; border:1px solid var(--line);
+    border-radius:8px; background:#0a0e13; }
+  @media (max-width: 700px) { iframe.viewer { height:70vh; } }
   form.inline { display:inline; }
   input[type=text], input[type=email], input[type=number], select, textarea { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
   input[type=file] { font:inherit; }

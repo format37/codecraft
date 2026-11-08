@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 WIDTH, HEIGHT = 1200, 630            # the standard Open Graph size (1.91:1)
 KEYFRAME = 25                        # ticks other than the last are rounded down to this
-PLAYER_COLORS = ["#2f7df6", "#e5484d", "#30a46c", "#f5a524"]   # as in static/viewer.js
+PLAYER_COLORS = ["#2f7df6", "#e5484d", "#30a46c", "#f5a524"]   # as in the viewer (sim-cpp/viewer)
 RESOURCE, NEUTRAL = "#8a9bb0", "#555555"
 BG, FIELD, LINE, FG, MUTED = "#101418", "#0b0e12", "#232a34", "#e6e8ec", "#9aa3b2"
 FONT_DIR = Path("/usr/share/fonts/truetype/dejavu")

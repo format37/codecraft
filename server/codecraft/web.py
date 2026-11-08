@@ -11,7 +11,6 @@ from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.convertors import Convertor, register_url_convertor
 from starlette.datastructures import MutableHeaders
@@ -29,6 +28,23 @@ from .submissions import SubmissionError, submit
 log = logging.getLogger("codecraft.web")
 HERE = Path(__file__).parent
 COOKIE = "cw_session"
+# The replay viewer is the local runner's (built into it as well): one viewer for the runner and the site.
+VIEWER = HERE.parents[1] / "sim-cpp" / "viewer" / "viewer.html"
+VIEWER_SLOT = '<script id="cc-site" type="application/json">null</script>'
+VIEWER_SPEEDS = (1, 2, 5, 10, 20, 50, 100)
+
+
+def viewer_page(site: dict, engine_version: str) -> str:
+    """The viewer's page for one game: its data in place of the runner's null (the page then plays the game's
+    replay.json, with no runner behind it), the engine's version in its help. Read on every request, so a git
+    pull updates it, as it does the engine."""
+    page = VIEWER.read_text(encoding="utf-8")
+    if VIEWER_SLOT not in page:
+        raise RuntimeError(f"{VIEWER} has no {VIEWER_SLOT}")
+    data = json.dumps(site, separators=(",", ":"))
+    data = data.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")   # inert in a <script>
+    return (page.replace(VIEWER_SLOT, VIEWER_SLOT.replace(">null<", f">{data}<"))
+            .replace("%ENGINE_VERSION%", engine_version))
 
 
 class _Anything(Convertor):
@@ -112,7 +128,6 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
 
     app = FastAPI(title=title, docs_url=None, redoc_url=None, lifespan=lifespan)
     app.state.agents, app.state.mcp = ax, mcp
-    app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.filters["rating"] = lambda v: "-" if v is None else f"{v:.0f}"
     templates.env.filters["build_error"] = A.build_error
@@ -379,6 +394,23 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
             tmp.replace(cache)
         return FileResponse(cache, media_type="application/json",
                             headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=86400"})
+
+    @app.get("/games/{game_id}/viewer", response_class=HTMLResponse)
+    def game_viewer(request: Request, game_id: int, autoplay: bool = False, speed: int | None = None):
+        """The replay in the local runner's viewer, a page of its own that the game page and the cover frame
+        (this origin only); `autoplay` plays it in a loop, at `speed` ticks a second."""
+        row, players = db.game(game_id)
+        if row is None:
+            raise HTTPException(404, "no such game")
+        if not (game_dir(game_id) / "replay.dat").exists():
+            raise HTTPException(404, "no replay for this game")
+        engine = row["engine"] or ""
+        site = {"game": game_id, "page": f"/games/{game_id}", "replay": f"/games/{game_id}/replay.json",
+                "download": f"/games/{game_id}/files/replay.dat", "labels": player_labels(players),
+                "seed": row["seed"] or "", "engine": engine, "autoplay": autoplay,
+                "speed": speed if speed in VIEWER_SPEEDS else None}
+        return HTMLResponse(viewer_page(site, engine.rpartition(":")[2] or "unknown"),
+                            headers={"X-Frame-Options": "SAMEORIGIN", "Cache-Control": "no-cache"})
 
     @app.get("/games/{game_id}/files/{name}")
     def game_file(request: Request, game_id: int, name: str):

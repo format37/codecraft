@@ -71,6 +71,17 @@
     border: 1px solid var(--line); border-radius: 10px; padding: 14px 20px; }
   #help td { padding: 2px 10px 2px 0; }
   kbd { background: #1f2a36; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+  a { color: var(--accent); }
+  a.button { display: inline-block; padding: 4px 10px; border: 1px solid var(--line); border-radius: 5px;
+    background: #1a2430; color: var(--fg); text-decoration: none; white-space: nowrap; }
+  a.button:hover { border-color: var(--accent); }
+  /* the runner's own controls, and the site's (a game's replay on the server: no runner behind the page) */
+  body.site .runner-only, body:not(.site) .site-only { display: none !important; }
+  @media (max-width: 700px) {
+    #cell, #top { display: none; }
+    #side { width: min(290px, calc(100% - 16px)); }
+    #bar { gap: 6px; padding: 0 8px; }
+  }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -79,7 +90,8 @@
 <div id="logs"></div>
 <div id="top"></div>
 <div id="side">
-  <div class="head"><b>CodeCraft</b><button id="hide" class="small" title="hide or show this panel">–</button></div>
+  <div class="head"><b class="runner-only">CodeCraft</b><b class="site-only"><a id="gameLink" target="_top"></a></b>
+    <button id="hide" class="small" title="hide or show this panel">–</button></div>
   <div id="seed" class="muted small"></div>
   <h3>Players</h3>
   <div id="seats"></div>
@@ -108,12 +120,15 @@
     <option value="100">100 t/s</option><option value="0">max</option>
   </select>
   <span id="cell"></span>
-  <button id="restart" title="end this game and start it again; your strategy reconnects (run it again)">
-    ↻ Restart</button>
-  <label class="chk small" title="restart with this game's seed: the same map and the same dice">
+  <button id="restart" class="runner-only"
+    title="end this game and start it again; your strategy reconnects (run it again)">↻ Restart</button>
+  <label class="chk small runner-only" title="restart with this game's seed: the same map and the same dice">
     <input type="checkbox" id="sameSeed"> same seed</label>
-  <button id="saveReplay" title="save the replay so far (Ctrl-S)">Save replay</button>
-  <button id="saveState" title="save the state of the tick shown, for LoadFrom (Ctrl-E)">Save state</button>
+  <button id="saveReplay" class="runner-only" title="save the replay so far (Ctrl-S)">Save replay</button>
+  <button id="saveState" class="runner-only" title="save the state of the tick shown, for LoadFrom (Ctrl-E)">
+    Save state</button>
+  <a id="download" class="button site-only" download
+    title="replay.dat: the local runner shows it too (--replay), and saves the state of a tick there">Download</a>
   <button id="helpBtn" title="keys">?</button>
 </div>
 <div id="banner" hidden></div>
@@ -121,30 +136,36 @@
 <div id="help" hidden>
   <b>Keys and mouse</b>
   <table class="small">
-    <tr><td><kbd>P</kbd></td><td>pause / play</td></tr>
+    <tr><td><kbd>P</kbd><span class="site-only">, <kbd>Space</kbd></span></td><td>pause / play</td></tr>
     <tr><td><kbd>←</kbd> <kbd>→</kbd></td>
-      <td>a tick back / forward (pauses; → at the newest tick plays one)</td></tr>
+      <td>a tick back / forward (pauses<span class="runner-only">; → at the newest tick plays one</span>)</td></tr>
     <tr><td><kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd></td><td>10 ticks</td></tr>
     <tr><td><kbd>Home</kbd></td><td>fit the map</td></tr>
-    <tr><td>↻ Restart</td><td>end the game and start it again (same seats; "same seed": same map and dice);
-      connected strategies get Finish, then run yours again</td></tr>
-    <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>save the replay so far</td></tr>
-    <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>save the state of the tick shown (a LoadFrom file)</td></tr>
-    <tr><td>wheel</td><td>zoom</td></tr>
-    <tr><td>right drag, <kbd>Shift</kbd>+drag</td><td>move the camera</td></tr>
+    <tr class="runner-only"><td>↻ Restart</td><td>end the game and start it again (same seats; "same seed": same
+      map and dice); connected strategies get Finish, then run yours again</td></tr>
+    <tr class="runner-only"><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>save the replay so far</td></tr>
+    <tr class="runner-only"><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td>
+      <td>save the state of the tick shown (a LoadFrom file)</td></tr>
+    <tr><td>wheel<span id="ctrlWheel" hidden> with <kbd>Ctrl</kbd></span>, pinch</td><td>zoom</td></tr>
+    <tr><td>drag</td><td>move the camera</td></tr>
     <tr><td>click</td><td>select an entity</td></tr>
   </table>
-  <p class="small muted">Your strategy gets the mouse, the keys held and the camera through
+  <p class="small muted site-only">The same viewer is the local runner's, which plays a game live with your
+    strategy and its debug drawings. Download the replay to watch it there,
+    <code>codecraft-sim-cpp --replay replay.dat</code>, and save the state of a tick to start a game from (Ctrl-E):
+    <code>make -C sim-cpp</code> in <a href="https://github.com/format37/codecraft" target="_blank"
+    rel="noopener">format37/codecraft</a>. <span id="playedOn"></span></p>
+  <p class="small muted runner-only">Your strategy gets the mouse, the keys held and the camera through
     <code>debug_interface.get_state()</code>; what it draws shows on the tick it drew it for.</p>
-  <p class="small muted">Server limits: on the server a strategy has 1 s to answer a tick and 40 s of CPU time for
-    the whole game, and is cut off past them. "Cut off" does that here (the default): the runner stops waiting
-    after the time to answer a tick, or once the answers took the game's time in all. "Only warn" waits as long as
-    it takes (for a breakpoint, say) and marks what the server would not have allowed. The runner counts the time
-    to answer, not CPU time: a strategy with several threads uses more CPU than that, and the server's core may be
-    slower than yours. The server also caps memory (1 GB a strategy); the runner does not.</p>
-  <p class="small muted">Engine version <code>%ENGINE_VERSION%</code>, the hash of its source. The server's game
-    pages name the engine of every game, <code>codecraft/sim-cpp:&lt;version&gt;</code>: the same version, the
-    same engine.</p>
+  <p class="small muted runner-only">Server limits: on the server a strategy has 1 s to answer a tick and 40 s of
+    CPU time for the whole game, and is cut off past them. "Cut off" does that here (the default): the runner
+    stops waiting after the time to answer a tick, or once the answers took the game's time in all. "Only warn"
+    waits as long as it takes (for a breakpoint, say) and marks what the server would not have allowed. The runner
+    counts the time to answer, not CPU time: a strategy with several threads uses more CPU than that, and the
+    server's core may be slower than yours. The server also caps memory (1 GB a strategy); the runner does not.</p>
+  <p class="small muted runner-only">Engine version <code>%ENGINE_VERSION%</code>, the hash of its source. The
+    server's game pages name the engine of every game, <code>codecraft/sim-cpp:&lt;version&gt;</code>: the same
+    version, the same engine.</p>
 </div>
 <div id="config" hidden>
   <div class="card">
@@ -174,9 +195,16 @@
     </details>
   </div>
 </div>
+<!-- The local runner serves this page as it is. The server's game pages serve it with a game in place of null:
+     {game, page, replay (its replay.json), download, labels, seed, engine, autoplay, speed} (server/codecraft/web.py),
+     and the page plays that replay, with no runner behind it. -->
+<script id="cc-site" type="application/json">null</script>
 <script>
 (() => {
   "use strict";
+  const SITE = JSON.parse(document.getElementById("cc-site").textContent || "null");
+  const EMBEDDED = window.self !== window.top;      // in a frame of the site's page: the wheel scrolls the page
+  if (SITE) document.body.classList.add("site");
   const TYPES = ["WALL", "HOUSE", "BUILDER_BASE", "BUILDER_UNIT", "MELEE_BASE", "MELEE_UNIT", "RANGED_BASE",
     "RANGED_UNIT", "RESOURCE", "TURRET"];
   const LETTER = { WALL: "W", HOUSE: "H", BUILDER_BASE: "B", MELEE_BASE: "M", RANGED_BASE: "R", TURRET: "T" };
@@ -202,6 +230,7 @@
   function save() { try { localStorage.setItem("cc-runner-prefs", JSON.stringify(prefs)); } catch (e) { /* none */ } }
 
   async function post(path, body) {
+    if (SITE) return {};                               // no runner behind a game page
     try {
       const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body || {}) });
@@ -210,17 +239,45 @@
   }
 
   // The runner's events ------------------------------------------------------------------------------------------
-  const es = new EventSource("/events");
-  es.addEventListener("init", (e) => onInit(JSON.parse(e.data)));
-  es.addEventListener("tick", (e) => onTick(JSON.parse(e.data)));
-  es.addEventListener("dbg", (e) => onDebug(JSON.parse(e.data)));
-  es.addEventListener("seat", (e) => onSeat(JSON.parse(e.data)));
-  es.addEventListener("over", (e) => onOver(JSON.parse(e.data)));
-  es.addEventListener("config", (e) => onConfig(JSON.parse(e.data)));
-  es.addEventListener("answers", (e) => onAnswers(JSON.parse(e.data)));
-  es.addEventListener("limits", (e) => onLimits(JSON.parse(e.data)));
-  es.onerror = () => { if (G) banner("The runner is gone (stopped?): this page will reconnect when it is back."); };
-  es.onopen = () => { if (G && !G.over && G.waiting === 0) banner(null); };
+  if (!SITE) {
+    const es = new EventSource("/events");
+    es.addEventListener("init", (e) => onInit(JSON.parse(e.data)));
+    es.addEventListener("tick", (e) => onTick(JSON.parse(e.data)));
+    es.addEventListener("dbg", (e) => onDebug(JSON.parse(e.data)));
+    es.addEventListener("seat", (e) => onSeat(JSON.parse(e.data)));
+    es.addEventListener("over", (e) => onOver(JSON.parse(e.data)));
+    es.addEventListener("config", (e) => onConfig(JSON.parse(e.data)));
+    es.addEventListener("answers", (e) => onAnswers(JSON.parse(e.data)));
+    es.addEventListener("limits", (e) => onLimits(JSON.parse(e.data)));
+    es.onerror = () => { if (G) banner("The runner is gone (stopped?): this page will reconnect when it is back."); };
+    es.onopen = () => { if (G && !G.over && G.waiting === 0) banner(null); };
+  }
+
+  // A game page's replay: its replay.json (the runner's own init and tick events, see server/codecraft/replay.py)
+  async function loadReplay() {
+    $("gameLink").textContent = `Game #${SITE.game}`;
+    $("gameLink").href = SITE.page;
+    $("download").href = SITE.download;
+    $("playedOn").textContent = SITE.engine ? `This game was played on ${SITE.engine}.` : "";
+    $("ctrlWheel").hidden = !EMBEDDED;
+    banner("Loading the replay…");
+    let d;
+    try {
+      const r = await fetch(SITE.replay);
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      d = await r.json();
+    } catch (e) { banner(`Cannot load the replay: ${esc(e.message)}`); return; }
+    banner(null);
+    const seats = d.players.map((p) => ({ label: SITE.labels[p[1]] || `Player ${p[1] + 1}`, kind: "replay",
+      status: "replay" }));
+    onInit({ map_size: d.map_size, fog_of_war: d.fog_of_war, max_tick_count: d.max_tick_count,
+      tick: d.ticks.length ? d.ticks[0].t - 1 : 0, seed: SITE.seed || "", replay: true, limits: null,
+      properties: d.properties, players: d.players, seats, entities: d.entities, actions: d.actions });
+    d.ticks.forEach(onTick);
+    onOver({ replay: true });
+    if (SITE.speed) { view.speed = SITE.speed; $("speed").value = String(SITE.speed); }
+    setPlaying(!!SITE.autoplay);
+  }
 
   function emptyState() { return { players: new Map(), entities: new Map(), actions: new Map(), events: [] }; }
   function clone(s) {
@@ -271,7 +328,7 @@
     $("slider").min = G.first;
     $("restart").hidden = G.replay; $("sameSeed").parentElement.hidden = G.replay;
     renderSide(); renderDebugOpts(); waitingBanner(); updateBar(); control();
-    document.title = "CodeCraft runner";
+    document.title = SITE ? `Game #${SITE.game} · CodeCraft` : "CodeCraft runner";
     dirty = true;
   }
 
@@ -417,6 +474,7 @@
     updateBar(); renderSide(); dirty = true;
   }
   function setPlaying(on) {
+    if (on && G && G.replay && view.tick >= G.newest) goTo(G.first, false);      // a replay from its start again
     view.playing = on;
     playLast = performance.now(); playAcc = 0;
     $("play").textContent = on ? "❚❚" : "▶";
@@ -441,7 +499,10 @@
       if (n > 0) {
         playAcc -= n;
         goTo(view.tick + n, false);
-        if (view.tick >= G.newest) { view.follow = true; control(); }
+        if (view.tick >= G.newest && G.replay) {
+          if (SITE && SITE.autoplay) goTo(G.first, false);
+          else setPlaying(false);
+        } else if (view.tick >= G.newest) { view.follow = true; control(); }
         else if (!controlTimer) controlTimer = setTimeout(() => control(), 250);
       }
     }
@@ -467,10 +528,12 @@
     if (G && !cam.fitted) fit();
     dirty = true; input();
   }
-  function fit() {
+  function fit() {                             // the map in the room left of the side panel, when there is room
     if (!G || !W) return;
-    cam.scale = Math.min(W, H) / G.size * 0.94;
-    cam.x = G.size / 2; cam.y = G.size / 2; cam.fitted = true;
+    const side = $("side");
+    const panel = !side.classList.contains("hidden") && W - side.offsetWidth > 480 ? side.offsetWidth + 16 : 0;
+    cam.scale = Math.min(W - panel, H) / G.size * 0.94;
+    cam.x = G.size / 2 + panel / 2 / cam.scale; cam.y = G.size / 2; cam.fitted = true;
     dirty = true; input();
   }
   const sx = (x) => W / 2 + (x - cam.x) * cam.scale;
@@ -481,7 +544,7 @@
   // The debug state the strategies ask for ----------------------------------------------------------------------
   let inputDirty = true;
   function input() { inputDirty = true; }
-  setInterval(() => {
+  if (!SITE) setInterval(() => {
     if (!inputDirty) return;
     inputDirty = false;
     post("/input", { w: W, h: H, mx: Math.min(W - 1, Math.max(0, mouse.x)),
@@ -599,7 +662,7 @@
     }
     drawDebug();
     drawTop(s);
-    document.title = `CodeCraft runner · tick ${view.tick}`;
+    document.title = SITE ? `Game #${SITE.game} · tick ${view.tick}` : `CodeCraft runner · tick ${view.tick}`;
   }
 
   // What the strategies drew: the tick's drawings and the persistent layer of debug_update, per seat.
@@ -686,7 +749,8 @@
   // Side panel ---------------------------------------------------------------------------------------------------
   function renderSide() {
     if (!G) return;
-    $("seed").textContent = (G.replay ? "replay" : `seed ${G.seed}`) + (G.fog ? " · fog of war (all shown)" : "");
+    const seed = G.replay && !(SITE && G.seed) ? "replay" : `seed ${G.seed}`;
+    $("seed").textContent = seed + (G.fog ? " · fog of war (all shown)" : "");
     const s = stateAt(view.tick), per = counts(s);
     $("seats").innerHTML = G.seats.map((seat, k) => {
       const p = [...s.players.values()].find((x) => x[1] === k);
@@ -879,10 +943,19 @@
     if (typing(e) || !$("config").hidden) return;
     const name = keyName(e.code);
     if (name && !pressed.has(name)) { pressed.add(name); input(); }
-    if ((e.ctrlKey || e.metaKey) && e.code === "KeyS") { e.preventDefault(); saveReplay(); return; }
-    if ((e.ctrlKey || e.metaKey) && e.code === "KeyE") { e.preventDefault(); saveState(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.code === "KeyS") {
+      e.preventDefault();
+      if (SITE) $("download").click(); else saveReplay();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.code === "KeyE") {
+      e.preventDefault();
+      if (SITE) toast("The local runner saves the state of a tick: download the replay, watch it there (--replay)");
+      else saveState();
+      return;
+    }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.code === "KeyP") setPlaying(!view.playing);
+    if (e.code === "KeyP" || (SITE && e.code === "Space")) { e.preventDefault(); if (G) setPlaying(!view.playing); }
     else if (e.code === "ArrowLeft") { e.preventDefault(); step(e.shiftKey ? -10 : -1); }
     else if (e.code === "ArrowRight") { e.preventDefault(); step(e.shiftKey ? 10 : 1); }
     else if (e.code === "Home") fit();
@@ -897,21 +970,20 @@
   let drag = null;
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   canvas.addEventListener("mousedown", (e) => {
-    if (e.button === 2 || e.button === 1 || (e.button === 0 && e.shiftKey)) {
-      drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false };
-      e.preventDefault();
-    } else if (e.button === 0) {
-      drag = { click: true, x: e.clientX, y: e.clientY };
-    }
+    if (e.button > 2) return;
+    // any button drags the camera; the left one, not moved, selects (Shift+drag: a drag at once)
+    drag = { click: e.button === 0 && !e.shiftKey, x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y };
+    e.preventDefault();
+    window.focus();                                  // the keys work in a frame too
   });
   window.addEventListener("mousemove", (e) => {
     const r = canvas.getBoundingClientRect();
     mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
     mouse.inside = mouse.x >= 0 && mouse.y >= 0 && mouse.x < W && mouse.y < H;
+    if (drag && drag.click && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) >= 5) drag.click = false;
     if (drag && !drag.click) {
       cam.x = drag.cx - (e.clientX - drag.x) / cam.scale;
       cam.y = drag.cy + (e.clientY - drag.y) / cam.scale;
-      drag.moved = true;
     }
     if (G) {
       const cx = Math.floor(wx(mouse.x)), cy = Math.floor(wy(mouse.y));
@@ -921,15 +993,65 @@
     dirty = true; input();
   });
   window.addEventListener("mouseup", (e) => {
-    if (drag && drag.click && e.button === 0 && G && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) select();
+    if (drag && drag.click && e.button === 0 && G) select();
     drag = null;
   });
-  canvas.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const before = [wx(mouse.x), wy(mouse.y)];
-    cam.scale = Math.max(1.5, Math.min(120, cam.scale * Math.exp(-e.deltaY * 0.0015)));
-    cam.x += before[0] - wx(mouse.x); cam.y += before[1] - wy(mouse.y);
+  function zoomAt(px, py, factor) {
+    const before = [wx(px), wy(py)];
+    cam.scale = Math.max(1.5, Math.min(120, cam.scale * factor));
+    cam.x += before[0] - wx(px); cam.y += before[1] - wy(py);
     dirty = true; input();
+  }
+  let wheelHint = false;
+  canvas.addEventListener("wheel", (e) => {
+    if (EMBEDDED && !e.ctrlKey && !e.metaKey) {      // framed in a page: the wheel scrolls it (a pinch has ctrlKey)
+      if (!wheelHint) { wheelHint = true; toast("Ctrl + wheel zooms the map (or open the viewer on its own page)"); }
+      return;
+    }
+    e.preventDefault();
+    zoomAt(mouse.x, mouse.y, Math.exp(-e.deltaY * 0.0015));
+  }, { passive: false });
+
+  // Touch: one finger moves the camera (a tap selects), two pinch to zoom
+  let touch = null;
+  function touchPoint(t) {
+    const r = canvas.getBoundingClientRect();
+    return [t.clientX - r.left, t.clientY - r.top];
+  }
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      const [x, y] = touchPoint(e.touches[0]);
+      touch = { x, y, cx: cam.x, cy: cam.y, tap: true };
+    } else if (e.touches.length === 2) {
+      const [a, b] = [touchPoint(e.touches[0]), touchPoint(e.touches[1])];
+      touch = { pinch: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, scale: cam.scale, tap: false };
+    }
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (!touch) return;
+    if (touch.pinch && e.touches.length === 2) {
+      const [a, b] = [touchPoint(e.touches[0]), touchPoint(e.touches[1])];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+      zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, touch.scale * d / touch.pinch / cam.scale);
+    } else if (!touch.pinch && e.touches.length === 1) {
+      const [x, y] = touchPoint(e.touches[0]);
+      if (Math.hypot(x - touch.x, y - touch.y) >= 8) touch.tap = false;
+      if (!touch.tap) {
+        cam.x = touch.cx - (x - touch.x) / cam.scale;
+        cam.y = touch.cy + (y - touch.y) / cam.scale;
+        dirty = true;
+      }
+    }
+  }, { passive: false });
+  canvas.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    if (touch && touch.tap && e.touches.length === 0 && G) {
+      [mouse.x, mouse.y] = [touch.x, touch.y];
+      select();
+    }
+    if (e.touches.length === 0) touch = null;
   }, { passive: false });
   canvas.addEventListener("mouseleave", () => { mouse.inside = false; dirty = true; });
 
@@ -970,17 +1092,23 @@
   $("saveState").onclick = saveState;
   $("helpBtn").onclick = () => { $("help").hidden = !$("help").hidden; };
   $("help").onclick = () => { $("help").hidden = true; };
-  $("hide").onclick = () => { prefs.side = !prefs.side; save(); $("side").classList.toggle("hidden", !prefs.side); };
+  function showSide() {
+    $("side").classList.toggle("hidden", !prefs.side);
+    $("hide").textContent = prefs.side ? "–" : "+";
+  }
+  $("hide").onclick = () => { prefs.side = !prefs.side; save(); showSide(); };
   for (const [id, key] of [["optAttacks", "attacks"], ["optMoves", "moves"], ["optGrid", "grid"]]) {
     $(id).checked = prefs[key];
     $(id).onchange = (e) => { prefs[key] = e.target.checked; save(); dirty = true; };
   }
-  $("side").classList.toggle("hidden", !prefs.side);
+  if (SITE && window.innerWidth < 700) prefs.side = false;        // a phone: the map first (not saved)
+  showSide();
   view.speed = prefs.speed;
   $("speed").value = String(prefs.speed);
   window.addEventListener("resize", resize);
   resize();
   requestAnimationFrame(frame);
+  if (SITE) loadReplay();
 })();
 </script>
 </body>

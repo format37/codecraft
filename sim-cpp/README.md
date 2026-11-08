@@ -9,7 +9,10 @@ order, and keeps the Python engine's orders of iteration (players, entities and 
 its own order). The Python engine stays the executable spec: a change of the rules is made there first, then here.
 
 It is also **the local runner**: without `--batch-mode`, as the official runner opens its window, it shows the game
-live in the browser, with the official GUI's debug interface for your strategy (below).
+live in the browser, with the official GUI's debug interface for your strategy (below). Its viewer is the server's
+too: a game page frames `/games/<id>/viewer`, `viewer/viewer.html` with the game's data in place of the runner's
+`null` (`server/codecraft/web.py`), and the page plays the game's `replay.json`, the runner's own events. One viewer
+for both: a change to it shows in the runner and on the site.
 
 ```
 make                                   # build/codecraft-sim-cpp (g++, C++17, the standard library only)
@@ -94,7 +97,7 @@ src/
   history.*          the game's states, tick by tick, for the viewer, its rewinding and Ctrl-E
   jsonout.hpp        compact JSON for the event stream
   main.cpp           the command line (cli.py)
-viewer/viewer.html   the viewer (built into the binary)
+viewer/viewer.html   the viewer (built into the binary); the server's game pages show their replays in it too
 ```
 
 Tests (`sim/tests/test_cpp.py` and `test_live.py`, run with the Python tests from `sim/`): every fixture of the

@@ -39,11 +39,10 @@
 </section>
 
 {% if featured %}
-<div id="viewer" class="card" data-replay="/games/{{ featured.id }}/replay.json" data-players='{{ labels|tojson }}' data-autoplay="1" data-speed="25"></div>
+<iframe class="viewer" src="/games/{{ featured.id }}/viewer?autoplay=true&amp;speed=20"
+  title="Game #{{ featured.id }}"></iframe>
 <p class="caption">Game <a href="/games/{{ featured.id }}">#{{ featured.id }}</a> · {{ featured.format }} ·
   {% for l in labels %}{{ l }}{% if not loop.last %} vs {% endif %}{% endfor %}. Click an entity to see what it is doing; every game has such a replay.</p>
-<script src="/static/viewer.js"></script>
-<script>CodeCraftViewer.mount(document.getElementById('viewer'));</script>
 {% else %}
 <div class="card muted">No finished game yet — the worker will play the first one as soon as a strategy is built.</div>
 {% endif %}

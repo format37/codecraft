@@ -290,6 +290,8 @@ def test_the_viewer_controls_and_saves(tmp_path):
             page = r.read().decode()
             assert r.status == 200 and "<canvas" in page
             assert f"Engine version <code>{make_version()}</code>" in page          # the help names the engine
+            # no game page's data in it (the server puts one there): the page follows this runner
+            assert '<script id="cc-site" type="application/json">null</script>' in page
         assert post(port, "/new", host=f"evil.example:{port}")[0] == 403
         assert post(port, "/control", {"playing": True}, content_type="text/plain")[0] == 403
         post(port, "/control", {"playing": True, "speed": 0})
