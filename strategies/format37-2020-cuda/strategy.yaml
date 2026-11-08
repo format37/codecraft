@@ -7,6 +7,6 @@ language: python-cuda
 gpu: true
 enabled: false
 source:
-  git: https://github.com/format37/russianaicup2020
+  git: https://github.com/format37/codecraft-2020
   ref: 428252a45e0923a341b41192aa4d1f44fe072418
   include: [my_strategy.py]

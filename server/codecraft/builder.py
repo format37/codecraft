@@ -203,20 +203,17 @@ def source_version(files: dict[str, bytes]) -> str:
 
 
 def pinned(image: str) -> bool:
-    """An image named with a tag or a digest of its own (`codecraft/engine:1.3.0`, not `localhost:5000/engine`)."""
+    """An image named with a tag or a digest of its own (`codecraft/sim:0.1.0`, not `localhost:5000/engine`)."""
     return "@" in image or ":" in image.rsplit("/", 1)[-1]
 
 
 def engine_context(cfg: Config) -> Path:
-    """The directory the engine image is built from: `engine.context` (`sim-cpp`, our own engine) when given, else
-    the directory of `engine.binary` (the official runner and its Dockerfile)."""
-    eng = cfg["engine"]
-    if eng.get("context"):
-        return cfg.root / eng["context"]
-    binary = cfg.root / eng["binary"]
-    if not binary.exists():
-        raise BuildError(f"engine binary not found: {binary}")
-    return binary.parent
+    """The directory the engine image is built from: `engine.context`, a directory with a Dockerfile (`sim-cpp`, our
+    own engine, by default)."""
+    context = cfg["engine"].get("context")
+    if not context:
+        raise BuildError("engine.context is not set: the directory the engine image is built from")
+    return cfg.root / context
 
 
 def engine_image(cfg: Config, files: dict[str, bytes] | None = None) -> str:

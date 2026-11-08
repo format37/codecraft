@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% block title %}Russian AI Cup 2020 arena{% endblock %}
+{% extends "base.html" %}{% block title %}The CodeCraft 2020 arena{% endblock %}
 {% block head %}
 <style>
   .hero { padding:28px 0 10px; }
@@ -19,10 +19,9 @@
 {% block content %}
 <section class="hero">
   <h1>{{ title }}</h1>
-  <p class="lead">CodeCraft — the game of <b>Russian AI Cup 2020</b>, the bot-programming championship held by
-    Mail.ru Group — restored on a private server. The official platform is gone;
-    {% if engine_official %}the original engine lives on here.{% else %}the game lives on here, on an open-source
-    engine of our own that plays by its rules.{% endif %}
+  <p class="lead">CodeCraft — the real-time strategy game of a <b>2020 bot-programming championship</b> — restored
+    on a private server. The official platform is gone; the game lives on here, on an open-source engine of our own
+    that plays by its rules.
     We brought it back for ourselves, to sharpen our coding skills: write a strategy, upload it, watch it fight.</p>
   <div class="actions">
     {% if user %}<a class="btn" href="/submit">Submit a strategy</a><a class="btn secondary" href="/games/new">Custom game</a>
@@ -53,15 +52,15 @@
     <p>An 80×80 map, 1000 ticks. Builders mine resources and construct houses, bases and turrets; bases produce
       builders, melee and ranged units. Score comes from building and from destroying the enemy. Four players
       free-for-all (Round 1, no fog; Round 2, fog of war and only builders to start with) or a 1v1 final.</p>
-    <p><a href="/rules">Full rules</a> · <a href="https://github.com/MailRuChamps/raic-2020">the original repository</a></p>
+    <p><a href="/rules">Full rules</a> ·
+      <a href="https://github.com/format37/codecraft#credits-and-licence">credits</a></p>
   </div>
   <div class="card">
     <h3>How it works here</h3>
     <ul>
-      {% if engine_official %}<li>The official engine (local runner 1.3.0) plays every game in Docker.</li>
-      {% else %}<li>Our own engine plays every game in Docker: open source, with the rules, protocol and replays of
-        the official one (local runner 1.3.0), and tested against it
-        (<a href="https://github.com/format37/codecraft/tree/master/sim-cpp">sim-cpp</a>).</li>{% endif %}
+      <li>Our own engine plays every game in Docker: open source, with the rules, protocol and replays of the
+        official one (local runner 1.3.0), and tested against it
+        (<a href="https://github.com/format37/codecraft/tree/master/sim-cpp">sim-cpp</a>).</li>
       <li>Strategies in any of the 15 official client languages{% if gpu_ok %}; the GPU is available to CUDA strategies{% endif %}.</li>
       <li>Limits as in 2020: {{ cfg.limits.tick_timeout_sec }} s per tick, {{ cfg.limits.cpu_time_sec or '∞' }} s CPU per game, {{ cfg.limits.memory_mb }} MB.</li>
       <li>Every new build plays {{ cfg.worker.sandbox_games_per_build or 'unlimited' }} rated sandbox games (Elo); custom games on request.</li>
@@ -76,5 +75,6 @@
     <p>{% if registration == 'invite' %}New accounts need an invitation from an admin.{% elif registration == 'closed' %}Registration is currently closed.{% else %}Registration is open.{% endif %}</p>
   </div>
 </div>
-<p class="muted" style="margin-top:22px;font-size:13px">Not affiliated with Mail.ru Group / VK or the Russian AI Cup organisers. Official clients © their authors, GPL-3.0.</p>
+<p class="muted" style="margin-top:22px;font-size:13px">Not affiliated with the organisers of the original
+  championship. Official clients © their authors, GPL-3.0.</p>
 {% endblock %}

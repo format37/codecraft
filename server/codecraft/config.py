@@ -10,7 +10,6 @@ import yaml
 DEFAULTS: dict = {
     "engine": {
         "image": "codecraft/sim-cpp",       # tagged with the version of its source (builder.engine_image)
-        "binary": "engine/aicup2020",
         "context": "sim-cpp",
         "memory_mb": 512,
         "cpus": 1.0,
@@ -196,15 +195,6 @@ class Config:
             v = self.data["gpu"].get("enabled", "auto")
             return v is not False
         return bool(v)
-
-    @property
-    def engine_official(self) -> bool:
-        """Whether the games run on the official binary (its image built from the directory of `engine.binary`)
-        rather than on our own engine (sim-cpp/ or sim/): the web and the MCP say which."""
-        eng = self.data["engine"]
-        if not eng.get("context"):
-            return True
-        return (self.root / eng["context"]).resolve() == (self.root / eng["binary"]).parent.resolve()
 
     def __getitem__(self, key: str):
         return self.data[key]

@@ -57,10 +57,9 @@ def instructions(ax: A.Agents) -> str:
     cfg = ax.cfg
     sub = cfg["submissions"]
     per_build = int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0)
-    engine = ("the official engine" if cfg.engine_official
-              else "our own open-source engine (the rules, protocol and replays of the official one)")
+    engine = "our own open-source engine (the rules, protocol and replays of the official one)"
     return f"""\
-CodeCraft is a self-hosted arena for CodeCraft 2020, the real-time strategy game of Russian AI Cup 2020.
+CodeCraft is a self-hosted arena for CodeCraft 2020, the real-time strategy game of a 2020 AI championship.
 A program ("strategy") commands builders, melee and ranged units, bases, houses and turrets on an 80x80
 map for up to 1000 ticks; score comes from mining, building and destroying (each type's build_score and
 destroy_score are in rules(section="Entity properties")). The server builds a strategy

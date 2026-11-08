@@ -1,6 +1,6 @@
 # Fixtures
 
-Each file is one rule question put to the official engine (`engine/aicup2020` 1.3.0) and its answer, as
+Each file is one rule question put to the official engine (`aicup2020` 1.3.0) and its answer, as
 language-neutral JSON. The Python engine and the C++ clone must both reproduce them. They are recorded, never
 edited by hand: the scenario that makes a fixture lives in `sim/oracle/scenarios.py`, and
 

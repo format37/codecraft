@@ -24,15 +24,9 @@ SOFTWARE.
 
 Third-party components in this repository are NOT covered by the licence above:
 
-* clients/   The official Russian AI Cup 2020 (CodeCraft) language clients,
-             copyright Mail.ru Group and their authors, GNU GPL v3
-             (see clients/LICENSE; source: github.com/MailRuChamps/raic-2020).
-* engine/aicup2020, engine/assets/
-             The official CodeCraft local runner 1.3.0 (game engine) and its
-             assets, copyright Mail.ru Group / the Russian AI Cup team. Closed
-             source; redistributed unchanged from the public 2020 local-runner
-             package for the sole purpose of running the game. All rights
-             remain with the original authors.
-* docs/doc-*.md, docs/tournament-ru.md, docs/CHANGELOG*.md
-             The official game rules and changelog, copyright the Russian AI
-             Cup team, reproduced for reference.
+* clients/   The official CodeCraft 2020 language clients, copyright their
+             authors, GNU GPL v3 (see clients/LICENSE; README.md, "Credits
+             and licence", names their origin).
+* docs/doc-en.md, docs/CHANGELOG.md
+             The official game rules and changelog, copyright their authors,
+             reproduced for reference.

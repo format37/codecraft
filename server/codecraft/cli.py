@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import sys
 import time
 from pathlib import Path
@@ -196,19 +195,6 @@ def cmd_reset_ratings(args):
     print("ratings and statistics reset (games history kept)")
 
 
-def cmd_watch(args):
-    cfg, _, _ = _context(args)
-    replay = cfg.games_dir / f"{args.game_id:06d}" / "replay.dat"
-    if not replay.exists():
-        sys.exit(f"no replay for game {args.game_id}: {replay}")
-    viewer = cfg.root / cfg["engine"]["binary"]
-    cmd = [str(viewer), "--replay", str(replay)]
-    print(" ".join(cmd))
-    if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
-        sys.exit("no display in this environment; run the command above on a desktop")
-    os.execv(cmd[0], cmd)
-
-
 def cmd_replay(args):
     from . import replay as R
 
@@ -345,9 +331,6 @@ def main(argv=None):
     p.set_defaults(func=cmd_games)
     sub.add_parser("cleanup", help="remove leftover game containers/networks").set_defaults(func=cmd_cleanup)
     sub.add_parser("reset-ratings", help="reset ratings and statistics").set_defaults(func=cmd_reset_ratings)
-    p = sub.add_parser("watch", help="open a replay in the official viewer (needs a display)")
-    p.add_argument("game_id", type=int)
-    p.set_defaults(func=cmd_watch)
     p = sub.add_parser("replay", help="decode a replay (validation / JSON export)")
     p.add_argument("game_id", type=int, nargs="?")
     p.add_argument("--path", help="replay.dat path instead of a game id")

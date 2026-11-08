@@ -1,4 +1,5 @@
-"""Run the official engine (`engine/aicup2020`, the oracle) from a state and read back what it did.
+"""Run the official engine (`aicup2020`, the oracle: `ORACLE_ENGINE`, else engine/aicup2020) from a state and read
+back what it did.
 
     run = loadfrom.run(state.model, ["Empty", "Empty"])                 # stored actions only, no TCP
     run = loadfrom.run(model, [Puppet({0: {...}}), "Empty"], seed=7)    # a scripted TCP player in seat 0

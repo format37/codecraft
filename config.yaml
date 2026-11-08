@@ -1,4 +1,4 @@
-# CodeCraft server - self-hosted CodeCraft 2020 (Russian AI Cup 2020) competition server.
+# CodeCraft server - a self-hosted CodeCraft 2020 competition server.
 # Every value here has a default (see server/codecraft/config.py); delete a key to fall back to it.
 # Secrets and machine-specific values go to .env (see .env.example): CW_RESEND_API_KEY, CW_MAIL_FROM,
 # CW_BASE_URL, CW_ADMINS, CW_SMTP_PASSWORD.
@@ -9,11 +9,9 @@ engine:
                                     # Dockerfile and the files it copies: a changed source (a git pull) is built
                                     # before the next game, and the game pages name the engine of every game. A tag
                                     # of its own pins the image: built when missing, whatever the source.
-  context: sim-cpp                  # the directory its image is built from (a Dockerfile); null = that of `binary`.
-                                    # The Python engine: image codecraft/sim, context sim (the same games, minutes
-                                    # a game). The official one, for A/B games: image codecraft/engine:1.3.0,
-                                    # context engine. Or CW_ENGINE_IMAGE / CW_ENGINE_CONTEXT in .env
-  binary: engine/aicup2020          # the official local runner 1.3.0 (closed source): `cw watch`, the sim/ oracle
+  context: sim-cpp                  # the directory its image is built from (a Dockerfile). The Python engine:
+                                    # image codecraft/sim, context sim (the same games, minutes a game). Or
+                                    # CW_ENGINE_IMAGE / CW_ENGINE_CONTEXT in .env
   memory_mb: 512
   cpus: 1.0
   startup_timeout_sec: 30           # how long to wait for the engine to open its TCP ports
@@ -35,7 +33,7 @@ formats:
   Round2: 1                         # 4 players, fog of war, builders only
   Finals: 1                         # 1v1, fog of war
 
-# Tournament points per place (ties share the sum, rounded down), as on cups.online.
+# Tournament points per place (ties share the sum, rounded down), as in 2020 (docs/tournament.md).
 points:
   Round1: [8, 4, 2, 1]
   Round2: [8, 4, 2, 1]

@@ -1,8 +1,9 @@
 # sim: our own CodeCraft 2020 engine
 
-A re-implementation of the CodeCraft 2020 game simulator, to replace the closed official binary
-(`engine/aicup2020`, the "oracle") without the server noticing: same rules, same CLI, same `results.json`, same
-replay format, same TCP protocol. Python first, as the executable spec; a C++ clone later for the ladder.
+A re-implementation of the CodeCraft 2020 game simulator, to replace the closed official binary (`aicup2020`
+1.3.0, the "oracle", which this repository does not include) without the server noticing: same rules, same CLI,
+same `results.json`, same replay format, same TCP protocol. Python first, as the executable spec; a C++ clone
+later for the ladder.
 
 Status: a complete engine. Every turn of the 92 distinct stored official games replays exactly through our rules
 when they make the record's random choices, and every game played from its first state with our own state
@@ -26,7 +27,7 @@ codecraft_sim/        the engine (Python 3.10+, standard library only)
   quickstart.py       the built-in bot: the starter strategy of format37/codecraft-starter
   engine.py           the game loop: seats, views, orders, turns, the replay, results.json
   cli.py              the official runner's command line (`python3 -m codecraft_sim --config ... --batch-mode`)
-codecraft-sim         that command line from a checkout (the oracle tools run it in place of engine/aicup2020)
+codecraft-sim         that command line from a checkout (the oracle tools run it in place of the official binary)
 Dockerfile            the engine image codecraft/sim (tagged with the hash of its source; engine.context: sim)
 oracle/               tools that interrogate the official binary
   state.py            build small states by hand (or take one from a replay tick)
@@ -60,10 +61,14 @@ CW_ENGINE_CONTEXT); without a tag of its own the image is tagged with the hash o
 
 ```
 cd sim
-../server/.venv/bin/python -m pytest              # ~90 s; the oracle tests need engine/aicup2020 to run
+../server/.venv/bin/python -m pytest              # ~90 s; the oracle tests need the official binary
 SIM_SLOW=1 ../server/.venv/bin/python -m pytest   # + the replay round trip over all of data/games, every fixture
                                                   #   turn replayed on the official engine, full games (~15 min)
 ```
+
+The official local runner 1.3.0 is closed source and not in this repository: the tests that run it look for
+`engine/aicup2020` (git-ignored) or the path in `ORACLE_ENGINE`, and are skipped without it. The fixtures and
+stored games it recorded stay, so our engines are still checked against what it did.
 
 The rules tests (`tests/test_rules.py`) play every turn of every fixture through `rules.py` with many seeds: each
 outcome must be one the official engine gives, and each of its outcomes must come out (the same rules, our own

@@ -1,18 +1,17 @@
 # CodeCraft
 
-A self-hosted competition server for **CodeCraft**, the game of
-[Russian AI Cup 2020](https://github.com/MailRuChamps/raic-2020) by Mail.ru Group. The official
-platform (cups.online) is gone, and the official engine survives only as a closed binary, the local runner
-`aicup2020` 1.3.0. This server puts the game back behind a web platform, on an open-source engine of our own:
-players sign in, upload strategies, the server builds them into Docker images, plays them against each other,
-keeps an Elo ladder and shows every replay in the browser. We restored it for ourselves, to sharpen our coding
-skills.
+A self-hosted competition server for **CodeCraft**, a real-time strategy game played by programs, from a 2020 AI
+programming championship (see [Credits](#credits-and-licence)). The official platform is gone, and the official
+engine survives only as a closed binary, the local runner `aicup2020` 1.3.0. This server puts the game back behind
+a web platform, on an open-source engine of our own: players sign in, upload strategies, the server builds them
+into Docker images, plays them against each other, keeps an Elo ladder and shows every replay in the browser. We
+restored it for ourselves, to sharpen our coding skills.
 
 Our engine (`sim-cpp/` in C++, which the server runs, and `sim/` in Python, its executable spec, which plays the
 same games) has the official rules, the official engine's command line, protocol and replay format, so the 15
-official clients play it unchanged; it is written from the rules and tested against the official binary. The
-binary stays in `engine/` as the test oracle and for A/B games: `config.yaml` picks the engine. See
-[docs/KICKOFF.md](docs/KICKOFF.md) and [sim/README.md](sim/README.md).
+official clients play it unchanged; it is written from the rules and tested against the official binary, which
+this repository does not include ([sim/README.md](sim/README.md) says how to run those tests with it).
+`config.yaml` picks the engine. See [docs/KICKOFF.md](docs/KICKOFF.md).
 
 Live instance: https://codecraft.latentstate.dev
 
@@ -26,9 +25,9 @@ Live instance: https://codecraft.latentstate.dev
 - **Sandbox**: every new build plays a fixed number of rated games (Round1 / Round2 / Finals,
   rating-aware matchmaking, multiplayer Elo); then the worker rests until the next submission.
 - **Custom games**: any format, any seats (including your own older versions), unrated.
-- **Replay viewer** in the browser: the official `replay.dat` is decoded
-  ([docs/replay-format.md](docs/replay-format.md)); the official 3D viewer works too. A game link pasted
-  into Telegram, Slack or Discord shows the final board (Open Graph preview image).
+- **Replay viewer** in the browser, the local runner's own: the official `replay.dat` is decoded
+  ([docs/replay-format.md](docs/replay-format.md)). A game link pasted into Telegram, Slack or Discord shows
+  the final board (Open Graph preview image).
 - **Limits as in 2020**: 1 s per tick, 40 s CPU per game, memory and CPU caps per container. The live
   instance runs strategies under gVisor, where every system call costs extra CPU: the Python, Ruby and
   JavaScript starters spend 10-25% more, but the official D client reads each value of the game state with
@@ -87,7 +86,7 @@ CLI (`./cw`, through the compose `cli` service or a local venv):
 ./cw play --format Finals --players mybot@2 mybot --unrated   # version 2 vs the active one
 ./cw submit --name friend --language java --zip friend.zip --owner friend@mail
 ./cw invite --note "for Ivan"      ./cw users      ./cw admin you@mail
-./cw ladder      ./cw games      ./cw replay 15 --json out.json      ./cw watch 15
+./cw ladder      ./cw games      ./cw replay 15 --json out.json
 ./cw rename oldname newname      # a strategy's row, versions and past games
 ```
 
@@ -135,25 +134,22 @@ sim-cpp/     our own engine in C++, the one the server runs: a game in seconds; 
              Dockerfile
 sim/         the same engine in Python, its executable spec (the same games, seed for seed); the oracle tools and
              fixtures that test it against the official binary; Dockerfile
-engine/      aicup2020 1.3.0 (the official local runner, closed source) + GUI assets, Dockerfile: the test oracle,
-             A/B games, `cw watch`
-clients/     official v1.3.0 clients (GPL-3.0, MailRuChamps/raic-2020)
+clients/     official v1.3.0 clients (GPL-3.0)
 templates/   base-image overrides per language
 strategies/  seed strategy manifests
 server/      codecraft package: web, worker, builder, game, replay, auth, db, monitoring; tests; Dockerfile
-docs/        official rules (en/ru), replay format, tournament formats, plan (KICKOFF.md)
+docs/        official rules and changelog, replay format, tournament formats, plan (KICKOFF.md)
 data/        database, submissions, build cache, games (git-ignored)
 ```
 
 ## Credits and licence
 
-The game, the engine and the clients were made by the Russian AI Cup team (Mail.ru Group; engine by
-[kuviman](https://github.com/kuviman)). This server is an independent, non-commercial restoration and is
-not affiliated with them.
-`sim/` and `sim-cpp/` are our own re-implementation of the engine, written from the published rules and the
-official binary's observed behaviour (its pathfinding was worked out from its machine code); they contain none of
-its code.
+The game, its rules, the official engine and the clients were made by the organisers of the 2020 championship:
+[the original repository](https://github.com/MailRuChamps/raic-2020) (engine by
+[kuviman](https://github.com/kuviman)). This server is an independent, non-commercial restoration and is not
+affiliated with them. `sim/` and `sim-cpp/` are our own re-implementation of the engine, written from the
+published rules and the official binary's observed behaviour (its pathfinding was worked out from its machine
+code); they contain none of its code.
 
-The server code is [MIT](LICENSE): run it on your own machine, change it, share it. The official
-clients stay GPL-3.0 and the engine binary (closed source) is redistributed unchanged from the
-2020 local-runner package; both remain the property of their authors (see [LICENSE](LICENSE)).
+The server code is [MIT](LICENSE): run it on your own machine, change it, share it. The official clients stay
+GPL-3.0 and, like the official rules in `docs/`, remain the property of their authors (see [LICENSE](LICENSE)).

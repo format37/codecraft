@@ -143,7 +143,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                 client = None
         cfg.resolve_gpu(client)
     templates.env.globals.update(title=title, SEATS=SEATS, cfg=cfg.data, registration=auth.registration,
-                                 gpu_ok=cfg.gpu_ok, engine_official=cfg.engine_official)
+                                 gpu_ok=cfg.gpu_ok)
 
     def game_dir(game_id: int) -> Path:
         return cfg.games_dir / f"{game_id:06d}"
@@ -273,7 +273,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                 featured = g
                 break
         labels = []
-        og = dict(title=f"{title} · Russian AI Cup 2020 arena", url=absolute(request, "/"))
+        og = dict(title=f"{title} · the CodeCraft 2020 arena", url=absolute(request, "/"))
         if featured is not None:
             labels = player_labels(db.game(featured["id"])[1])
             og["image"] = absolute(request, f"/games/{featured['id']}/preview.png")

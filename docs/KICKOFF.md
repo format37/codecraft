@@ -4,7 +4,7 @@ Entry point for a working session. Read this, then `README.md`, then `config.yam
 
 ## Vision
 
-A self-hosted competition platform, first for CodeCraft 2020 (Russian AI Cup 2020), later for
+A self-hosted competition platform, first for CodeCraft 2020, later for
 Alex's own game(s) with other mechanics and player counts:
 
 - players register, upload strategies, the server builds them and plays them against each other
@@ -17,7 +17,7 @@ Alex's own game(s) with other mechanics and player counts:
 
 ## Phase 0 — engine orchestration (done, commit 09e904e)
 
-`engine/` official local runner `aicup2020` 1.3.0 (closed Rust binary = the 2020 server engine,
+The official local runner `aicup2020` 1.3.0 (in `engine/` until 2026-11-08; closed Rust binary = the 2020 server engine,
 confirmed by its author @kuviman), headless `--batch-mode`. Builder (official clients + sources),
 isolated per-game docker networks with resource limits, Elo + points, CUDA templates verified on
 the RTX 4090. Facts: the engine `chdir`s to its own directory (absolute paths); seeds are unsigned
@@ -241,8 +241,8 @@ real players their thinking time dominates.
 
 Since 2026-11-07 the server runs the C++ engine by default: `engine: {image: codecraft/sim-cpp, context:
 sim-cpp}` in `config.yaml`. Another engine is picked there or with `CW_ENGINE_IMAGE` and `CW_ENGINE_CONTEXT` in
-`.env`: the Python one with `codecraft/sim` and `sim`, the official binary, for A/B games, with
-`codecraft/engine:1.3.0` and `engine`. The cover page and the MCP instructions say which engine plays.
+`.env`: the Python one with `codecraft/sim` and `sim`. (The official binary, for A/B games, left the repository on
+2026-11-08, with `cw watch`, its 3D viewer.)
 
 An image named without a tag is tagged with the version of its source: 12 hex digits of the hash of the Dockerfile
 and the files it copies (`builder.engine_source`, `source_version`). The worker checks it before every game, so a
@@ -251,7 +251,7 @@ a changed source does not build, games go on with the image they had (the error 
 records its image (`games.engine`: the game page, `game()`; `whoami()` names the current one). The C++ engine's
 Makefile computes the same version for `--version` and the viewer (`make version`; a server test checks that the
 two agree), so the local runner and the server play the same engine when the versions match. A tag of its own
-(`codecraft/engine:1.3.0`) pins an image: built when missing, whatever the source.
+(`codecraft/sim:0.1.0`) pins an image: built when missing, whatever the source.
 
 The C++ engine is also the local runner (2026-11-07, Alex's request through his strategy session): without
 `--batch-mode` it shows the game live in the browser (`sim-cpp/viewer/viewer.html`, served on 127.0.0.1:31000) with

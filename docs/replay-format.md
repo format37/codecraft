@@ -62,7 +62,7 @@ including builders mining a resource. The decoder refuses unknown tags so that a
 
 ## How it was found
 
-The binary ships symbols: `nm -C engine/aicup2020 | grep Delta` lists `ModelDelta`, `EntityDelta`,
+The binary ships symbols: `nm -C aicup2020 | grep Delta` lists `ModelDelta`, `EntityDelta`,
 `PlayerDelta`, `StoredActionDelta`, `CollectionDelta<T>` with their `trans::Trans::read_from`
 implementations; disassembling them shows the three `Vec::read_from` calls of a collection delta and
 the field order. The rest was confirmed against the data (entity ids, types and positions of known

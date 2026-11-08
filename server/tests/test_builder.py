@@ -460,35 +460,27 @@ def files_in(path: Path) -> dict[str, str]:
     return {p.relative_to(path).as_posix(): p.read_text() for p in sorted(path.rglob("*")) if p.is_file()}
 
 
-def test_the_engine_image_is_built_from_its_context_or_from_the_binary(tmp_path, monkeypatch):
-    """`engine.context`, a directory with a Dockerfile, wins over `engine.binary` (the official runner, built from
-    its directory): by default our own engine (sim-cpp), tagged with the version of its source; CW_ENGINE_IMAGE and
-    CW_ENGINE_CONTEXT set both from the env (the Python engine, the official one for A/B games, here pinned by tags
-    of their own); a null context builds the binary's directory. The build gets the Dockerfile and what it copies."""
+def test_the_engine_image_is_built_from_its_context(tmp_path, monkeypatch):
+    """`engine.context`, a directory with a Dockerfile: by default our own engine (sim-cpp), tagged with the version
+    of its source; CW_ENGINE_IMAGE and CW_ENGINE_CONTEXT set both from the env (here the Python engine, pinned by a
+    tag of its own and so not hashed); a null context is refused. The build gets the Dockerfile and what it
+    copies."""
     root = make_root(tmp_path)
-    (root / "engine").mkdir()
-    (root / "engine" / "aicup2020").write_text("binary")
     (root / "sim").mkdir()
     (root / "sim-cpp").mkdir()
     client = MagicMock()
     client.images.get.side_effect = docker.errors.ImageNotFound("none")
     built = []
-    dockerfiles = {"sim-cpp": "FROM gcc\n", "sim": "FROM python\n", "engine": "FROM debian\nCOPY aicup2020 /engine/\n"}
-    for env, yaml, image, ctx, official in (
-            ({}, None, "codecraft/sim-cpp", "sim-cpp", False),
-            ({"CW_ENGINE_IMAGE": "codecraft/sim:0.1.0", "CW_ENGINE_CONTEXT": "sim"}, None,
-             "codecraft/sim:0.1.0", "sim", False),
-            ({"CW_ENGINE_IMAGE": "codecraft/engine:1.3.0", "CW_ENGINE_CONTEXT": "engine"}, None,
-             "codecraft/engine:1.3.0", "engine", True),
-            ({}, "engine: {image: codecraft/engine:1.3.0, context: null}\n", "codecraft/engine:1.3.0", "engine", True)):
+    dockerfiles = {"sim-cpp": "FROM gcc\n", "sim": "FROM python\nCOPY codecraft_sim /engine/\n"}
+    (root / "sim" / "codecraft_sim").write_text("the engine")
+    for env, image, ctx in (({}, "codecraft/sim-cpp", "sim-cpp"),
+                            ({"CW_ENGINE_IMAGE": "codecraft/sim:0.1.0", "CW_ENGINE_CONTEXT": "sim"},
+                             "codecraft/sim:0.1.0", "sim")):
         for key in ("CW_ENGINE_IMAGE", "CW_ENGINE_CONTEXT"):
             monkeypatch.delenv(key, raising=False)
         for key, value in env.items():
             monkeypatch.setenv(key, value)
-        if yaml:
-            (root / "config.yaml").write_text(yaml)
         cfg = Config.load(root)
-        assert cfg.engine_official is official
         builder = Builder(cfg, client)
         builder._docker_build = lambda path, tag, out, **kw: built.append((tag, files_in(path)))
         if not (root / ctx / "Dockerfile").exists():
@@ -497,8 +489,13 @@ def test_the_engine_image_is_built_from_its_context_or_from_the_binary(tmp_path,
             (root / ctx / "Dockerfile").write_text(dockerfiles[ctx])
         want = image if ":" in image else f"{image}:{source_version(engine_source(root / ctx))}"
         assert builder.build_engine() == want == engine_image(cfg)
-        copied = {"aicup2020": "binary"} if ctx == "engine" else {}
+        copied = {"codecraft_sim": "the engine"} if ctx == "sim" else {}
         assert built[-1] == (want, {"Dockerfile": dockerfiles[ctx], **copied})
+    for key in ("CW_ENGINE_IMAGE", "CW_ENGINE_CONTEXT"):
+        monkeypatch.delenv(key, raising=False)
+    (root / "config.yaml").write_text("engine: {image: codecraft/sim:0.1.0, context: null}\n")
+    with pytest.raises(BuildError, match="engine.context is not set"):
+        Builder(Config.load(root), client).build_engine()
 
 
 def sim_cpp(root: Path) -> Path:

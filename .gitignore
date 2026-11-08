@@ -1,7 +1,7 @@
 data/*
 !data/.gitkeep
 server/.venv/
-engine/aicup2020-preferences.json
+/engine/
 __pycache__/
 *.pyc
 .pytest_cache/

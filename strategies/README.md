@@ -9,7 +9,7 @@ language: python               # a template in templates/ or an official client 
 gpu: false                     # true -> the container gets all host GPUs (use with language: python-cuda)
 enabled: true
 source:
-  git: https://github.com/format37/russianaicup2020
+  git: https://github.com/format37/codecraft-2020
   ref: 428252a45e0923a341b41192aa4d1f44fe072418   # commit/tag/branch to pin
   path: .                      # sub-directory of the repo that is the strategy (optional)
   include: [my_strategy.py]    # only these files/globs become /src (optional). One file = drop-in
