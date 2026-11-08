@@ -46,6 +46,9 @@
   .muted { color: var(--muted); }
   .bad { color: var(--bad); }
   .ok { color: var(--ok); }
+  .warn { color: #f5a524; }
+  #limitsBox { margin: 6px 0 2px; }
+  #limitsBox select { width: 100%; }
   .small { font-size: 12px; }
   label.chk { display: flex; align-items: center; gap: 6px; margin: 3px 0; cursor: pointer; }
   #banner { position: absolute; left: 50%; top: 104px; transform: translateX(-50%); background: var(--panel);
@@ -80,6 +83,13 @@
   <div id="seed" class="muted small"></div>
   <h3>Players</h3>
   <div id="seats"></div>
+  <div id="limitsBox" class="small" hidden>
+    <select id="limits" title="what the runner does when your strategy takes longer than the server allows">
+      <option value="server">Server limits: cut off, as the server does</option>
+      <option value="warn">Server limits: only warn, let it think</option>
+    </select>
+    <div id="limitsNote" class="muted"></div>
+  </div>
   <h3>Show</h3>
   <label class="chk"><input type="checkbox" id="optAttacks" checked> attacks</label>
   <label class="chk"><input type="checkbox" id="optMoves"> move targets (all units)</label>
@@ -126,6 +136,12 @@
   </table>
   <p class="small muted">Your strategy gets the mouse, the keys held and the camera through
     <code>debug_interface.get_state()</code>; what it draws shows on the tick it drew it for.</p>
+  <p class="small muted">Server limits: on the server a strategy has 1 s to answer a tick and 40 s of CPU time for
+    the whole game, and is cut off past them. "Cut off" does that here (the default): the runner stops waiting
+    after the time to answer a tick, or once the answers took the game's time in all. "Only warn" waits as long as
+    it takes (for a breakpoint, say) and marks what the server would not have allowed. The runner counts the time
+    to answer, not CPU time: a strategy with several threads uses more CPU than that, and the server's core may be
+    slower than yours. The server also caps memory (1 GB a strategy); the runner does not.</p>
   <p class="small muted">Engine version <code>%ENGINE_VERSION%</code>, the hash of its source. The server's game
     pages name the engine of every game, <code>codecraft/sim-cpp:&lt;version&gt;</code>: the same version, the
     same engine.</p>
@@ -201,6 +217,8 @@
   es.addEventListener("seat", (e) => onSeat(JSON.parse(e.data)));
   es.addEventListener("over", (e) => onOver(JSON.parse(e.data)));
   es.addEventListener("config", (e) => onConfig(JSON.parse(e.data)));
+  es.addEventListener("answers", (e) => onAnswers(JSON.parse(e.data)));
+  es.addEventListener("limits", (e) => onLimits(JSON.parse(e.data)));
   es.onerror = () => { if (G) banner("The runner is gone (stopped?): this page will reconnect when it is back."); };
   es.onopen = () => { if (G && !G.over && G.waiting === 0) banner(null); };
 
@@ -234,6 +252,16 @@
     G.keys.set(G.first, clone(s));
     G.waiting = G.seats.filter((x) => x.status === "waiting").length;
     G.showDebug = G.seats.map((x) => x.kind === "tcp");
+    // the server's limits, and what each TCP seat's answers took: per tick (ms) and in all
+    G.limits = d.limits || null;
+    G.answers = new Map();
+    G.timing = G.seats.map(() => ({ n: 0, used: 0, last: -1, over: 0, worst: 0, worstTick: null }));
+    const tcp = G.limits && G.seats.some((x) => x.kind === "tcp");
+    $("limitsBox").hidden = !tcp;
+    if (tcp) {
+      $("limits").value = G.limits.server ? "server" : "warn";
+      $("limitsNote").textContent = `${secs(G.limits.tick)} s to answer a tick, ${secs(G.limits.game)} s in all`;
+    }
     cache = null;
     G.replay = !!d.replay;
     view.tick = G.first; view.follow = !G.replay; view.selected = null; view.playing = true;
@@ -269,6 +297,56 @@
     }
     if (d.t < 0 || d.t === view.tick) dirty = true;
   }
+
+  function onAnswers(d) {
+    if (!G || !G.limits) return;
+    G.answers.set(d.t, d.ms);
+    d.ms.forEach((ms, k) => {
+      if (ms == null) return;
+      const t = G.timing[k];
+      t.n++; t.used = d.used[k]; t.last = d.t;
+      if (ms > G.limits.tick * 1000) t.over++;
+      if (ms > t.worst) { t.worst = ms; t.worstTick = d.t; }
+    });
+    if (view.follow) renderSide();
+  }
+
+  function onLimits(d) {
+    if (!G || !G.limits) return;
+    G.limits.server = d.server;
+    $("limits").value = d.server ? "server" : "warn";
+    renderSide();
+  }
+
+  // What a seat's answers took, against the server's limits: the tick shown, in all, and what the server would say.
+  function timing(k) {
+    const t = G.timing[k], lim = G.limits;
+    if (!t || !t.n) return "";
+    // the tick shown, or while its answer is still coming, the one before
+    const at = G.answers.get(view.tick)?.[k] != null ? view.tick : Math.min(t.last, view.tick - 1);
+    const ms = G.answers.get(at)?.[k];
+    const parts = [`${ms == null ? "" : `tick ${at}: ${dur(ms)} · `}${t.used.toFixed(1)} s of ` +
+      `${secs(lim.game)} s in all`];
+    if (G.seats[k].status === "crashed") return parts[0];        // its comment says why
+    const cls = lim.server ? "bad" : "warn";
+    if (t.over) {
+      parts.push(`<span class="${cls}">${t.over} tick${t.over > 1 ? "s" : ""} over ${secs(lim.tick)} s ` +
+        `(slowest ${dur(t.worst)}, tick ${t.worstTick})</span>`);
+    }
+    if (t.used > lim.game) {
+      parts.push(`<span class="${cls}">over the server's ${secs(lim.game)} s for a game</span>`);
+    } else if (t.n >= 10 && t.last + 1 < G.maxTick) {
+      const pace = t.used / t.n, end = t.used + pace * (G.maxTick - t.last - 1);
+      if (end > lim.game) {
+        const stop = t.last + Math.ceil((lim.game - t.used) / pace);
+        parts.push(`<span class="warn">at this pace ${Math.round(end)} s by the end: ` +
+          `${lim.server ? "cut off" : "the server would stop it"} about tick ${stop}</span>`);
+      }
+    }
+    return parts.join("<br>");
+  }
+  function dur(ms) { return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`; }
+  function secs(v) { return String(+v); }
 
   function onSeat(d) {
     if (!G) return;
@@ -622,6 +700,8 @@
         `<span></span><span class="small muted">` +
         `${p ? `score ${p[2]} · res ${p[3]} · pop ${c.used}/${c.provided}` : ""}` +
         `</span><span></span>` +
+        (seat.kind === "tcp" && G.limits && G.timing[k].n ? `<span></span><span class="small muted" ` +
+          `style="grid-column:span 2">${timing(k)}</span>` : "") +
         (seat.comment ? `<span></span><span class="small bad" style="grid-column:span 2">` +
           `${esc(seat.comment)}</span>` : "") +
         `</div>`;
@@ -697,7 +777,7 @@
   let cfgBase = null;
   function onConfig(d) {
     G = null; cache = null; dirty = true;
-    $("restart").hidden = true; $("sameSeed").parentElement.hidden = true;
+    $("restart").hidden = true; $("sameSeed").parentElement.hidden = true; $("limitsBox").hidden = true;
     banner(null);
     $("logs").innerHTML = ""; $("top").innerHTML = "";
     cfgBase = d.config || {};
@@ -881,6 +961,7 @@
     goTo(+e.target.value); control();
   };
   $("speed").onchange = (e) => { view.speed = +e.target.value; prefs.speed = view.speed; save(); control(); };
+  $("limits").onchange = (e) => post("/control", { limits: e.target.value });
   $("restart").onclick = restart;
   $("sameSeed").checked = !!prefs.sameSeed;
   $("sameSeed").onchange = (e) => { prefs.sameSeed = e.target.checked; save(); };

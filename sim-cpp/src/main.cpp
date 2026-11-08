@@ -46,7 +46,12 @@ int main(int argc, char** argv) {
                    "  --viewer-speed TPS      ticks per second at the start (default 10; 0 = as fast as it goes)\n"
                    "  --no-browser            do not open the browser\n"
                    "  --viewer-exit           exit when the game is over (default: wait for the next game)\n"
-                   "  --replay FILE           watch a replay file (--save-replay, Ctrl-S) in the viewer\n",
+                   "  --replay FILE           watch a replay file (--save-replay, Ctrl-S) in the viewer\n"
+                   "  --limits server|warn    the server's limits for TCP seats: cut a strategy off past them, as\n"
+                   "                          the server does (default), or only warn (the viewer switches too)\n"
+                   "  --tick-limit SEC        the server's time to answer a tick (default 1)\n"
+                   "  --game-limit SEC        the server's time to answer in all, a game (default 40; the server\n"
+                   "                          counts CPU time, the runner the time to answer)\n",
                    ENGINE_VERSION);
             return 0;
         } else if (a == "--config") {
@@ -61,6 +66,20 @@ int main(int argc, char** argv) {
             live.open_browser = false;
         } else if (a == "--viewer-exit") {
             live.exit_when_over = true;
+        } else if (a == "--limits") {
+            std::string v = value();
+            if (v != "server" && v != "warn") {
+                fprintf(stderr, "error: --limits is server or warn, not %s\n", v.c_str());
+                return 2;
+            }
+            live.server_limits = v == "server";
+        } else if (a == "--tick-limit" || a == "--game-limit") {
+            double v = atof(value().c_str());
+            if (!(v > 0)) {
+                fprintf(stderr, "error: %s takes seconds above 0\n", a.c_str());
+                return 2;
+            }
+            (a == "--tick-limit" ? live.tick_limit : live.game_limit) = v;
         } else if (a == "--client-gen-preserve-files") {
         } else if (a == "--save-results") {
             save_results = value();

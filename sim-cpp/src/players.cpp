@@ -172,10 +172,25 @@ void TcpPlayer::set_debug(DebugHost* host, int seat, int map_size) {
 
 // The next message's tag. With the viewer, the drawings done so far are handed over when the client goes quiet
 // (it may stop at a breakpoint in the middle of its turn: what it drew until then is shown, as in the official GUI).
+// Under a limit (set_limit), each read waits only for what is left of it.
 int32_t TcpPlayer::next_tag() {
     if (debug_ && !unsent_.empty() && !reader_->buffered()) {
         pollfd p{sock_, POLLIN, 0};
         if (poll(&p, 1, 30) == 0) hand_over();
+    }
+    if (limit_ && !reader_->buffered()) {
+        double left = std::chrono::duration<double>(deadline_ - std::chrono::steady_clock::now()).count();
+        if (left <= 0) {
+            limit_hit_ = true;
+            throw IoError(os_error(EAGAIN));
+        }
+        set_timeout(sock_, left);
+        try {
+            return reader_->i32();
+        } catch (const IoError&) {
+            limit_hit_ = std::chrono::steady_clock::now() >= deadline_ - std::chrono::milliseconds(5);
+            throw;
+        }
     }
     return reader_->i32();
 }
@@ -225,6 +240,20 @@ Action TcpPlayer::get_action(const PlayerView& view) {
     Writer w;
     write_get_action(w, view, debug_ != nullptr);
     send_all(w.buf);
+    using clock = std::chrono::steady_clock;
+    auto started = clock::now();
+    limit_hit_ = false;
+    if (limit_)
+        deadline_ = started + std::chrono::duration_cast<clock::duration>(std::chrono::duration<double>(*limit_));
+    // how long it took, and the config's timeout back for what follows (debug updates have no limit)
+    struct Done {
+        TcpPlayer& p;
+        clock::time_point started;
+        ~Done() {
+            p.answer_seconds_ = std::chrono::duration<double>(clock::now() - started).count();
+            if (p.limit_ && p.sock_ >= 0) set_timeout(p.sock_, p.timeout_);
+        }
+    } done{*this, started};
     SocketReader& r = *reader_;
     while (true) {
         int32_t tag = next_tag();

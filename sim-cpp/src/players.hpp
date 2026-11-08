@@ -5,6 +5,7 @@
 // drawings, DebugUpdate between ticks and the DebugState it asks for.
 #pragma once
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -92,7 +93,19 @@ public:
     // (a read waiting on a strategy that does not answer then fails).
     void interrupt(bool force);
 
+    // The local runner's server limits (GUI mode): the whole answer to the next get_action, debug messages
+    // included, must come within `seconds` of the view sent; none: the config's `timeout` for each read, the
+    // official way. After get_action: how long the answer took (or the wait until it failed), and whether that
+    // limit cut it off.
+    void set_limit(std::optional<double> seconds) { limit_ = seconds; }
+    double answer_seconds() const { return answer_seconds_; }
+    bool limit_hit() const { return limit_hit_; }
+
 private:
+    std::optional<double> limit_;
+    std::chrono::steady_clock::time_point deadline_;
+    double answer_seconds_ = 0;
+    bool limit_hit_ = false;
     std::string host_;
     std::optional<std::string> token_;
     int port_;

@@ -25,6 +25,7 @@ struct Control {
     double speed = 10;          // ticks per second; 0 = as fast as the engine goes
     bool follow = true;         // the viewer shows the newest tick
     int display = 0;            // the tick it shows otherwise
+    bool server_limits = true;  // the TCP seats are cut off past the server's limits (else only warned about)
 };
 
 // What the viewer may save of the game being played: its states (Ctrl-E) and its replay so far (Ctrl-S).
@@ -38,7 +39,7 @@ struct GameRecord {
 
 class Live : public DebugHost {
 public:
-    Live(Log& log, double speed);
+    Live(Log& log, double speed, bool server_limits = true);
     ~Live() override;
     int listen(const std::string& host, int port);      // throws std::runtime_error; returns the port bound
     void start();                                        // serves from its own threads

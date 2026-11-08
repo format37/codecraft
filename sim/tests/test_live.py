@@ -9,6 +9,9 @@ docs/private/engine-probes/step9); and the official configs' null host and token
   debug_update drawings on the persistent layer.
 - The viewer's controls hold the game (paused, a step plays one tick); Ctrl-E and Ctrl-S save a state the replay
   agrees with; the server answers only the page (Host and JSON checks); a config screen starts games.
+- The server's limits for TCP seats (the server's numbers by default): as on the server, a seat slower than it
+  allows, to answer a tick or in all, is cut off there; warn only (`--limits warn`, or the viewer's switch at any
+  moment) lets it play on; the viewer gets every answer's time either way.
 - A null host listens on 127.0.0.1 and a null token takes any token: the official engine, the Python and the C++ one.
 - `--replay FILE` streams a replay file (ours, and the official engine's) state for state.
 - Restart ends the game at once and plays its config again, waiting for the strategies to reconnect.
@@ -16,6 +19,7 @@ docs/private/engine-probes/step9); and the official configs' null host and token
 from __future__ import annotations
 
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -396,10 +400,11 @@ def test_a_replay_in_the_viewer(tmp_path):
 def test_restart(tmp_path):
     """The viewer's Restart: the game ends at once, its clients get Finish (as after a game), and it starts again with
     the same config, waiting for the strategies; `same_seed` keeps the seed; while waiting for connections it starts
-    again at once; a strategy that does not answer has its connection cut."""
+    again at once; a strategy that does not answer has its connection cut (with the server's limits only warned
+    about, as at a breakpoint: else it would be cut off after a second anyway)."""
     port = free_port()
     config = {"seed": None, "game": {"Create": custom(300)}, "players": [tcp_seat(port), "QuickStart"]}
-    p, vport, log = live(tmp_path, config, "--viewer-speed", "20")
+    p, vport, log = live(tmp_path, config, "--viewer-speed", "20", "--limits", "warn")
     try:
         stream = Stream(vport)
         stream.start()
@@ -429,3 +434,95 @@ def test_restart(tmp_path):
     finally:
         p.kill()
 
+
+
+def server_limits() -> tuple[float, float]:
+    """The server's limits for a strategy (config.yaml): seconds to answer a tick, CPU seconds for a game."""
+    text = (ROOT / "config.yaml").read_text()
+    tick = re.search(r"^\s+tick_timeout_sec:\s*([\d.]+)", text, re.M)
+    game = re.search(r"^\s+cpu_time_sec:\s*([\d.]+)", text, re.M)
+    return float(tick.group(1)), float(game.group(1))
+
+
+def slow(seconds: float, ticks=None):
+    """A client script: answer the ticks given (all, by default) after `seconds`."""
+    return lambda c, kind, tick: time.sleep(seconds) if kind == "get_action" and (ticks is None or tick in ticks) \
+        else None
+
+
+@needs_cpp
+def test_the_server_limits_by_default(tmp_path):
+    """Without options the runner holds TCP seats to the server's own limits, cut off past them."""
+    config = {"seed": 1, "game": {"Create": custom(20)}, "players": [tcp_seat(free_port()), "QuickStart"]}
+    p, port, log = live(tmp_path, config)
+    try:
+        stream = Stream(port)
+        stream.start()
+        assert until(lambda: stream.named("init"), 10), "".join(log)
+        tick, game = server_limits()
+        assert stream.named("init")[0]["limits"] == {"server": True, "tick": tick, "game": game}
+    finally:
+        p.kill()
+
+
+@needs_cpp
+@pytest.mark.parametrize("case", ["tick", "game"])
+def test_a_strategy_is_cut_off_past_the_server_limits(tmp_path, case):
+    """Too long on one tick (0.5 s of 0.3), or in all (0.25 s a tick, 0.6 s a game: the third answer has 0.1 s
+    left): the seat is cut off on that tick, tick 2, as the server would; the game goes on without it."""
+    port = free_port()
+    config = {"seed": 1, "game": {"Create": custom(12)}, "players": [tcp_seat(port), "QuickStart"]}
+    c = Client(port, script=slow(0.5, {2}) if case == "tick" else slow(0.25))
+    c.start()
+    p, vport, log = live(tmp_path, config, "--viewer-speed", "0", "--viewer-exit", "--tick-limit", "0.3",
+                         "--game-limit", "0.6", "--save-results", str(tmp_path / "results.json"))
+    stream = Stream(vport)
+    stream.start()
+    assert p.wait(60) == 0, "".join(log)
+    stream.join(10)                     # the runner is gone: all its events are in
+    answers = stream.named("answers")
+    assert [a["t"] for a in answers] == [0, 1, 2], answers
+    ms = [a["ms"][0] for a in answers]
+    assert all(a["ms"][1] is None for a in answers)                 # the built-in bot is not timed
+    comment = ("Player crashed: no answer in 0.3 s, the server's limit for a tick" if case == "tick" else
+               "Player crashed: 0.6 s of answers in all, the server's limit for a game (the server counts CPU time)")
+    assert stream.named("seat")[-1] == {"s": 0, "status": "crashed", "comment": comment}
+    if case == "tick":
+        assert max(ms[:2]) < 250 and 290 <= ms[2] < 450, ms
+    else:
+        assert all(240 <= v < 350 for v in ms[:2]) and 80 <= ms[2] < 200, ms
+        assert 0.58 <= answers[-1]["used"][0] < 0.75
+    results = json.loads((tmp_path / "results.json").read_text())
+    assert results["players"][0] == {"crashed": True, "comment": comment}
+
+
+@needs_cpp
+def test_warn_only_lets_a_strategy_think(tmp_path):
+    """Switched to warn only (as the viewer does, before the strategy connects), a seat slower than the limits
+    plays on, every answer timed; switched back mid-game, the next slow answer is cut off."""
+    port = free_port()
+    config = {"seed": 1, "game": {"Create": custom(30)}, "players": [tcp_seat(port), "QuickStart"]}
+    p, vport, log = live(tmp_path, config, "--viewer-speed", "0", "--viewer-exit", "--tick-limit", "0.2",
+                         "--game-limit", "0.5")
+    try:
+        stream = Stream(vport)
+        stream.start()
+        assert until(lambda: stream.named("init"), 10)
+        assert post(vport, "/control", {"limits": "warn"})[0] == 200
+        assert until(lambda: stream.named("limits") == [{"server": False}], 5)
+        c = Client(port, script=slow(0.25))
+        c.start()
+        assert until(lambda: len(stream.named("answers")) >= 4, 20)
+        assert stream.named("seat")[-1]["status"] == "connected"
+        assert all(a["ms"][0] >= 240 for a in stream.named("answers"))
+        assert stream.named("answers")[3]["used"][0] > 0.9           # past the game's 0.5 s: only warned about
+        post(vport, "/control", {"limits": "server"})
+        assert p.wait(60) == 0, "".join(log)
+        stream.join(10)                 # the runner is gone: all its events are in
+        assert stream.named("limits")[-1] == {"server": True}
+        assert stream.named("seat")[-1]["status"] == "crashed"
+        last = stream.named("answers")[-1]
+        assert last["ms"][0] < 50                     # the game's limit was used up: no time left to answer
+        assert stream.named("seat")[-1]["comment"].startswith("Player crashed: 0.5 s of answers in all")
+    finally:
+        p.kill()

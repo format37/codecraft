@@ -142,7 +142,10 @@ std::string cwd_path(const std::string& name) {
 
 }  // namespace
 
-Live::Live(Log& log, double speed) : log_(log) { control_.speed = speed; }
+Live::Live(Log& log, double speed, bool server_limits) : log_(log) {
+    control_.speed = speed;
+    control_.server_limits = server_limits;
+}
 
 Live::~Live() {
     stop_ = true;
@@ -258,14 +261,27 @@ void Live::stream(int fd) {
 
 std::string Live::post(const std::string& path, const Json& body) {
     if (path == "/control") {
-        std::lock_guard<std::mutex> lock(mutex_);
-        control_.playing = flag(body, "playing", control_.playing);
-        control_.speed = std::max(0.0, number(body, "speed", control_.speed));
-        control_.follow = flag(body, "follow", control_.follow);
-        control_.display = static_cast<int>(number(body, "display", control_.display));
-        if (flag(body, "step", false)) steps_++;
-        inputs_++;
-        input_cv_.notify_all();
+        bool limits_changed = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            control_.playing = flag(body, "playing", control_.playing);
+            control_.speed = std::max(0.0, number(body, "speed", control_.speed));
+            control_.follow = flag(body, "follow", control_.follow);
+            control_.display = static_cast<int>(number(body, "display", control_.display));
+            const Json* limits = body.get("limits");             // "server" or "warn"
+            if (limits && limits->kind == Json::String && (limits->s == "server" || limits->s == "warn")) {
+                limits_changed = control_.server_limits != (limits->s == "server");
+                control_.server_limits = limits->s == "server";
+            }
+            if (flag(body, "step", false)) steps_++;
+            inputs_++;
+            input_cv_.notify_all();
+        }
+        if (limits_changed) {                                     // every viewer shows the switch as it is
+            Out o;
+            o.raw('{').key("server").boolean(control().server_limits).raw('}');
+            event("limits", o.s);
+        }
         return "{}";
     }
     if (path == "/input") {

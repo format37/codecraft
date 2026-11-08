@@ -122,7 +122,9 @@ It plays the server's games (the same engine, rules and maps): `--version` shows
 each game page names the engine it was played on, `codecraft/sim-cpp:<version>`; the server builds a changed engine
 before its next game. Pause, step, rewind, zoom, inspect entities, save a replay (Ctrl-S) or the state of a tick to
 start a game from (Ctrl-E), restart the game for your changed strategy (the same seed if you like) without
-restarting the runner; `--replay replay.dat` watches a replay. See
+restarting the runner; `--replay replay.dat` watches a replay. It holds your strategy to the server's limits (1 s
+to answer a tick, 40 s for a game) and cuts it off past them as the server would, or only warns, so you can stop
+at a breakpoint; the viewer shows how long each answer took. See
 [sim-cpp/README.md](sim-cpp/README.md#the-local-runner).
 
 ## Layout

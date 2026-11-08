@@ -40,6 +40,17 @@ official clients end as after a game; one that does not answer, at a breakpoint,
 1.5 s), so you change your code, run it again, and play on without restarting the runner; with **same seed** the
 new game has the same map and dice. "New game…" after a game opens the config screen.
 
+**Server limits.** On the server a strategy has 1 s to answer a tick and 40 s of CPU time for the game
+(`tick_timeout_sec` and `cpu_time_sec` in the server's `config.yaml`), and is cut off past them. The runner holds
+TCP seats to the same numbers. By default it cuts a strategy off as the server would: after a tick's time with no
+answer, or once its answers took the game's time in all, with the reason in the seat's comment. Switched to *only
+warn* (in the viewer's panel, or `--limits warn`), it waits as long as it takes, a breakpoint included, and marks
+what the server would not have allowed. Either way the panel shows each TCP seat's time to answer the tick shown,
+its total, and when the server would stop it at the current pace. The runner counts the time to answer (the view
+sent, the answer back, debug drawings included), which is close to a one-threaded strategy's CPU time; a strategy
+with several threads uses more CPU than that, and the server's core may be slower than yours. `--tick-limit` and
+`--game-limit` change the numbers.
+
 In the viewer: **P** pauses and plays, **←/→** step a tick (→ at the newest tick plays one more), **Shift** for
 ten, the slider and the speed (1 to 100 ticks a second, or as fast as the strategies answer) move through the game,
 the wheel zooms, a right drag or Shift+drag moves the camera, **Home** fits the map, a click shows an entity (its
@@ -61,7 +72,8 @@ The debug interface is the official GUI's (how the official runner answers it wa
   strategy's frame), the keys held (the official names: `A`, `Num1`, `Space`, `LShift`, `LCtrl`, `Left`, `F1`...),
   the camera (looking straight down) and the player's index.
 
-The game in this mode is the batch mode's: from the same config and seed, the same replay and results.
+The game in this mode is the batch mode's: from the same config and seed, the same replay and results (unless the
+server limits cut a seat off: the batch mode, the server's, has the config's timeouts, and the server its CPU limit).
 
 ```
 src/

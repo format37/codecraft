@@ -263,12 +263,14 @@ struct SeatInfo {
     int port = 0;
 };
 
-// The first event of a game: the map, the seats, the first state (the replay.json format, see history.hpp).
-std::string init_json(const Model& m, const std::vector<SeatInfo>& seats, const std::string& seed, bool replay) {
+// The first event of a game: the map, the seats, the first state (the replay.json format, see history.hpp), and
+// the server's limits for the TCP seats ({server: cut off past them, tick, game: seconds}; null for a replay).
+std::string init_json(const Model& m, const std::vector<SeatInfo>& seats, const std::string& seed, bool replay,
+                      const std::string& limits = "null") {
     Out o;
     o.raw('{').key("map_size").num(m.map_size).key("fog_of_war").boolean(m.fog_of_war);
     o.key("max_tick_count").num(m.max_tick_count).key("tick").num(m.current_tick);
-    o.key("seed").str(seed).key("replay").boolean(replay);
+    o.key("seed").str(seed).key("replay").boolean(replay).key("limits").raw(limits.c_str());
     o.key("properties");
     properties_json(o, m.props);
     std::vector<Player> players;
@@ -315,11 +317,38 @@ std::vector<SeatInfo> seat_infos(const Game& g, const LiveOptions& opts) {
     return out;
 }
 
+std::string secs(double v) {
+    char b[32];
+    snprintf(b, sizeof b, "%g", v);
+    return b;
+}
+
+// What the TCP seats asked for a tick took to answer: {t, ms: [per seat, null if not asked], used: [seconds in all]}.
+std::string answers_json(int tick, const std::vector<std::optional<double>>& took, const std::vector<double>& used) {
+    Out o;
+    o.raw('{').key("t").num(tick).key("ms").raw('[');
+    for (const auto& v : took) {
+        o.sep();
+        if (v) o.flt(*v * 1000);
+        else o.raw("null");
+    }
+    o.raw(']').key("used").raw('[');
+    for (size_t k = 0; k < took.size(); k++) {
+        o.sep();
+        if (took[k]) o.flt(used[k]);
+        else o.raw("null");
+    }
+    o.raw("]}");
+    return o.s;
+}
+
 // As the official GUI: the orders for a tick are asked for as soon as it is reached, then the tick stays on screen
 // while the clients get their debug updates (the view of the tick on screen; at least one between ticks, about 14 a
 // second while the game waits); the next tick comes when the viewer plays at the newest tick and its speed allows,
-// or when it asks for a step.
-void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& rec, Log& log) {
+// or when it asks for a step. With the server's limits on, a TCP seat that takes longer than the server allows (to
+// answer a tick, or in all) is cut off as the server would; either way the viewer gets each answer's time.
+void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& rec, const LiveOptions& opts,
+               Log& log) {
     Model& m = g.model;
     std::map<int, int32_t> by_seat;
     for (const auto& kv : m.players) by_seat[kv.second.index] = kv.first;
@@ -327,6 +356,10 @@ void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& re
     auto last = clock::now();
     Model before = m;
     const int first_tick = m.current_tick;
+    std::vector<double> used(g.seats.size(), 0.0);         // what each TCP seat has spent answering
+    const std::string tick_cut = "no answer in " + secs(opts.tick_limit) + " s, the server's limit for a tick";
+    const std::string game_cut = secs(opts.game_limit) + " s of answers in all, the server's limit for a game " +
+                                 "(the server counts CPU time)";
     auto crash = [&](size_t k, const std::string& error) {
         g.seats[k]->crash(error, log);
         live.event("seat", seat_json(k, *g.seats[k], "crashed"));
@@ -357,20 +390,37 @@ void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& re
         SightMaps seen;
         if (m.fog_of_war)
             for (const auto& kv : m.players) seen[kv.first] = sight_map(m, kv.first);
+        const bool limits = live.control().server_limits;
+        std::vector<std::optional<double>> took(g.seats.size());
         for (size_t seat = 0; seat < g.seats.size(); seat++) {
             Seat& s = *g.seats[seat];
             if (s.crashed || s.is_empty()) continue;
             int32_t pid = by_seat.at(static_cast<int>(seat));
             auto it = seen.find(pid);
+            TcpPlayer* t = tcp[seat];
+            const double left = opts.game_limit - used[seat];
+            if (t) t->set_limit(limits ? std::optional<double>(std::clamp(left, 0.0, opts.tick_limit)) : std::nullopt);
             Action actions;
             try {
                 actions = s.get_action(player_view(m, pid, it == seen.end() ? nullptr : &it->second));
             } catch (const IoError& e) {
-                crash(seat, e.what());
+                std::string why = e.what();
+                if (t) {
+                    took[seat] = t->answer_seconds();
+                    used[seat] += t->answer_seconds();
+                    if (t->limit_hit()) why = left < opts.tick_limit ? game_cut : tick_cut;
+                }
+                crash(seat, why);
                 continue;
+            }
+            if (t) {
+                took[seat] = t->answer_seconds();
+                used[seat] += t->answer_seconds();
             }
             take_orders(m, pid, static_cast<int>(seat), actions, log);
         }
+        if (std::any_of(took.begin(), took.end(), [](const auto& v) { return v.has_value(); }))
+            live.event("answers", answers_json(m.current_tick, took, used));
         // then the tick stays on screen as long as the viewer wants it
         bool updated = false;
         while (true) {
@@ -411,7 +461,10 @@ int play_live(Game& g, Live& live, const LiveOptions& opts, Log& log) {
     rec->history.start(m);
     rec->replay = std::make_unique<ReplayWriter>(opts.save_replay, true);
     rec->replay->start(m);
-    live.new_game("init", init_json(m, seat_infos(g, opts), std::to_string(g.seed), false), rec);
+    Out limits;
+    limits.raw('{').key("server").boolean(live.control().server_limits).key("tick").flt(opts.tick_limit);
+    limits.key("game").flt(opts.game_limit).raw('}');
+    live.new_game("init", init_json(m, seat_infos(g, opts), std::to_string(g.seed), false, limits.s), rec);
     std::vector<TcpPlayer*> tcp(g.seats.size(), nullptr);
     for (size_t k = 0; k < g.seats.size(); k++) {
         tcp[k] = dynamic_cast<TcpPlayer*>(g.seats[k].get());
@@ -435,7 +488,7 @@ int play_live(Game& g, Live& live, const LiveOptions& opts, Log& log) {
     int code = 0;
     std::string error;
     try {
-        if (!restart && !game_over(m)) live_loop(g, tcp, live, *rec, log);
+        if (!restart && !game_over(m)) live_loop(g, tcp, live, *rec, opts, log);
     } catch (const std::exception& e) {
         error = e.what();
         log.error("panicked at '" + error + "'");
@@ -502,7 +555,7 @@ std::string default_config() {
 }  // namespace
 
 int run_live(const Json* config, const LiveOptions& opts, Log& log) {
-    Live live(log, opts.speed);
+    Live live(log, opts.speed, opts.server_limits);
     int port;
     try {
         port = live.listen("127.0.0.1", opts.port);
