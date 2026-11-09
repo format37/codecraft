@@ -48,6 +48,16 @@ is never used.
   enemy army the leaders of a march wait until enough of the group has caught up. Otherwise the army waits on the
   way the enemy would come.
 
+## Local results
+
+Measured with the local engine on fixed seeds, the other system seeds playing as black boxes (their images):
+
+- Finals, the committed version: 8 wins in 8 games against system-sonnet-5-5-max, 1 in 3 against thermit-2020,
+  0 in 6 against dragoonxen-2020; every game against QuickStart won, most by elimination.
+- Rounds 1 and 2 (an earlier version, 4 games each, seats rotated, with dragoonxen-2020, thermit-2020 and
+  system-sonnet-5-5-max): average place 2.5 in both, above system-sonnet-5-5-max in all 8 games; dragoonxen-2020
+  won all 8.
+
 ## Local experiments
 
 `CC_DEBUG=1` (or 2, 3) prints more to stderr; `CC_<KNOB>=value` overrides a tuning default (the names are in the
