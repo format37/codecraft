@@ -1,0 +1,10 @@
+# The system strategy written by Claude Haiku 5.5 at low effort: economy first (builders mine, houses
+# before the population cap), then a ranged army from one base that attacks the enemy base. Disabled:
+# enable it here (and run `./cw build`) to put it on the sandbox ladder.
+name: system-haiku-5-5-low
+title: system-haiku-5-5-low (Python, Haiku 5.5 low effort)
+language: python
+gpu: false
+enabled: false
+source:
+  dir: src
