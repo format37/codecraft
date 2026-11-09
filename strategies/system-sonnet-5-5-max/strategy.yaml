@@ -1,0 +1,7 @@
+name: system-sonnet-5-5-max       # a system seed written by Claude Sonnet 5.5 (max effort); competes on the ladder like any strategy
+title: system-sonnet-5-5-max (C++)
+language: cpp
+gpu: false
+enabled: true
+source:
+  dir: src                        # exactly one file, MyStrategy.cpp: the client's compile.sh then drops it into the official client
