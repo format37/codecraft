@@ -57,6 +57,23 @@ private:
     size_t pos_ = 0, len_ = 0;
 };
 
+// Reads bytes already in memory (an in-process seat's answer), with SocketReader's checks; IoError past the end.
+class BufferReader {
+public:
+    BufferReader(const char* data, size_t size) : p_(data), end_(data + size) {}
+    void read(void* out, size_t n);
+    int32_t i32();
+    float f32();
+    bool boolean();
+    int32_t count();
+    std::string string();
+    size_t left() const { return static_cast<size_t>(end_ - p_); }
+
+private:
+    const char* p_;
+    const char* end_;
+};
+
 using Action = std::vector<std::pair<int32_t, EntityAction>>;   // a client's orders, in the order sent
 
 void write_vec2(Writer& w, Vec2 v);
@@ -68,6 +85,7 @@ void write_get_action(Writer& w, const PlayerView& v, bool debug_available = fal
 void write_finish(Writer& w);
 void write_debug_update(Writer& w, const PlayerView& v);
 Action read_action(SocketReader& r);
+Action read_action(BufferReader& r);
 
 constexpr int32_t DEBUG_MESSAGE = 0, ACTION_MESSAGE = 1, DEBUG_UPDATE_DONE = 2, REQUEST_DEBUG_STATE = 3;
 

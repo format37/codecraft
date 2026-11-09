@@ -67,6 +67,46 @@ std::string SocketReader::string() {
     return s;
 }
 
+void BufferReader::read(void* out, size_t n) {
+    if (n > left()) throw IoError("IO error: failed to fill whole buffer");
+    memcpy(out, p_, n);
+    p_ += n;
+}
+
+int32_t BufferReader::i32() {
+    unsigned char b[4];
+    read(b, 4);
+    return static_cast<int32_t>(static_cast<uint32_t>(b[0]) | (static_cast<uint32_t>(b[1]) << 8) |
+                                (static_cast<uint32_t>(b[2]) << 16) | (static_cast<uint32_t>(b[3]) << 24));
+}
+
+float BufferReader::f32() {
+    int32_t v = i32();
+    float f;
+    memcpy(&f, &v, 4);
+    return f;
+}
+
+bool BufferReader::boolean() {
+    unsigned char b;
+    read(&b, 1);
+    if (b > 1) throw IoError("IO error: bad bool " + std::to_string(b));
+    return b == 1;
+}
+
+int32_t BufferReader::count() {
+    int32_t n = i32();
+    if (n < 0 || n > 10000000) throw IoError("IO error: bad count " + std::to_string(n));
+    return n;
+}
+
+std::string BufferReader::string() {
+    int32_t n = count();
+    std::string s(static_cast<size_t>(n), '\0');
+    if (n) read(&s[0], static_cast<size_t>(n));
+    return s;
+}
+
 void write_vec2(Writer& w, Vec2 v) {
     w.i32(v.x);
     w.i32(v.y);
@@ -182,25 +222,29 @@ void write_debug_update(Writer& w, const PlayerView& v) {
     write_player_view(w, v);
 }
 
-static EntityType read_type(SocketReader& r) {
+template <class R>
+static EntityType read_type(R& r) {
     int32_t t = r.i32();
     if (t < 0 || t >= TYPE_COUNT) throw IoError("IO error: bad entity type " + std::to_string(t));
     return static_cast<EntityType>(t);
 }
 
-static std::vector<EntityType> read_types(SocketReader& r) {
+template <class R>
+static std::vector<EntityType> read_types(R& r) {
     std::vector<EntityType> out;
     int32_t n = r.count();
     for (int32_t k = 0; k < n; k++) out.push_back(read_type(r));
     return out;
 }
 
-static Vec2 read_vec2(SocketReader& r) {
+template <class R>
+static Vec2 read_vec2(R& r) {
     int32_t x = r.i32();
     return Vec2{x, r.i32()};
 }
 
-static EntityAction read_entity_action(SocketReader& r) {
+template <class R>
+static EntityAction read_entity_action(R& r) {
     EntityAction a;
     if (r.boolean()) {
         Vec2 t = read_vec2(r);
@@ -224,7 +268,8 @@ static EntityAction read_entity_action(SocketReader& r) {
     return a;
 }
 
-Action read_action(SocketReader& r) {
+template <class R>
+static Action read_action_from(R& r) {
     // a map: a repeated id keeps its first place and takes the last value, as a Python dict
     Action out;
     int32_t n = r.count();
@@ -242,5 +287,9 @@ Action read_action(SocketReader& r) {
     }
     return out;
 }
+
+Action read_action(SocketReader& r) { return read_action_from(r); }
+
+Action read_action(BufferReader& r) { return read_action_from(r); }
 
 }  // namespace cc

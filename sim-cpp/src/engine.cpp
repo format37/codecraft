@@ -75,7 +75,8 @@ std::optional<double> opt_seconds(const Json* v) {
     return v->as_double();
 }
 
-std::unique_ptr<Seat> make_seat(const Json& spec, const std::string& default_host, Log& log) {
+std::unique_ptr<Seat> make_seat(const Json& spec, const std::string& default_host, Log& log,
+                                const SeatMaker* extra) {
     std::string kind;
     const Json* value = nullptr;
     if (spec.kind == Json::String) {
@@ -104,6 +105,8 @@ std::unique_ptr<Seat> make_seat(const Json& spec, const std::string& default_hos
             throw ConfigError(std::string("bad Tcp player: ") + e.what());
         }
     }
+    if (extra && *extra)
+        if (std::unique_ptr<Seat> seat = (*extra)(kind, value)) return seat;
     throw ConfigError("unknown player `" + kind + "`, expected `Tcp`, `QuickStart` or `Empty`");
 }
 
@@ -128,11 +131,14 @@ void take_orders(Model& m, int32_t player_id, int seat, const Action& actions, L
     }
 }
 
+}  // namespace
+
 void play(Model& m, std::vector<std::unique_ptr<Seat>>& seats, PyRandom& rng, ReplayWriter* replay, Log& log,
-          bool rules_2020) {
+          bool rules_2020, TickObserver* observer) {
     std::map<int, int32_t> by_seat;
     for (const auto& kv : m.players) by_seat[kv.second.index] = kv.first;
     FogMemory memory;
+    if (observer) observer->start(m);
     while (!game_over(m)) {
         SightMaps seen;
         if (m.fog_of_war)
@@ -154,6 +160,7 @@ void play(Model& m, std::vector<std::unique_ptr<Seat>>& seats, PyRandom& rng, Re
         std::vector<Event> events =
             process_turn(m, rng, m.fog_of_war ? &seen : nullptr, rules_2020 ? nullptr : &memory);
         if (replay) replay->tick(events, m);
+        if (observer && !observer->after_tick(m, events)) break;
     }
 }
 
@@ -173,15 +180,7 @@ Json results(const Model& m, const std::vector<std::unique_ptr<Seat>>& seats, ui
     return out;
 }
 
-// A game set up from its config: the seed, the generator, the map or state, the seats (not connected yet).
-struct Game {
-    uint64_t seed = 0;
-    std::unique_ptr<PyRandom> rng;
-    Model model;
-    std::vector<std::unique_ptr<Seat>> seats;
-};
-
-Game setup(const Json& config, Log& log, const std::string& default_host = "127.0.0.1") {
+Game setup(const Json& config, Log& log, const std::string& default_host, const SeatMaker* extra) {
     Game g;
     const Json* s = config.get("seed");
     if (!s || s->is_null()) {
@@ -197,11 +196,9 @@ Game setup(const Json& config, Log& log, const std::string& default_host = "127.
         throw ConfigError("`players` must list 1 to 4 seats");
     g.rng = std::make_unique<PyRandom>(g.seed);
     g.model = load_game(config, static_cast<int>(specs->arr.size()), *g.rng);
-    for (const Json& spec : specs->arr) g.seats.push_back(make_seat(spec, default_host, log));
+    for (const Json& spec : specs->arr) g.seats.push_back(make_seat(spec, default_host, log, extra));
     return g;
 }
-
-}  // namespace
 
 int run(const Json& config, const std::string& save_results, const std::string& save_replay, Log& log,
         bool rules_2020) {
