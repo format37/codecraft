@@ -94,7 +94,7 @@ struct Scratch {
     }
 };
 
-Scratch scratch;            // the game loop is single-threaded
+thread_local Scratch scratch;   // one per thread: a game loop is single-threaded, a host may run games on several
 
 std::optional<Vec2> step_to(int n, const Scratch& s, int start, int end) {
     if (end == start) return std::nullopt;
