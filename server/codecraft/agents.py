@@ -44,6 +44,7 @@ from . import rules as RU
 from .auth import RateLimiter, hash_token
 from .builder import ANSI_RE, BuildError, engine_image
 from .config import LIMIT_KEYS, MAX_TICKS, SEATS, Config
+from . import leagues as L
 from .db import DB, since
 from .submissions import SubmissionError, submit
 
@@ -639,7 +640,8 @@ def _strategy_public(ax: Agents, s, user: dict) -> dict:
     return {"name": s["name"], "title": s["title"], "owner": s["owner_name"] or ("engine" if s["builtin"] else "server"),
             "mine": s["owner_id"] == user["id"], "kind": s["kind"], "builtin": bool(s["builtin"]),
             "language": s["language"] or s["builtin"], "gpu": bool(s["gpu"]), "enabled": bool(s["enabled"]),
-            "rating": _num(s["rating"]), "games": s["games"], "wins": s["wins"], "avg_place": _avg_place(s),
+            "rating": _num(s["rating"]), "rating_sd": _num(s["rating_sd"]), "league": s["league"],
+            "games": s["games"], "wins": s["wins"], "avg_place": _avg_place(s),
             "points": s["points"], "crashes": s["crashes"], "active_version_id": s["active_version"],
             "built_at": s["built_at"], "url": ax.url(f"/strategies/{s['name']}")}
 
@@ -697,7 +699,8 @@ def whoami(ax: Agents, user: dict) -> dict:
         active = next((v for v in versions if v["id"] == s["active_version"]), None)
         strategies.append({
             "name": s["name"], "title": s["title"], "language": s["language"], "enabled": bool(s["enabled"]),
-            "rating": _num(s["rating"]), "games": s["games"], "wins": s["wins"],
+            "rating": _num(s["rating"]), "rating_sd": _num(s["rating_sd"]), "league": s["league"],
+            "games": s["games"], "wins": s["wins"],
             "active_version": {"id": active["id"], "number": active["number"]} if active else None,
             "latest_version": _version_brief(versions[0] if versions else None),
             "url": ax.url(f"/strategies/{s['name']}")})
@@ -738,8 +741,9 @@ def whoami(ax: Agents, user: dict) -> dict:
                                "rather than the host" if cfg.get("docker", "runtime") == "runsc" else ""),
             "ticks": MAX_TICKS,
             "map_size": 80,
-            "sandbox_games_per_build": int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0),
-            "sandbox_daily_games": int(cfg.get("worker", "sandbox_daily_games", default=1) or 0),
+            "sandbox_games_per_build": int(cfg.get("worker", "sandbox_games_per_build", default=30) or 0),
+            "sandbox_interval_hours": _num(cfg.get("worker", "sandbox_interval_hours", default=1) or 0, 2),
+            "leagues": _leagues(ax),
             "max_zip_mb": int(sub.get("max_zip_mb") or 20),
             "git_submissions": bool(sub.get("allow_git", True)),
             "engine": _engine(cfg),
@@ -765,17 +769,46 @@ def rules(ax: Agents, user: dict, section: str | None = None) -> str:
     return part
 
 
+def _leagues(ax: Agents) -> dict:
+    """The leagues as they stand: how many, the lines between them (the highest first), when those were drawn."""
+    cfg = ax.cfg.get("leagues") or {}
+    state = ax.db.league_state()
+    return {"count": len(state["lines"]) + 1, "lines": [_num(x) for x in state["lines"]], "lines_drawn_at": state["at"],
+            "settled_games": int(cfg.get("settled_games", 30)), "margin": _num(cfg.get("margin", 40)),
+            "about": "league 0 is the strongest; `lines` are the ratings between neighbouring leagues, drawn anew "
+                     "every Monday (UTC) by clustering the settled ratings; a strategy changes league as soon as "
+                     "its settled rating is `margin` points past a line; a rating is settled when its version has "
+                     "played `settled_games` rated games (rules(section='Leagues'))"}
+
+
+def _standing(ax: Agents, name: str) -> dict | None:
+    """One strategy's league, its place there and whether its version is still playing the games that settle a
+    rating; None for a strategy that is not on the ladder."""
+    settled = int((ax.cfg.get("leagues") or {}).get("settled_games", 30))
+    for group in L.standings(ax.db.leaderboard(), ax.db.league_state()["lines"], settled):
+        for entry in group["rows"]:
+            if entry["row"]["name"] == name:
+                return {"league": group["league"], "league_rank": entry["place"] if group["league"] is not None else None,
+                        "placing": entry["placing"]}
+    return None
+
+
 @tool(read=True)
 def leaderboard(ax: Agents, user: dict, limit: int = 30) -> dict:
     rows = ax.db.leaderboard()
+    settled = int((ax.cfg.get("leagues") or {}).get("settled_games", 30))
+    where = {e["row"]["name"]: (g["league"], e["place"] if g["league"] is not None else None, e["placing"])
+             for g in L.standings(rows, ax.db.league_state()["lines"], settled) for e in g["rows"]}
     shown = rows[:_clamp(limit, 1, MAX_LIMIT)]
     return {"strategies": [
-        {"rank": i, "name": r["name"], "title": r["title"] if r["title"] and r["title"] != r["name"] else None,
+        {"rank": i, "league": where[r["name"]][0], "league_rank": where[r["name"]][1], "name": r["name"],
+         "title": r["title"] if r["title"] and r["title"] != r["name"] else None,
          "owner": r["owner_name"] or ("engine" if r["builtin"] else "server"), "mine": r["owner_id"] == user["id"],
-         "language": r["language"] or r["builtin"], "rating": _num(r["rating"]), "games": r["games"],
+         "language": r["language"] or r["builtin"], "rating": _num(r["rating"]), "rating_sd": _num(r["rating_sd"]),
+         "placing": where[r["name"]][2], "games": r["games"],
          "wins": r["wins"], "avg_place": _avg_place(r), "points": r["points"], "crashes": r["crashes"],
          "builtin": bool(r["builtin"])} for i, r in enumerate(shown, 1)],
-        "total": len(rows)}
+        "total": len(rows), "leagues": _leagues(ax)}
 
 
 @tool(read=True)
@@ -785,22 +818,26 @@ def strategy(ax: Agents, user: dict, name: str) -> dict:
     if s is None:
         raise AgentError(f"no strategy {name!r}; leaderboard() lists the active ones, whoami() yours")
     out = _strategy_public(ax, s, user)
+    out.update(_standing(ax, s["name"]) or {"league_rank": None, "placing": None})
     if _reads(user, s):
         versions = db.versions(s["name"])
         out["versions"] = [_version_row(v, s) for v in versions[:MAX_VERSIONS_SHOWN]]
         out["versions_total"] = len(versions)
         overrides = json.loads(s["limits"]) if s["limits"] else {}
         out["limits"] = {k: overrides.get(k, cfg["limits"].get(k)) for k in sorted(LIMIT_KEYS)}
-        per_build = int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0)
-        daily = int(cfg.get("worker", "sandbox_daily_games", default=1) or 0)
+        per_build = int(cfg.get("worker", "sandbox_games_per_build", default=30) or 0)
+        state = db.sandbox_state(cfg["worker"], s["name"], s["image"]) if s["image"] else None
         out["sandbox"] = {
-            "games_per_build": per_build or "unlimited",
-            "played_by_active_build": db.sandbox_games_of_build(s["name"], s["image"]) if s["image"] else 0,
-            "daily_games": daily,
+            "games_per_build": per_build,
+            "played_by_active_build": state["games"] if state else 0,
+            "interval_hours": _num(state["interval_hours"], 2) if state else None,
+            "last_game_at": state["last_game_at"] if state else None,
             "played_last_24h": db.sandbox_games_since(s["name"], since(24)),
-            "about": "every new active version of an enabled strategy plays games_per_build rated sandbox games, "
-                     "then daily_games a day for as long as it is enabled, all scheduled by the server; custom games "
-                     "(play) are unrated; no rounds, no deadlines (rules(section='The arena'))"}
+            "about": "the server schedules the rated sandbox games by itself: every new active version of an enabled "
+                     "strategy plays games_per_build placement games one after another, then one game every "
+                     "interval_hours (an hour for a fresh version, longer for every week it has been playing, a day "
+                     "at most; a seat in another strategy's game counts); custom games (play) are unrated; no "
+                     "rounds, no deadlines (rules(section='The arena'))"}
     rows = db.games(limit=20, strategy=s["name"])   # one row per game, also when it held several seats
     seats = db.game_players_for([g["id"] for g in rows])
     out["games"] = [_game_row(ax, g, seats.get(g["id"], [])) for g in rows]

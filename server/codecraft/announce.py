@@ -74,7 +74,9 @@ class Announcer:
         self.post(f"**{owner}**'s **{name}** entered the ladder ({language}): {self.base}/strategies/{name}")
 
     def top_ten(self) -> str | None:
-        rows = [r for r in self.db.leaderboard() if r["rating"] is not None and (r["games"] or 0) > 0][:10]
+        """The ten best settled ratings: a strategy still playing its placement games is not in it."""
+        settled = int((self.cfg.get("leagues") or {}).get("settled_games", 30))
+        rows = [r for r in self.db.leaderboard() if r["rating"] is not None and (r["build_games"] or 0) >= settled][:10]
         if not rows:
             return None
         lines = [f"{i}. **{r['name']}** {r['rating']:.0f}" + (f" ({r['owner_name']})" if r["owner_name"] else "")

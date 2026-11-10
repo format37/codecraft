@@ -44,15 +44,17 @@ matchmaking:
   include_builtin: true             # the built-in QuickStart bot takes part as a regular (rated) player
   fill_with_builtin: true           # not enough strategies for a seat? use QuickStart (else an Empty seat)
 
-rating:                             # sandbox-style multiplayer Elo
-  initial: 1200
-  k: 32
-  k_min: 16                         # K decays towards k_min as a strategy accumulates games ("inertia")
-  k_half_life_games: 50
+rating:                             # one fit over every rated game: the ratings that explain all results best, on
+  initial: 1200                     # the Elo scale (400 points = 10 to 1). What is rated is a build. The first build
+  prior_sd: 350                     # of a strategy starts from `initial`, give or take prior_sd; each later build
+  version_sd: 200                   # from the build before it, give or take version_sd. After a change of these:
+                                    # ./cw rerate --history
 
-leagues:                            # the ladder is one league until this many players (each by their best strategy)
-  min_players: 40                   # have settled ratings; then it is clustered by rating once a week (/rules, "Leagues";
-  settled_games: 30                 # the clustering itself is phase 2 of docs/KICKOFF.md). Settled = this many rated games
+leagues:                            # the ladder in groups of like strength (/rules, "Leagues"): once a week the settled
+  count: 3                          # ratings are clustered into this many leagues, league 0 the strongest
+  settled_games: 30                 # a rating is settled when its build has played this many rated games
+  margin: 40                        # a strategy changes league when its rating is past a line by this much
+  min_size: 1                       # the least strategies a league is drawn with
 
 gpu:
   enabled: auto                     # true / false / auto = the nvidia runtime is registered in docker (or CW_GPU_ENABLED);
@@ -63,10 +65,12 @@ worker:                             # the `worker` service
   parallel_games: 1                 # a 4-player game uses ~5 cores at limits.cpus = 1
   pause_sec: 5
   sandbox: true                     # play rated sandbox games when no custom game is queued
-  sandbox_games_per_build: 10       # every build (version) plays this many sandbox games, then the worker rests;
-                                    # a new version starts a fresh count. 0 = play forever
-  sandbox_daily_games: 1            # after its share, an enabled strategy starts this many rated games a day (every
-                                    # sandbox game it was in during the last day counts, a filler seat too); 0 = none
+  sandbox_games_per_build: 30       # placement: every new build (version) plays this many sandbox games, one after
+                                    # another; a third of them one on one, each against the opponent met least. 0 = none
+  sandbox_interval_hours: 1         # after that a strategy is due a rated game once an interval: this many hours, and
+                                    # N more of them for every N-th full week its build has been playing (1, 2, 4, 7,
+  sandbox_interval_max_hours: 24    # 11, 16, 22 hours, the 2020 rule), up to this. Every sandbox game it is in counts,
+                                    # a filler seat too. interval 0 = no games after the placement
   builds: true                      # build submitted versions (one at a time)
 
 # A strategy compiles in a container made from its language's base image: no network, these limits, no

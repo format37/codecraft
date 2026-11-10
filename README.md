@@ -4,8 +4,8 @@ A self-hosted competition server for **CodeCraft**, a real-time strategy game pl
 programming championship (see [Credits](#credits-and-licence)). The official platform is gone, and the official
 engine survives only as a closed binary, the local runner `aicup2020` 1.3.0. This server puts the game back behind
 a web platform, on an open-source engine of our own: players sign in, upload strategies, the server builds them
-into Docker images, plays them against each other, keeps an Elo ladder and shows every replay in the browser. We
-restored it for ourselves, to sharpen our coding skills.
+into Docker images, plays them against each other, keeps a rated ladder in leagues and shows every replay in the
+browser. We restored it for ourselves, to sharpen our coding skills.
 
 Our engine (`sim-cpp/` in C++, which the server runs, and `sim/` in Python, its executable spec, which plays the
 same games) has the official rules, the official engine's command line, protocol and replay format, so the 15
@@ -24,10 +24,11 @@ Live instance: https://codecraft.day
 - **Submissions**: zip upload or public git URL, any of the 15 official client languages, optional
   GPU (CUDA) and merge mode. Each submission is a numbered version; a successful build becomes
   the active one. Build logs and your bot's own output are visible only to you.
-- **Sandbox**: every new build plays a fixed number of rated games (Round1 / Round2 / Finals,
-  rating-aware matchmaking, multiplayer Elo), then one game a day per strategy, so the ladder never stands
-  still. No rounds, no deadlines; leagues by strength once the ladder is big enough ([docs/arena.md](docs/arena.md),
-  rendered at `/rules` with the numbers of `config.yaml`).
+- **Sandbox**: every new build plays its placement games (Round1 / Round2 / Finals, rating-aware
+  matchmaking), then a rated game an hour, less often as the build ages, so the ladder never stands
+  still. The ratings are one fit over every rated game, on the Elo scale, each with its standard error.
+  No rounds, no deadlines; leagues by strength, clustered from the ratings once a week
+  ([docs/arena.md](docs/arena.md), rendered at `/rules` with the numbers of `config.yaml`).
 - **Custom games**: any format, any seats (including your own older versions), unrated.
 - **Replay viewer** in the browser, the local runner's own: the official `replay.dat` is decoded
   ([docs/replay-format.md](docs/replay-format.md)). A game link pasted into Telegram, Slack or Discord shows
@@ -82,7 +83,7 @@ address can come up after Docker starts (a WireGuard or other VPN interface), se
 the host (a file in `/etc/sysctl.d`): Docker cannot publish a port on an address that does not exist yet, and
 after a reboot the web service would run without its port. Everything else lives in
 [config.yaml](config.yaml): limits, formats, rating, GPU policy (`gpu.max_per_game`), sandbox
-size (`worker.sandbox_games_per_build`, `worker.sandbox_daily_games`), leagues, quotas.
+rhythm (`worker.sandbox_games_per_build`, `worker.sandbox_interval_hours`), leagues, quotas.
 
 CLI (`./cw`, through the compose `cli` service or a local venv):
 
@@ -91,6 +92,8 @@ CLI (`./cw`, through the compose `cli` service or a local venv):
 ./cw submit --name friend --language java --zip friend.zip --owner friend@mail
 ./cw invite --note "for Ivan"      ./cw users      ./cw admin you@mail
 ./cw ladder      ./cw games      ./cw replay 15 --json out.json
+./cw rerate --history            # fit the ratings anew (after a change of `rating` in config.yaml)
+./cw leagues --redraw            # draw the lines between the leagues now, not on Monday
 ./cw rename oldname newname      # a strategy's row, versions and past games
 ```
 

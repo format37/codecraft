@@ -2,7 +2,7 @@
 {% block content %}
 <h1>{{ s.name }} <span class="muted" style="font-size:15px">{{ s.title if s.title != s.name }}</span>
   {% if not s.enabled %}<span class="tag warn">disabled</span>{% endif %}</h1>
-<p>Rating <b>{{ s.rating|rating }}</b> · {{ s.games }} rated games · {{ s.wins }} wins · {{ s.points }} points · {{ s.crashes }} crashes
+<p>Rating <b>{{ s.rating|rating }}</b> {{ s.rating_sd|sd }}{% if standing %} · {% if standing.league is not none %}league {{ standing.league }}, place {{ standing.place }}{% else %}no league yet{% endif %}{% if standing.placing %} <span class="tag" title="its build has played {{ standing.row.build_games }} of the {{ settled_games }} rated games that settle a rating">placing {{ standing.row.build_games }}/{{ settled_games }}</span>{% endif %}{% endif %} · {{ s.games }} rated games · {{ s.wins }} wins · {{ s.points }} points · {{ s.crashes }} crashes
   · {{ s.language or s.builtin }}{% if s.gpu %} <span class="tag">gpu</span>{% endif %}
   · owner {{ s.owner_name or ('engine' if s.builtin else 'server') }}
   {% if s.image %}· <span class="muted">image {{ s.image.split(':')[-1] }}, built {{ s.built_at }}</span>{% endif %}

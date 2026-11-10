@@ -76,7 +76,7 @@ class Env:
     def finished_game(self, seats: list[dict], status="finished") -> int:
         gid = self.db.queue_game("Finals" if len(seats) == 2 else "Round1", 7, None, seats, kind="sandbox", rated=False)
         self.db.finish_game(gid, status, None, 40.0, 7, [{**s, "score": 100 * (len(seats) - s["slot"])} for s in seats],
-                            {"initial": 1200, "k": 32}, [8, 4, 2, 1], rated=False)
+                            {"initial": 1200}, [8, 4, 2, 1], rated=False)
         return gid
 
 
@@ -207,7 +207,10 @@ def test_rest_dispatcher_read_tools_errors_and_get_with_query_params(env):
     assert len(board["strategies"]) == 1 and board["total"] == 2
     s = env.client.get("/api/v1/strategy?name=bot", headers=h).json()
     assert [v["number"] for v in s["versions"]] == [2, 1] and s["versions"][0]["active"] and s["games"][0]["id"] == gid
-    assert s["sandbox"]["games_per_build"] == 10 and s["limits"]["tick_timeout_sec"] == 1.0
+    assert s["sandbox"]["games_per_build"] == 30 and s["sandbox"]["interval_hours"] == 1.0
+    assert s["limits"]["tick_timeout_sec"] == 1.0 and s["league"] is None and s["placing"] is True
+    assert board["leagues"]["count"] == 1 and board["leagues"]["lines"] == [] and board["strategies"][0]["placing"] is True
+    assert me["server"]["sandbox_games_per_build"] == 30 and me["server"]["leagues"]["settled_games"] == 30
     v = env.client.get(f"/api/v1/version?version_id={vids[0]}", headers=h).json()
     assert v["status"] == "ok" and v["active"] is False and "activate_version" in v["next"]
     g = env.client.get(f"/api/v1/game?game_id={gid}", headers=h).json()
@@ -239,10 +242,15 @@ def test_rules_whole_and_by_section(env):
     assert whole.status_code == 200 and whole.text.startswith("# The arena")
     assert "# CodeCraft 2020: the game" in whole.text and "{{" not in whole.text
     flat = " ".join(whole.text.split())
-    assert "plays 10 rated games a few minutes apart. After that every strategy plays one rated game a day" in flat
+    assert "it plays 30 *placement games* one after another" in flat
+    assert "a strategy plays one rated game an hour for as long as it is enabled" in flat
+    assert "(1, 2, 4, 7, 11, 16, 22 hours, then a day), as in the 2020 Sandbox" in flat
+    assert "a duel weighs 0.64 of a game of two" in flat
     arena = env.client.get("/api/v1/rules?section=the arena", headers=bearer(token)).text
     assert arena.startswith("# The arena") and "## Leagues" in arena and "## Game overview" not in arena
-    assert "one league until 40 players have settled ratings (30 rated games" in arena
+    assert "There are 3 leagues, league 0 the strongest." in arena
+    assert "A rating is settled when its version has played 30 rated games." in arena
+    assert "as soon as a settled rating is 40" in arena
     part = env.client.get("/api/v1/rules?section=entity properties", headers=bearer(token)).text
     assert part.startswith("## Entity properties values") and "## API description" not in part
     objects = env.client.get("/api/v1/rules?section=objects description", headers=bearer(token)).text

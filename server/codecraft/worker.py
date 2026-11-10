@@ -15,9 +15,9 @@ import docker
 from .announce import Announcer
 from .builder import Builder, BuildError, EngineImage
 from .config import SEATS, Config
-from .db import DB, since
+from .db import DB
 from .game import GameRunner, PlayerSpec
-from .matchmaking import Candidate, choose_format, pick_players, sandbox_remaining
+from .matchmaking import Candidate, choose_format, pick_anchor, pick_players
 from .strategies import Strategy, strategy_for_version, strategy_from_row
 
 log = logging.getLogger("codecraft.worker")
@@ -67,33 +67,30 @@ class Worker:
 
     def make_match(self) -> tuple[str, list[PlayerSpec]]:
         mm = self.cfg["matchmaking"]
-        fmt = choose_format(self.cfg["formats"], self.rng)
-        seats = SEATS[fmt]
+        formats = self.cfg["formats"]
         rows = {r["name"]: r for r in self.db.strategies()}
         specs = {s.name: s for s in self.runnable()}
-        quota = int(self.cfg["worker"].get("sandbox_games_per_build") or 0)
-        daily = int(self.cfg["worker"].get("sandbox_daily_games") or 0)
-        day_ago = since(24)
-        candidates = []
+        candidates, states = [], {}
         for name, spec in specs.items():
             if spec.strategy.is_builtin and not mm.get("include_builtin", True):
                 continue
             row = rows.get(name)
             rating = float(row["rating"]) if row and row["rating"] is not None else float(self.cfg["rating"]["initial"])
-            games = int(row["games"]) if row else 0
-            remaining = None
-            if quota:
-                if spec.strategy.is_builtin:
-                    remaining = 0          # the engine bot never starts a game, it only fills seats
-                else:
-                    games = self.db.sandbox_games_of_build(name, spec.image)
-                    last_day = self.db.sandbox_games_since(name, day_ago) if daily else 0
-                    remaining = sandbox_remaining(quota, daily, games, last_day)
-            candidates.append(Candidate(name, rating, games, spec.strategy.is_builtin, spec.strategy.gpu, remaining))
+            if spec.strategy.is_builtin:            # the engine bot never starts a game, it only fills seats
+                candidates.append(Candidate(name, rating, int(row["games"]) if row else 0, True, spec.strategy.gpu))
+                continue
+            st = states[name] = self.db.sandbox_state(self.cfg["worker"], name, spec.image)
+            candidates.append(Candidate(name, rating, st["games"], False, spec.strategy.gpu, st["placing"], st["overdue"]))
+        anchor = pick_anchor(candidates, self.rng)
+        if anchor is None:
+            return choose_format(formats, self.rng), []
+        fmt = choose_format(formats, self.rng, played=states[anchor.name]["formats"])
+        seats = SEATS[fmt]
+        duels = self.db.sandbox_duels(anchor.name, specs[anchor.name].image,
+                                      [f for f in formats if SEATS.get(f) == 2]) if seats == 2 else None
         max_gpu = int(self.cfg.get("gpu", "max_per_game", default=1) or 0) if self.gpu else 0
-        names = pick_players(candidates, seats, float(mm.get("rating_sigma", 200)), self.rng, max_gpu=max_gpu)
-        if not names:
-            return fmt, []
+        names = pick_players(candidates, seats, float(mm.get("rating_sigma", 200)), self.rng, max_gpu=max_gpu,
+                             duels=duels, anchor=anchor)
         players = [specs[n] for n in names]
         filler = next((s for s in specs.values() if s.strategy.is_builtin), None) \
             if mm.get("fill_with_builtin", True) else None
@@ -140,9 +137,9 @@ class Worker:
                 return False
         if len([p for p in players if p.strategy and not p.strategy.is_builtin]) < 1:
             if not self.idle:
-                log.info("sandbox idle: every build has played its %s games and every strategy its %s of the day; "
-                         "waiting", self.cfg["worker"].get("sandbox_games_per_build"),
-                         self.cfg["worker"].get("sandbox_daily_games"))
+                log.info("sandbox idle: every build has played its %s placement games and no strategy is due a "
+                         "game (one every %s h and up); waiting", self.cfg["worker"].get("sandbox_games_per_build"),
+                         self.cfg["worker"].get("sandbox_interval_hours"))
                 self.idle = True
             return False
         self.idle = False
@@ -163,6 +160,10 @@ class Worker:
             except Exception:  # noqa: BLE001
                 log.exception("worker %d: game failed", worker_id)
                 played = True
+            try:
+                self.db.update_leagues(self.cfg["leagues"])      # Monday's lines, also on a ladder that stands still
+            except Exception:  # noqa: BLE001
+                log.exception("leagues not updated")
             try:
                 self.announcer.tick(engine=self.runner.engine.image)
             except Exception:  # noqa: BLE001

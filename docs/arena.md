@@ -7,29 +7,44 @@ when you like, improve your strategy at your own pace, and the ladder tells you 
 
 ## The ladder
 
-- Every enabled strategy with a successful build is on the ladder, with an Elo rating that starts at {{ initial }}.
-  The [leaderboard]({{ base }}/leaderboard) orders them by rating and shows their games, wins, average place,
-  tournament points and crashes.
-- Rated games are *sandbox games*, which the server schedules by itself. For each one it draws a format
-  ({{ formats_text }}), then the players: a strategy that is due a game, and opponents drawn with a preference for
-  ratings close to its own (weight exp(-|difference| / {{ sigma }})). The engine's QuickStart bot is a regular rated
-  player and fills a seat when no strategy is free.
-{% if per_build %}- When a new version of a strategy is built, it plays {{ per_build }} rated games a few minutes
-  apart.{% if daily %} After that every strategy plays {{ daily_text }} a day for as long as it is enabled, so the
-  ladder keeps moving and the ratings settle.{% endif %} A paused strategy plays nothing and keeps its rating.
-{% else %}- An enabled strategy plays rated games whenever the server has a free moment. A paused strategy plays
-  nothing and keeps its rating.
-{% endif %}- The rating belongs to the strategy, not to the version: a new version carries on from where the old one
-  stood. A player may have several strategies, each with a rating of its own.
+- Every enabled strategy with a successful build is on the ladder, with a rating that starts at {{ initial }}. The
+  [leaderboard]({{ base }}/leaderboard) shows the ladder league by league: every strategy's place in its league, its
+  rating and how far that can be trusted (±), its games, wins, average place, tournament points and crashes.
+- Rated games are *sandbox games*, which the server schedules by itself. A strategy that is due a game starts one, in
+  the format it has played least ({{ formats_text }}), against opponents drawn with a preference for ratings close
+  to its own (weight exp(-|difference| / {{ sigma }})) and for strategies that are due a game themselves. The
+  engine's QuickStart bot is a regular rated player and fills a seat when no strategy is free.
+{% if per_build %}- When a new version of a strategy is built, it plays {{ per_build }} *placement games* one after another. Its
+  games of two each go to the strategy it has met least so far, the closest rating first: on a small ladder a new
+  version meets everybody one on one.
+{% endif %}{% if interval %}- After {% if per_build %}that{% else %}its first game{% endif %} a strategy plays one rated game {{ interval_text }} for as long as it is enabled{% if interval_steps %}, and less
+  often as its version ages: with every full week the version has been playing, the interval grows
+  ({{ interval_steps }} hours, then {{ interval_cap }}), as in the 2020 Sandbox{% endif %}. A game played in another strategy's
+  seat counts too, so in an hour everybody plays about once.
+{% endif %}- A paused strategy plays nothing and keeps its rating. A player may have several strategies, each with a rating
+  of its own.
 - Custom games (any format, any opponents: your own older versions, other players' strategies, QuickStart, empty
   seats) are not rated: {{ custom_per_day }} a day, {{ custom_queued }} waiting at a time.
 
 ## Rating
 
-Multiplayer Elo. After a rated game every pair of players is scored as a duel: 1 to the better place, 0 to the worse,
-1/2 for a tie; the expected score follows from the two ratings as in chess (400 points of difference expect 10 to 1).
-A strategy's change is K times its average surplus over its opponents. K starts at {{ k }} and falls towards
-{{ k_min }} with a half-life of {{ half_life }} games: an established rating moves more slowly than a fresh one.
+A strategy does not change between two versions, so its games are not a history to follow but a sample to explain.
+The ratings are the numbers that explain every rated game best: all games at once, each at full weight, whatever the
+order they were played in. Chess engine rating lists are computed this way; the scale is Elo's.
+
+- After a rated game every pair of its players is a duel: won by the better place, shared on a tie. What a difference
+  of ratings expects of a duel is as in chess: 400 points expect 10 to 1. In a game of four a duel weighs
+  {{ pair4 }} of a game of two, because six duels read off one order of finish are not six independent results.
+- What is rated is a version of a strategy (two versions built from the same sources are one). The first version
+  starts from {{ initial }}. A later version starts from the rating of the version before it, and its own games move
+  it from there: a few games in, a real improvement shows in full, and so does a slip. The engine's QuickStart bot is
+  a new version with every new version of the engine.
+- After every rated game all ratings are fitted again, so yours can move a little without a game of yours, when the
+  ratings of your opponents do. The scale has one fixed point: the first versions of all strategies average
+  {{ initial }}.
+- The ± next to a rating is one standard error: how far the rating may be off, given the games so far. It shrinks
+  with every game. Until a version has played {{ settled_games }} rated games it is marked *placing*.
+
 Tournament points are counted as in 2020 ({{ points_r }} by place in Round 1 and Round 2, {{ points_f }} in the
 Finals format) and shown next to the rating.
 
@@ -41,16 +56,22 @@ game; the game goes on for the others and is rated as played. Crashes are counte
 Players range from hand-written bots to strategies written with frontier models, and all are welcome. So that each
 level has a race of its own, the ladder is split into leagues by strength, not by what a player says they use.
 
-- The ladder is one league until {{ min_players }} players have settled ratings ({{ settled_games }} rated games or
-  more; a player's rating is that of their best strategy). Today the leaderboard is that one league.
-- From then on the ratings are clustered once a week into the leagues that fit them best, league 0 the strongest,
-  each with at least four players. Your best strategy's rating places you. The boundaries have a margin, so a rating
-  sitting on a line does not change league every week, and a new strategy is unplaced until its rating has settled.
-- Promotion and relegation follow the rating: cross the line above you and the next weekly placement moves you up;
-  fall below the line under you and it moves you down. There are no qualifying series. Matchmaking already plays most
-  of your games within your league, and the games it draws at the boundaries keep the leagues on one scale.
-- Each league gets its own standings and, as this server's next step, its own tournaments in the 2020 formats.
-  Custom games know no leagues: play whoever you like.
+- There are {{ leagues }} leagues, league 0 the strongest. Every Monday (UTC) the settled ratings are clustered into
+  {{ leagues }} groups, the split that leaves the least spread inside the groups, and the line between two
+  neighbouring leagues is drawn halfway between their average ratings. The lines stay for the week, and the
+  leaderboard shows them.
+- A rating is settled when its version has played {{ settled_games }} rated games. A new strategy has no league
+  until then. A new version of a strategy keeps the league while it plays its placement games.
+- Promotion and relegation follow the rating, without qualifying series: as soon as a settled rating is {{ margin }}
+  points past a line, the strategy changes league. The margin keeps a rating that sits on a line from going to and
+  fro.
+- A league is a group on the leaderboard with places of its own. The rating scale is one for all leagues and
+  matchmaking knows no lines: most of your games are within your league because the ratings there are the closest
+  to yours, and the games across a line keep the leagues on one scale.
+- On a small ladder the leagues are small, and one strategy that moves a long way can pull a line with it at the
+  next clustering. That evens out as the ladder grows.
+- Tournaments in the 2020 formats, league by league, are this server's next step; a player will be seated there by
+  their best strategy. Custom games know no leagues: play whoever you like.
 
 ## The engine
 

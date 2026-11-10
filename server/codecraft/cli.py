@@ -32,6 +32,9 @@ def _context(args):
     strategies = load_strategies(cfg)
     for s in strategies.values():
         db.upsert_strategy(s, float(cfg["rating"]["initial"]))
+    if db.ensure_ratings(cfg["rating"]):         # a database of the Elo days: fitted once, its history too
+        db.update_leagues(cfg["leagues"], force=True)
+        log.info("ratings fitted anew from every rated game")
     return cfg, db, strategies
 
 
@@ -160,14 +163,48 @@ def cmd_serve(args):
                 log_level="info", proxy_headers=bool(trusted), forwarded_allow_ips=trusted or None)
 
 
+def _print_ladder(cfg, db) -> None:
+    from . import leagues as L
+
+    state = db.league_state()
+    settled = int(cfg["leagues"].get("settled_games", 30))
+    print(f"{'#':>2} {'strategy':<26} {'rating':>6} {'+-':>4} {'games':>5} {'wins':>4} {'avg pl':>6} {'points':>6} {'crash':>5}  image")
+    for g in L.standings(db.leaderboard(), state["lines"], settled):
+        if g["league"] is None:
+            print(f"-- placing: no league before {settled} rated games")
+        else:
+            above = "" if g["above"] is None else f" below {g['above']:.0f}"
+            below = "" if g["below"] is None else f" above {g['below']:.0f}"
+            print(f"-- league {g['league']}:{below}{above}" + ("" if state["lines"] else " every settled rating"))
+        for e in g["rows"]:
+            r = e["row"]
+            avg = f"{r['place_sum'] / r['games']:.2f}" if r["games"] else "-"
+            image = (r["image"] or "").split(":")[-1] or ("built-in" if r["builtin"] else "not built")
+            sd = "" if r["rating_sd"] is None else f"{r['rating_sd']:.0f}"
+            print(f"{e['place'] if g['league'] is not None else '':>2} {r['name']:<26} {r['rating']:>6.0f} {sd:>4} {r['games']:>5} "
+                  f"{r['wins']:>4} {avg:>6} {r['points']:>6} {r['crashes']:>5}  {image}"
+                  + (f"  placing {r['build_games']}/{settled}" if e["placing"] else ""))
+    if state["at"]:
+        print(f"lines drawn {state['at']} UTC ({state['week']})")
+
+
 def cmd_ladder(args):
-    _, db, _ = _context(args)
-    rows = db.leaderboard()
-    print(f"{'#':>2} {'strategy':<16} {'rating':>7} {'games':>5} {'wins':>4} {'avg pl':>6} {'points':>6} {'crash':>5}  image")
-    for i, r in enumerate(rows, 1):
-        avg = f"{r['place_sum'] / r['games']:.2f}" if r["games"] else "-"
-        image = (r["image"] or "").split(":")[-1] or ("built-in" if r["builtin"] else "not built")
-        print(f"{i:>2} {r['name']:<16} {r['rating']:>7.0f} {r['games']:>5} {r['wins']:>4} {avg:>6} {r['points']:>6} {r['crashes']:>5}  {image}")
+    cfg, db, _ = _context(args)
+    _print_ladder(cfg, db)
+
+
+def cmd_rerate(args):
+    cfg, db, _ = _context(args)
+    builds = db.rerate(cfg["rating"], history=args.history)
+    db.update_leagues(cfg["leagues"])
+    print(f"{builds} build(s) fitted to every rated game" + (", the rating before and after each game too" if args.history else ""))
+    _print_ladder(cfg, db)
+
+
+def cmd_leagues(args):
+    cfg, db, _ = _context(args)
+    db.update_leagues(cfg["leagues"], force=args.redraw)
+    _print_ladder(cfg, db)
 
 
 def cmd_games(args):
@@ -192,7 +229,7 @@ def cmd_cleanup(args):
 def cmd_reset_ratings(args):
     cfg, db, _ = _context(args)
     db.reset_ratings(float(cfg["rating"]["initial"]))
-    print("ratings and statistics reset (games history kept)")
+    print("ratings and statistics reset (the games stay in the history and no longer count towards a rating)")
 
 
 def cmd_replay(args):
@@ -330,7 +367,14 @@ def main(argv=None):
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(func=cmd_games)
     sub.add_parser("cleanup", help="remove leftover game containers/networks").set_defaults(func=cmd_cleanup)
-    sub.add_parser("reset-ratings", help="reset ratings and statistics").set_defaults(func=cmd_reset_ratings)
+    sub.add_parser("reset-ratings", help="reset ratings and statistics; the games played so far no longer count"
+                   ).set_defaults(func=cmd_reset_ratings)
+    p = sub.add_parser("rerate", help="fit the ratings anew from every rated game (after a change of `rating` in config.yaml)")
+    p.add_argument("--history", action="store_true", help="also the rating before and after every past game")
+    p.set_defaults(func=cmd_rerate)
+    p = sub.add_parser("leagues", help="place the strategies in their leagues and print the ladder")
+    p.add_argument("--redraw", action="store_true", help="draw the lines anew now (they are drawn every Monday)")
+    p.set_defaults(func=cmd_leagues)
     p = sub.add_parser("replay", help="decode a replay (validation / JSON export)")
     p.add_argument("game_id", type=int, nargs="?")
     p.add_argument("--path", help="replay.dat path instead of a game id")

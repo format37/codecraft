@@ -1,4 +1,4 @@
-# CodeCraft platform — kickoff and status (updated 2026-11-08)
+# CodeCraft platform — kickoff and status (updated 2026-11-10)
 
 Entry point for a working session. Read this, then `README.md`, then `config.yaml`.
 
@@ -8,7 +8,7 @@ A self-hosted competition platform, first for CodeCraft 2020, later for
 Alex's own game(s) with other mechanics and player counts:
 
 - players register, upload strategies, the server builds them and plays them against each other
-  in a loop (sandbox, Elo rating), plus tournaments in the official formats and custom games;
+  in a loop (sandbox, a rated ladder in leagues), plus tournaments in the official formats and custom games;
 - a web replay viewer, leaderboard, game history, build logs;
 - GPU for strategies, with a sharing policy;
 - runs on a dedicated machine in Alex's flat, published through a VPN to a VPS as
@@ -76,6 +76,8 @@ during a round; round pages with standings. Tables `tournaments`/`rounds`/`waves
 
 ### Leagues (Alex's idea, 2026-11-06)
 
+(The first design, kept for the reasoning. What runs since 2026-11-10 is in the next section.)
+
 Players range from frontier-LLM strategies to hand-written code and small local models, and all of
 these are welcome. To give each level a race of its own, split the ladder into leagues by strength
 rather than by what people say they use, since that cannot be checked. Once there are at least 40
@@ -104,6 +106,45 @@ games have been removing); a new version keeps its strategy's rating and league;
 its rating has settled (`leagues.settled_games`); league tournaments are played within a league. Also decided: the
 heartbeat, `worker.sandbox_daily_games` = 1, so the ladder moves between submissions and ratings settle without a
 new build. Parameters: `leagues.min_players` = 40, `leagues.settled_games` = 30.
+
+### The ladder as it is since 2026-11-10 (rating, schedule, leagues)
+
+What the first players' week showed, measured on the node's 136 rated games: a new seed won 8 of its 10 games and
+gained 90 points (Elo with K = 32 averaged over the opponents moves 16 points a game at most); the ladder spanned
+1004 to 1426 where a fit of all games spans three times that; half the pairs had never met one on one; K followed the
+strategy's games, so a new version of an old strategy climbed at half speed. Looked at before deciding: the 2020
+rules (a game an hour per player, the interval growing with the weeks since the last version; the rating's inertia
+reset on request; the rounds played in waves with equal game counts), BAR (OpenSkill, a rating with its uncertainty),
+the bot ladders (a rating per submission, leagues, round robins inside a division). Decided with Alex and built:
+
+- **Rating** (`rating.py`): one fit over every rated game, Bradley-Terry on the pairwise model the Elo had (a pair
+  of players in a game is a duel, 400 points = 10 to 1), refitted after each rated game: 3 ms warm at this size.
+  A duel of an n-player game weighs `pair_weight(n)` (0.64 for four), so that a game tells what its order of finish
+  tells. What is rated is a build (`build_ratings`: strategy + image; the built-in bot per engine image, since its
+  code is the engine's). A strategy's builds form a chain: the first from `rating.initial` give or take
+  `prior_sd`, each next from the one before give or take `version_sd`. The scale's one fixed point: the first
+  builds average `initial`. The standard error shown is the conditional one (the others' ratings taken as known).
+  `./cw rerate --history` refits everything, the per-game before/after too; a database of the Elo days is refitted
+  once at start (`DB.ensure_ratings`, meta `rating_model`).
+- **Schedule** (`matchmaking.py`, `DB.sandbox_state`): a new build plays `worker.sandbox_games_per_build` = 30
+  placement games, in the format it has played least; a placement game of two goes to the opponent met least, the
+  closest first. Then a game every `sandbox_interval_hours`, growing by the 2020 rule with the weeks the build has
+  been playing (1, 2, 4, 7, 11, 16, 22, 24 hours). A seat in another's game counts; strategies that are due a game
+  are preferred as opponents (`WANTS_BOOST`), so a wave seats everybody about once. Games take 8 to 20 s on
+  sim-cpp, so the ten-game share that bounded the compute is no longer needed.
+- **Leagues** (`leagues.py`, `DB.update_leagues`): `leagues.count` = 3 by exact one-dimensional k-means of the
+  settled ratings (a build with `leagues.settled_games` rated games), the lines halfway between the leagues' means,
+  drawn on the first update of an ISO week (and while there are fewer lines than wanted; `./cw leagues --redraw`
+  forces it). Between two drawings a strategy moves as soon as its settled rating is `leagues.margin` past a line.
+  This replaces what was decided on 2026-11-06/08 below: no waiting for 40 settled players, no minimum of four in a
+  league for now (`leagues.min_size` = 1, Alex's call on 2026-11-10), a league per strategy on the leaderboard (the
+  player's best strategy will seat them in league tournaments), and a move at once instead of at the next weekly
+  placement. Alex preferred clusters to gates at the system seeds ("bosses"), which was the other option weighed.
+- The leaderboard shows the leagues as foldable groups with the place in the league, the rating with its ±, and
+  `placing n/30` on a build whose rating has not settled; agents get the same through `leaderboard()` and
+  `strategy()`.
+
+Not done: league tournaments (round robins inside a league with the 2020 points), a rating per format.
 
 ## Phase 3 — deployment (done 2026-11-05)
 

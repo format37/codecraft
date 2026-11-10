@@ -1,15 +1,34 @@
 {% extends "base.html" %}{% block title %}Leaderboard{% endblock %}
+{% block head %}<style>
+  table.ladder thead th { border-bottom:1px solid var(--line); }
+  table.ladder tbody tr:not(.league) td:nth-child(2) { white-space:normal; }   /* a long title wraps, the table keeps its width */
+  table.ladder tbody tr:last-child td { border-bottom:1px solid var(--line); }
+  table.ladder tbody:last-child tr:last-child td { border-bottom:none; }
+  tr.league td { background:var(--bg); cursor:pointer; user-select:none; }
+  tr.league .fold { display:inline-block; width:1.1em; color:var(--muted); transition:transform .12s; }
+  tbody.folded tr:not(.league) { display:none; }
+  tbody.folded .fold { transform:rotate(-90deg); }
+</style>{% endblock %}
 {% block content %}
 <h1>Leaderboard <span class="muted" style="font-size:14px">{{ stats.finished or 0 }} games played{% if stats.running %}, {{ stats.running }} running{% endif %}{% if stats.queued %}, {{ stats.queued }} queued{% endif %}{% if builds %}, {{ builds|length }} build(s) pending{% endif %}</span></h1>
-<table>
-<tr><th>#</th><th>Strategy</th><th>Owner</th><th>Lang</th><th class="num">Rating</th><th class="num">Games</th><th class="num">Wins</th><th class="num">Avg place</th><th class="num">Points</th><th class="num">Crashes</th><th>Build</th></tr>
-{% for s in leaderboard %}
+<table class="ladder">
+<thead><tr><th class="num" title="place in the league">#</th><th>Strategy</th><th>Owner</th><th>Lang</th><th class="num" title="the rating that explains all of its build's rated games best, ± one standard error">Rating</th><th class="num">Games</th><th class="num">Wins</th><th class="num">Avg place</th><th class="num">Points</th><th class="num">Crashes</th><th>Build</th></tr></thead>
+{% for g in standings %}
+<tbody data-league="{{ g.league if g.league is not none else 'none' }}">
+<tr class="league" tabindex="0" role="button" aria-expanded="true"><td colspan="11"><span class="fold">▾</span>
+  {%- if g.league is none %}<b>Placing</b> <span class="muted">· a new strategy gets its league after {{ settled_games }} rated games</span>
+  {%- else %}<b>League {{ g.league }}</b> <span class="muted">·
+    {%- if g.above is not none and g.below is not none %} ratings {{ g.below|rating }} to {{ g.above|rating }}
+    {%- elif g.below is not none %} ratings above {{ g.below|rating }}
+    {%- elif g.above is not none %} ratings below {{ g.above|rating }}
+    {%- else %} every settled rating{% endif %} · {{ g.rows|length }} {{ 'strategy' if g.rows|length == 1 else 'strategies' }}</span>{% endif %}</td></tr>
+{% for e in g.rows %}{% set s = e.row %}
 <tr>
-  <td class="num">{{ loop.index }}</td>
-  <td><a href="/strategies/{{ s.name }}">{{ s.name }}</a> {% if s.title and s.title != s.name %}<span class="muted">{{ s.title }}</span>{% endif %}</td>
+  <td class="num">{{ e.place if g.league is not none else '' }}</td>
+  <td><a href="/strategies/{{ s.name }}">{{ s.name }}</a> {% if s.title and s.title != s.name %}<span class="muted">{{ s.title }}</span>{% endif %}{% if e.placing %} <span class="tag" title="its build has played {{ s.build_games }} of the {{ settled_games }} rated games that settle a rating">placing {{ s.build_games }}/{{ settled_games }}</span>{% endif %}</td>
   <td class="muted">{{ s.owner_name or ('engine' if s.builtin else 'server') }}</td>
   <td>{{ s.language or s.builtin }}{% if s.gpu %} <span class="tag">gpu</span>{% endif %}</td>
-  <td class="num"><b>{{ s.rating|rating }}</b></td>
+  <td class="num"><b>{{ s.rating|rating }}</b> <span class="muted">{{ s.rating_sd|sd }}</span></td>
   <td class="num">{{ s.games }}</td>
   <td class="num">{{ s.wins }}</td>
   <td class="num">{% if s.games %}{{ '%.2f'|format(s.place_sum / s.games) }}{% else %}-{% endif %}</td>
@@ -17,8 +36,13 @@
   <td class="num">{% if s.crashes %}<span class="bad">{{ s.crashes }}</span>{% else %}0{% endif %}</td>
   <td class="muted">{% if s.image %}{{ s.image.split(':')[-1] }}{% elif s.builtin %}built-in{% else %}<span class="warn">not built</span>{% endif %}</td>
 </tr>
+{% else %}
+<tr><td></td><td colspan="10" class="muted">nobody here now</td></tr>
+{% endfor %}
+</tbody>
 {% endfor %}
 </table>
+<p class="muted">Leagues are groups of like strength, league 0 the strongest. The lines between them are drawn from the settled ratings every Monday{% if leagues.at %} (last on {{ leagues.at }} UTC){% endif %}; a strategy moves as soon as its rating is {{ cfg.leagues.margin }} points past a line. <a href="/rules#leagues">How the ladder works</a>.</p>
 <h2>Recent games</h2>
 <table>
 <tr><th>Game</th><th>Kind</th><th>Format</th><th>Players · score</th><th>Status</th><th class="num">Time</th><th>Created (UTC)</th></tr>
@@ -26,4 +50,14 @@
 </table>
 <p class="muted">Limits: {{ cfg.limits.tick_timeout_sec }} s per tick · {{ cfg.limits.cpu_time_sec or '∞' }} s CPU per game · {{ cfg.limits.memory_mb }} MB · {{ cfg.limits.cpus }} CPU{% if gpu_ok %} · GPU: up to {{ cfg.gpu.max_per_game }} CUDA strategy per game{% endif %}.
   <a href="/games?kind=custom">custom games</a> · <a href="/api/leaderboard">API</a></p>
+<script>
+document.querySelectorAll('table.ladder tr.league').forEach(function (row) {
+  var body = row.parentNode, key = 'cc-league-' + body.dataset.league;
+  function set(folded) { body.classList.toggle('folded', folded); row.setAttribute('aria-expanded', folded ? 'false' : 'true'); }
+  try { if (localStorage.getItem(key) === '1') set(true); } catch (e) {}
+  function toggle() { var folded = !body.classList.contains('folded'); set(folded); try { localStorage.setItem(key, folded ? '1' : '0'); } catch (e) {} }
+  row.addEventListener('click', toggle);
+  row.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
+});
+</script>
 {% endblock %}

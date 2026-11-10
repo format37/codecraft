@@ -287,7 +287,8 @@ class GameRunner:
         for attempt in range(5):
             try:
                 return self.db.finish_game(game_id, status, error, duration, seed, rows,
-                                           self.cfg["rating"], self.cfg["points"][fmt], rated=rated)
+                                           self.cfg["rating"], self.cfg["points"][fmt], rated=rated,
+                                           leagues_cfg=self.cfg["leagues"])
             except Exception as exc:  # noqa: BLE001 - e.g. a transient "database is locked"
                 last_exc = exc
                 log.warning("game %d: recording results failed (attempt %d): %s", game_id, attempt + 1, exc)

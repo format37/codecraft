@@ -17,6 +17,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.requests import ClientDisconnect
 
 from . import agents as A
+from . import leagues as L
 from . import mcp_server
 from . import preview as P
 from . import replay as R
@@ -131,6 +132,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
     app.state.agents, app.state.mcp = ax, mcp
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.filters["rating"] = lambda v: "-" if v is None else f"{v:.0f}"
+    templates.env.filters["sd"] = lambda v: "" if v is None else f"±{v:.0f}"
     templates.env.filters["build_error"] = A.build_error
     if cfg.get("gpu", "available") is None:
         # The web service has no Docker socket (docker-compose.yml), so `auto` resolves to no GPU here;
@@ -312,7 +314,10 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
     @app.get("/leaderboard", response_class=HTMLResponse)
     def leaderboard(request: Request):
         recent = db.games(limit=15)
-        return render(request, "index.html", leaderboard=db.leaderboard(), recent=recent,
+        leagues = db.league_state()
+        settled = int(cfg["leagues"].get("settled_games", 30))
+        return render(request, "index.html", recent=recent, leagues=leagues, settled_games=settled,
+                      standings=L.standings(db.leaderboard(), leagues["lines"], settled),
                       players=db.game_players_for([g["id"] for g in recent]), stats=db.stats(),
                       queue=db.game_queue(), builds=db.build_queue())
 
@@ -454,7 +459,11 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
             raise HTTPException(404, "no such strategy")
         user = request.state.user
         versions = db.versions(name) if owns(user, row) else []
+        settled = int(cfg["leagues"].get("settled_games", 30))
+        standing = next(({"league": g["league"], **e} for g in L.standings(db.leaderboard(), db.league_state()["lines"], settled)
+                         for e in g["rows"] if e["row"]["name"] == name), None)
         return render(request, "strategy.html", s=row, games=db.strategy_games(name), versions=versions,
+                      standing=standing, settled_games=settled,
                       owner=owns(user, row), limits=json.loads(row["limits"]) if row["limits"] else {})
 
     @app.post("/strategies/{name}/settings")

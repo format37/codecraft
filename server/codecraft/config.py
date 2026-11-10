@@ -27,8 +27,8 @@ DEFAULTS: dict = {
     "formats": {"Round1": 1, "Round2": 1, "Finals": 1},
     "points": {"Round1": [8, 4, 2, 1], "Round2": [8, 4, 2, 1], "Finals": [2, 0]},
     "matchmaking": {"rating_sigma": 200, "include_builtin": True, "fill_with_builtin": True},
-    "rating": {"initial": 1200, "k": 32, "k_min": 16, "k_half_life_games": 50},
-    "leagues": {"min_players": 40, "settled_games": 30},   # one league below min_players settled players (docs/arena.md)
+    "rating": {"initial": 1200, "prior_sd": 350, "version_sd": 200},   # one fit over every rated game (rating.py)
+    "leagues": {"count": 3, "settled_games": 30, "margin": 40, "min_size": 1},   # leagues.py, docs/arena.md
     "gpu": {
         "enabled": "auto",          # true / false / auto (nvidia runtime visible to docker)
         "max_per_game": 1,          # how many GPU strategies may share one game (whole GPU each)
@@ -37,8 +37,9 @@ DEFAULTS: dict = {
         "parallel_games": 1,
         "pause_sec": 5,
         "sandbox": True,            # play rated sandbox games when no custom game is queued
-        "sandbox_games_per_build": 10,  # each build plays this many sandbox games, then rests (0 = endless)
-        "sandbox_daily_games": 1,   # after its share, an enabled strategy starts this many rated games a day (0 = none)
+        "sandbox_games_per_build": 30,  # the placement games of a new build, played one after another (0 = none)
+        "sandbox_interval_hours": 1,    # then a rated game once an interval, longer by the week (0 = no more games)
+        "sandbox_interval_max_hours": 24,
         "builds": True,             # build submitted strategy versions
     },
     "build": {                      # the compile container of a strategy (no network; see builder.py)

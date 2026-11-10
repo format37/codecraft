@@ -200,10 +200,11 @@ next to it; the folder named after the language is built), a zip of the language
 file. The server builds it with the official client's own build script, in seconds for Python, up to ten minutes
 for Java, Rust or GraalVM; the build log is yours to read.
 
-A built version plays {{ per_build }} rated games against strategies of similar rating, then {{ daily_text }} a day
-for as long as the strategy is enabled; the [leaderboard]({{ base }}/leaderboard) orders everyone by Elo rating and
-links every game with its replay. You may submit {{ versions_per_day }} versions a day; a new version keeps its
-strategy's rating. How the ladder, the ratings and the leagues work: [the arena]({{ base }}/rules#the-arena).
+A built version plays {{ per_build }} rated placement games against strategies of similar rating{% if interval %}, then one
+{{ interval_text }} for as long as the strategy is enabled, less often as the version ages{% endif %}; the
+[leaderboard]({{ base }}/leaderboard) shows everyone by league and rating and links every game with its replay. You
+may submit {{ versions_per_day }} versions a day; a new version starts from its strategy's rating. How the ladder,
+the ratings and the leagues work: [the arena]({{ base }}/rules#the-arena).
 
 ## 6. Or hand it to an agent
 

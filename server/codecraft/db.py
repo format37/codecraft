@@ -8,7 +8,9 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from . import leagues as L
 from . import rating as R
+from .matchmaking import interval_hours
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -137,16 +139,38 @@ CREATE TABLE IF NOT EXISTS api_tokens (            -- coding agents (MCP / REST)
     revoked_at   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id, id);
+CREATE TABLE IF NOT EXISTS build_ratings (         -- what is rated is a build: a strategy's image (rating.fit)
+    strategy   TEXT NOT NULL,
+    image      TEXT NOT NULL DEFAULT '',            -- a built-in bot has none: the engine image it is part of
+    rating     REAL NOT NULL,
+    sd         REAL,                                -- one standard error of the rating
+    games      INTEGER DEFAULT 0,                   -- rated games of this build
+    first_game INTEGER,                             -- its first rated game: the order of a strategy's builds
+    PRIMARY KEY (strategy, image)
+);
+CREATE TABLE IF NOT EXISTS meta (                  -- single values: the rating model in use, the league lines
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
 """
+
+RATING_MODEL = "fit-1"      # meta 'rating_model': a database rated otherwise is refitted once (DB.ensure_ratings)
 
 # Columns added after v0.1 (table -> column -> DDL type/default); applied to existing databases.
 ADDED_COLUMNS = {
     "strategies": {"owner_id": "INTEGER", "kind": "TEXT DEFAULT 'seed'", "active_version": "INTEGER",
-                   "limits": "TEXT", "created_at": "TEXT"},
+                   "limits": "TEXT", "created_at": "TEXT", "rating_sd": "REAL", "league": "INTEGER",
+                   "build_games": "INTEGER DEFAULT 0"},
     "games": {"kind": "TEXT DEFAULT 'sandbox'", "created_by": "INTEGER", "rated": "INTEGER DEFAULT 1",
               "started_at": "TEXT", "engine": "TEXT"},
     "game_players": {"version_id": "INTEGER", "label": "TEXT"},
 }
+
+
+LADDER_SQL = """SELECT s.*, u.name AS owner_name
+    FROM strategies s LEFT JOIN users u ON u.id=s.owner_id
+    WHERE s.enabled=1 AND (s.image IS NOT NULL OR s.builtin IS NOT NULL)
+    ORDER BY s.rating DESC, s.games DESC, s.name"""
 
 
 def now() -> str:
@@ -159,6 +183,12 @@ def ts(dt: datetime) -> str:
 
 def since(hours: float) -> str:
     return ts(datetime.now(timezone.utc) - timedelta(hours=hours))
+
+
+def hours_since(stamp: str) -> float:
+    """Hours from a db timestamp (UTC) to now."""
+    then = datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - then).total_seconds() / 3600
 
 
 class DB:
@@ -413,6 +443,8 @@ class DB:
             games = [r[0] for r in c.execute("SELECT DISTINCT game_id FROM game_players WHERE strategy=?", (old,))]
             c.execute("UPDATE strategies SET name=? WHERE name=?", (new, old))
             c.execute("UPDATE strategy_versions SET strategy=? WHERE strategy=?", (new, old))
+            c.execute("DELETE FROM build_ratings WHERE strategy=?", (new,))
+            c.execute("UPDATE build_ratings SET strategy=? WHERE strategy=?", (new, old))
             c.execute("UPDATE game_players SET label=? || substr(label, ?) WHERE strategy=? AND "
                       "(label=? OR label LIKE ?)", (new, len(old) + 1, old, old, old + "-v%"))
             c.execute("UPDATE game_players SET strategy=? WHERE strategy=?", (new, old))
@@ -444,14 +476,231 @@ class DB:
                        "AND g.created_at>=?", name, since)
         return int(row["n"]) if row else 0
 
+    def sandbox_build_stats(self, name: str, image: str | None) -> dict:
+        """The sandbox games of one build: `formats` {format: games, the running ones too}, `first_at` the time of
+        the first."""
+        rows = self.q("SELECT g.format, COUNT(DISTINCT g.id) AS n, MIN(g.created_at) AS first_at "
+                      "FROM game_players p JOIN games g ON g.id=p.game_id WHERE p.strategy=? AND p.image IS ? "
+                      "AND g.kind='sandbox' AND g.status IN ('running','finished','aborted') GROUP BY g.format",
+                      name, image)
+        return {"formats": {r["format"]: int(r["n"]) for r in rows},
+                "first_at": min((r["first_at"] for r in rows if r["first_at"]), default=None)}
+
+    def sandbox_state(self, worker_cfg: dict, name: str, image: str | None) -> dict:
+        """Where one strategy stands in the sandbox's rhythm: `games` of the build that plays now, `placing` (the
+        placement games it still has to play), `interval_hours` between its games once placed (None: no more games),
+        `overdue` (hours past that interval; None while placing or without an interval), `formats` (its games per
+        format) and `last_game_at`."""
+        per_build = int(worker_cfg.get("sandbox_games_per_build") or 0)
+        base = float(worker_cfg.get("sandbox_interval_hours") or 0)
+        cap = float(worker_cfg.get("sandbox_interval_max_hours") or 24)
+        games = self.sandbox_games_of_build(name, image)
+        stats = self.sandbox_build_stats(name, image)
+        placing = max(0, per_build - games)
+        last = self.sandbox_last_game_at(name)
+        interval = overdue = None
+        if base > 0:
+            weeks = int(hours_since(stats["first_at"]) // (24 * 7)) if stats["first_at"] else 0
+            interval = interval_hours(base, max(base, cap), weeks)
+            if not placing:
+                overdue = hours_since(last) - interval if last else 0.0
+        return {"games": games, "placing": placing, "interval_hours": interval, "overdue": overdue,
+                "formats": stats["formats"], "last_game_at": last}
+
+    def sandbox_last_game_at(self, name: str) -> str | None:
+        """When the strategy's latest sandbox game was started (any seat, running or done)."""
+        row = self.one("SELECT g.created_at FROM game_players p JOIN games g ON g.id=p.game_id WHERE p.strategy=? "
+                       "AND g.kind='sandbox' AND g.status IN ('running','finished','aborted') "
+                       "ORDER BY p.game_id DESC LIMIT 1", name)
+        return row["created_at"] if row else None
+
+    def sandbox_duels(self, name: str, image: str | None, formats: list[str]) -> dict[str, int]:
+        """How often one build has met each strategy in the sandbox games of `formats` (the one-on-one ones)."""
+        if not formats:
+            return {}
+        marks = ",".join("?" * len(formats))
+        rows = self.q("SELECT o.strategy, COUNT(DISTINCT g.id) AS n FROM game_players p JOIN games g ON g.id=p.game_id "
+                      "JOIN game_players o ON o.game_id=g.id AND o.slot<>p.slot WHERE p.strategy=? AND p.image IS ? "
+                      f"AND g.kind='sandbox' AND g.format IN ({marks}) AND g.status IN ('running','finished','aborted') "
+                      "AND o.strategy IS NOT NULL GROUP BY o.strategy", name, image, *formats)
+        return {r["strategy"]: int(r["n"]) for r in rows}
+
     def reset_ratings(self, initial: float) -> None:
         with self.tx() as c:
-            c.execute("UPDATE strategies SET rating=?, games=0, wins=0, crashes=0, points=0, place_sum=0", (initial,))
+            c.execute("UPDATE strategies SET rating=?, rating_sd=NULL, league=NULL, build_games=0, games=0, wins=0, "
+                      "crashes=0, points=0, place_sum=0", (initial,))
+            c.execute("DELETE FROM build_ratings")
+            c.execute("DELETE FROM meta WHERE key='leagues'")
+            c.execute("UPDATE games SET rated=0 WHERE rated=1")    # the fit reads every rated game: these no longer count
+
+    # Ratings: one fit over every rated game (rating.fit) ---------------------
+    def meta(self, key: str) -> str | None:
+        row = self.one("SELECT value FROM meta WHERE key=?", key)
+        return row["value"] if row else None
+
+    @staticmethod
+    def _set_meta(c, key: str, value: str) -> None:
+        c.execute("INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                  (key, value))
+
+    @staticmethod
+    def _rated_seats(c) -> list[sqlite3.Row]:
+        """Every seat of every rated game, by game. `image` names the build in the seat: the strategy's image, or
+        for a built-in bot the engine the game was played on (the bot is a part of the engine, and changes with it)."""
+        return c.execute("SELECT p.game_id, p.slot, p.strategy, COALESCE(p.image, g.engine, '') AS image, p.place "
+                         "FROM game_players p JOIN games g ON g.id=p.game_id "
+                         "WHERE g.rated=1 AND g.status='finished' AND p.strategy IS NOT NULL "
+                         "ORDER BY p.game_id, p.slot").fetchall()
+
+    @staticmethod
+    def _build_rating(c, strategy: str, image: str, initial: float) -> float:
+        """What a build is rated before a game: its own rating, or for a build without games the rating its strategy
+        stands at (the build before it), or the initial one."""
+        row = c.execute("SELECT rating FROM build_ratings WHERE strategy=? AND image=?", (strategy, image)).fetchone()
+        if row is None:
+            row = c.execute("SELECT rating FROM strategies WHERE name=?", (strategy,)).fetchone()
+        return float(row["rating"]) if row is not None and row["rating"] is not None else initial
+
+    def _rerate(self, c, rating_cfg: dict) -> dict:
+        """Fit every build to every rated game and store the result: build_ratings, and on each strategy the rating
+        and standard error of the build that plays for it now. Returns the ratings by (strategy, image or '')."""
+        duels: dict[tuple, list[float]] = {}
+        builds: dict[tuple, list[int]] = {}         # build -> [first game, games]
+        game, seats = None, []
+
+        def close() -> None:
+            for a, b, score, weight in R.game_duels(seats):
+                entry = duels.setdefault((a, b) if a <= b else (b, a), [0.0, 0.0])
+                entry[0] += score if a <= b else weight - score
+                entry[1] += weight
+            for key in {k for k, _ in seats}:
+                builds.setdefault(key, [game, 0])[1] += 1
+
+        for row in self._rated_seats(c):
+            if row["game_id"] != game:
+                if seats:
+                    close()
+                game, seats = row["game_id"], []
+            seats.append(((row["strategy"], row["image"]), row["place"]))
+        if seats:
+            close()
+        chains: dict[str, list[tuple]] = {}
+        for key in sorted(builds, key=lambda k: builds[k][0]):
+            chains.setdefault(key[0], []).append(key)
+        active = {}                                 # the build that plays for a strategy now
+        for s in c.execute("SELECT name, image, builtin FROM strategies").fetchall():
+            if s["image"]:
+                key = active[s["name"]] = (s["name"], s["image"])
+                if key not in builds:               # it has not played yet: the last of its chain
+                    chains.setdefault(s["name"], []).append(key)
+            elif s["name"] in chains:               # a built-in bot, or no image at hand: the build that played last
+                active[s["name"]] = chains[s["name"]][-1]
+            elif s["builtin"]:
+                active[s["name"]] = (s["name"], "")
+                chains[s["name"]] = [active[s["name"]]]
+        start = {(r["strategy"], r["image"]): r["rating"] for r in c.execute("SELECT * FROM build_ratings").fetchall()}
+        ratings, sds = R.fit([(a, b, v[0], v[1]) for (a, b), v in duels.items()], chains.values(), rating_cfg, start)
+        c.execute("DELETE FROM build_ratings")
+        c.executemany("INSERT INTO build_ratings(strategy, image, rating, sd, games, first_game) VALUES (?, ?, ?, ?, ?, ?)",
+                      [(k[0], k[1], ratings[k], sds[k], builds.get(k, [None, 0])[1], builds.get(k, [None, 0])[0])
+                       for k in ratings])
+        for name, key in active.items():
+            c.execute("UPDATE strategies SET rating=?, rating_sd=?, build_games=? WHERE name=?",
+                      (ratings[key], sds[key], builds.get(key, [None, 0])[1], name))
+        return ratings
+
+    def rerate(self, rating_cfg: dict, history: bool = False) -> int:
+        """Fit the ratings anew from the games. With `history`, also what every rated game shows as the rating before
+        and after it: the games are fitted again one after another, as they were played. Returns the builds rated."""
+        initial = float(rating_cfg.get("initial", 1200))
+        with self.tx() as c:
+            if history:
+                c.execute("DELETE FROM build_ratings")
+                duels: dict[tuple, list[float]] = {}
+                chains: dict[str, list[tuple]] = {}
+                ratings: dict[tuple, float] = {}
+                by_game: dict[int, list] = {}
+                for row in self._rated_seats(c):
+                    by_game.setdefault(row["game_id"], []).append(row)
+                for game_id, rows in by_game.items():
+                    seats = [((r["strategy"], r["image"]), r["place"]) for r in rows]
+                    before = {}
+                    for key, _ in seats:
+                        chain = chains.setdefault(key[0], [])
+                        if key not in chain:
+                            chain.append(key)
+                        before[key] = ratings.get(key, ratings[chain[-2]] if len(chain) > 1 else initial)
+                    for a, b, score, weight in R.game_duels(seats):
+                        entry = duels.setdefault((a, b) if a <= b else (b, a), [0.0, 0.0])
+                        entry[0] += score if a <= b else weight - score
+                        entry[1] += weight
+                    ratings, _ = R.fit([(a, b, v[0], v[1]) for (a, b), v in duels.items()], chains.values(),
+                                       rating_cfg, ratings)
+                    for r in rows:
+                        key = (r["strategy"], r["image"])
+                        c.execute("UPDATE game_players SET rating_before=?, rating_after=? WHERE game_id=? AND slot=?",
+                                  (before[key], ratings[key], game_id, r["slot"]))
+                c.executemany("INSERT INTO build_ratings(strategy, image, rating) VALUES (?, ?, ?)",
+                              [(k[0], k[1], v) for k, v in ratings.items()])       # where the last fit starts from
+            fitted = self._rerate(c, rating_cfg)
+            self._set_meta(c, "rating_model", RATING_MODEL)
+        return len(fitted)
+
+    def ensure_ratings(self, rating_cfg: dict) -> bool:
+        """A database whose ratings were kept another way (the Elo of the first versions) is fitted once, its
+        history too. True when that was done."""
+        if self.meta("rating_model") == RATING_MODEL:
+            return False
+        self.rerate(rating_cfg, history=True)
+        return True
+
+    # Leagues (leagues.py) ----------------------------------------------------
+    def league_state(self) -> dict:
+        """{lines: the lines between the leagues, the highest first; at: when they were drawn; week}."""
+        try:
+            state = json.loads(self.meta("leagues") or "{}")
+        except ValueError:
+            state = {}
+        return {"lines": [float(x) for x in state.get("lines") or []], "at": state.get("at"), "week": state.get("week")}
+
+    def update_leagues(self, leagues_cfg: dict, force: bool = False, at: datetime | None = None) -> dict:
+        """Place the strategies in their leagues. The lines are drawn anew once a week (the first update of an ISO
+        week, UTC), with `force`, and after every game while the ladder has fewer leagues than `leagues.count`; in
+        between they stay, and a strategy moves when its settled rating is past a line by `leagues.margin`. A rating
+        is settled when its build has played `leagues.settled_games` rated games: until then a strategy keeps the
+        league it has, and a new one has none. Returns the league state."""
+        count = max(1, int(leagues_cfg.get("count", 3)))
+        settled_games = int(leagues_cfg.get("settled_games", 30))
+        margin = float(leagues_cfg.get("margin", 40))
+        min_size = int(leagues_cfg.get("min_size", 1))
+        year, week, _ = (at or datetime.now(timezone.utc)).isocalendar()
+        this_week = f"{year}-W{week:02d}"
+        state = self.league_state()
+        rows = self.leaderboard()
+        settled = [r for r in rows if r["rating"] is not None and r["build_games"] >= settled_games]
+        redraw = force or state["week"] != this_week or len(state["lines"]) < count - 1
+        lines = L.lines([r["rating"] for r in settled], count, min_size) if redraw else state["lines"]
+        moves = []
+        for r in rows:
+            if r["rating"] is not None and r["build_games"] >= settled_games:
+                league = L.place(r["rating"], lines, r["league"], margin)
+            elif r["league"] is not None and r["league"] > len(lines):
+                league = len(lines)                 # a league that is no more: its strategies stand in the last one
+            else:
+                continue                            # still placing: the league it has, or none yet
+            if league != r["league"]:
+                moves.append((league, r["name"]))
+        if not moves and lines == state["lines"] and state["week"] == this_week:
+            return state
+        state = {"lines": lines, "at": now() if redraw else state["at"], "week": this_week}
+        with self.tx() as c:
+            c.executemany("UPDATE strategies SET league=? WHERE name=?", moves)
+            self._set_meta(c, "leagues", json.dumps(state))
+        return state
 
     def leaderboard(self) -> list[sqlite3.Row]:
-        return self.q("SELECT s.*, u.name AS owner_name FROM strategies s LEFT JOIN users u ON u.id=s.owner_id "
-                      "WHERE s.enabled=1 AND (s.image IS NOT NULL OR s.builtin IS NOT NULL) "
-                      "ORDER BY s.rating DESC, s.games DESC, s.name")
+        """The ladder, best first. A row's `build_games` are the rated games of the build that plays now."""
+        return self.q(LADDER_SQL)
 
     # Strategy versions -----------------------------------------------------
     def create_version(self, strategy: str, created_by: int | None, source_kind: str, source: str | None,
@@ -584,50 +833,51 @@ class DB:
         return int(row["n"]) if row else 0
 
     def finish_game(self, game_id: int, status: str, error: str | None, duration_sec: float, seed: int | None,
-                    seats: list[dict], rating_cfg: dict, points_table: list[int], rated: bool = True) -> list[dict]:
-        """Store per-seat results and, for a finished rated game, update ratings/stats.
+                    seats: list[dict], rating_cfg: dict, points_table: list[int], rated: bool = True,
+                    leagues_cfg: dict | None = None) -> list[dict]:
+        """Store per-seat results and, for a finished rated game, the statistics and the ratings: every build is
+        fitted again with this game among the others (and with `leagues_cfg` the leagues follow).
         `seats`: dicts with slot, strategy (None for an Empty seat), image, score, crashed, comment, cpu_sec,
         version_id, label."""
         scores = [float(s.get("score") or 0) for s in seats]
         places = R.placements(scores)
         pts = R.points(places, points_table)
-        rated_idx = [i for i, s in enumerate(seats) if s.get("strategy")]
         update_stats = rated and status == "finished"
+        rated_idx = [i for i, s in enumerate(seats) if s.get("strategy")] if update_stats else []
+        initial = float(rating_cfg.get("initial", 1200))
         with self.tx() as c:
-            current = {}
-            for i in rated_idx:
-                row = c.execute("SELECT rating, games FROM strategies WHERE name=?", (seats[i]["strategy"],)).fetchone()
-                current[i] = (float(row["rating"]), int(row["games"])) if row else (float(rating_cfg["initial"]), 0)
-            deltas = {i: 0.0 for i in rated_idx}
-            if update_stats and len(rated_idx) >= 2:
-                ratings = [current[i][0] for i in rated_idx]
-                ks = [R.k_factor(rating_cfg, current[i][1]) for i in rated_idx]
-                for i, d in zip(rated_idx, R.elo_deltas(ratings, [places[i] for i in rated_idx], ks)):
-                    deltas[i] = d
-            out = []
+            game = c.execute("SELECT engine FROM games WHERE id=?", (game_id,)).fetchone()
+            engine = (game["engine"] if game is not None else None) or ""
+            build = {i: (seats[i]["strategy"], seats[i].get("image") or engine) for i in rated_idx}
+            before = {i: self._build_rating(c, *build[i], initial) for i in rated_idx}
             for i, s in enumerate(seats):
-                before = after = None
-                if i in current and update_stats:
-                    before = current[i][0]
-                    after = before + deltas[i]
                 c.execute(
                     """INSERT OR REPLACE INTO game_players(game_id, slot, strategy, image, score, place, points,
                        crashed, comment, cpu_sec, rating_before, rating_after, version_id, label)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (game_id, s["slot"], s.get("strategy"), s.get("image"), int(scores[i]), places[i], pts[i],
-                     int(bool(s.get("crashed"))), s.get("comment"), s.get("cpu_sec"), before, after,
+                     int(bool(s.get("crashed"))), s.get("comment"), s.get("cpu_sec"), before.get(i), before.get(i),
                      s.get("version_id"), s.get("label")),
                 )
-                if i in current and update_stats:
+                if i in before:
                     c.execute(
-                        """UPDATE strategies SET rating=?, games=games+1, wins=wins+?, crashes=crashes+?,
+                        """UPDATE strategies SET games=games+1, wins=wins+?, crashes=crashes+?,
                            points=points+?, place_sum=place_sum+? WHERE name=?""",
-                        (after, int(places[i] == 1), int(bool(s.get("crashed"))), pts[i], places[i], s["strategy"]),
+                        (int(places[i] == 1), int(bool(s.get("crashed"))), pts[i], places[i], s["strategy"]),
                     )
-                out.append({**s, "score": int(scores[i]), "place": places[i], "points": pts[i],
-                            "rating_before": before, "rating_after": after})
             c.execute("UPDATE games SET status=?, error=?, finished_at=?, duration_sec=?, seed=? WHERE id=?",
                       (status, error, now(), duration_sec, None if seed is None else str(seed), game_id))
+            after = dict(before)
+            if rated_idx:                           # the game is in the table now: fit it with all the others
+                fitted = self._rerate(c, rating_cfg)
+                for i in rated_idx:
+                    after[i] = fitted.get(build[i], before[i])
+                    c.execute("UPDATE game_players SET rating_after=? WHERE game_id=? AND slot=?",
+                              (after[i], game_id, seats[i]["slot"]))
+            out = [{**s, "score": int(scores[i]), "place": places[i], "points": pts[i],
+                    "rating_before": before.get(i), "rating_after": after.get(i)} for i, s in enumerate(seats)]
+        if rated_idx and leagues_cfg is not None:
+            self.update_leagues(leagues_cfg)
         return out
 
     def mark_error(self, game_id: int, error: str) -> None:

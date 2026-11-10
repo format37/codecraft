@@ -10,6 +10,8 @@ import re
 import jinja2
 
 from .config import Config
+from .matchmaking import interval_hours
+from .rating import pair_weight
 
 ARENA_FILE = "arena.md"
 GAME_FILE = "doc-en.md"
@@ -43,11 +45,16 @@ def numbers(cfg: Config) -> dict:
     w, r, lim, sub, mm = cfg["worker"], cfg["rating"], cfg["limits"], cfg["submissions"], cfg["matchmaking"]
     leagues = cfg.get("leagues") or {}
     per_build = int(w.get("sandbox_games_per_build") or 0)
-    daily = int(w.get("sandbox_daily_games") or 0)
+    interval = float(w.get("sandbox_interval_hours") or 0)
+    cap = max(interval, float(w.get("sandbox_interval_max_hours") or 24))
+    steps = []                      # the interval week by week, up to the cap
+    while interval and (not steps or steps[-1] < cap) and len(steps) < 60:
+        steps.append(interval_hours(interval, cap, len(steps)))
     formats = {n: float(wt) for n, wt in cfg["formats"].items() if wt and float(wt) > 0}
     names = [_FORMAT_NAMES.get(n, n) for n in formats]
     if len(set(formats.values())) <= 1:
-        formats_text = ", ".join(names[:-1]) + (" or " if len(names) > 1 else "") + names[-1] + ", with equal odds"
+        formats_text = ", ".join(names[:-1]) + (" or " if len(names) > 1 else "") + names[-1] + \
+            (", in equal shares" if len(names) > 1 else "")
     else:
         formats_text = ", ".join(f"{name} (weight {_num(wt)})" for name, wt in zip(names, formats.values()))
     tick, cpu = lim.get("tick_timeout_sec"), lim.get("cpu_time_sec")
@@ -61,14 +68,17 @@ def numbers(cfg: Config) -> dict:
     points = cfg["points"]
     return {
         "base": str(cfg["auth"]["base_url"]).rstrip("/"),
-        "initial": _num(r["initial"]), "k": _num(r["k"]), "k_min": _num(r.get("k_min", r["k"])),
-        "half_life": _num(r.get("k_half_life_games") or 0), "sigma": _num(mm.get("rating_sigma", 200)),
+        "initial": _num(r["initial"]), "sigma": _num(mm.get("rating_sigma", 200)),
+        "pair4": f"{pair_weight(4):.2f}",
         "formats_text": formats_text,
-        "per_build": per_build, "daily": daily,
-        "daily_text": "one rated game" if daily == 1 else f"{daily} rated games",
+        "per_build": per_build, "interval": interval,
+        "interval_text": "an hour" if interval == 1 else f"every {_num(interval)} hours",
+        "interval_steps": ", ".join(_num(x) for x in steps[:-1]) if len(steps) > 1 else "",
+        "interval_cap": "a day" if cap == 24 else f"{_num(cap)} hours",
+        "leagues": max(1, int(leagues.get("count", 3))), "margin": _num(leagues.get("margin", 40)),
         "points_r": " / ".join(str(p) for p in points["Round1"]), "points_f": " / ".join(str(p) for p in points["Finals"]),
         "limits_text": limits_text,
-        "min_players": int(leagues.get("min_players", 40)), "settled_games": int(leagues.get("settled_games", 30)),
+        "settled_games": int(leagues.get("settled_games", 30)),
         "versions_per_day": int(sub.get("per_user_per_day") or 20),
         "custom_per_day": int(sub.get("custom_games_per_day") or 50), "custom_queued": int(sub.get("custom_games_queued") or 3),
     }

@@ -72,8 +72,11 @@ def test_mondays_top_ten_goes_out_once_a_week(tmp_path, monkeypatch):
     user, _ = env.user()
     env.built(user, "bot")
     with env.db.tx() as c:
-        c.execute("UPDATE strategies SET games=12, rating=1337 WHERE name='bot'")
-        c.execute("UPDATE strategies SET games=12, rating=1180 WHERE name='quickstart'")
+        c.execute("UPDATE strategies SET games=40, build_games=30, rating=1337 WHERE name='bot'")
+        c.execute("UPDATE strategies SET games=40, build_games=31, rating=1180 WHERE name='quickstart'")
+    env.built(user, "fresh")                # still placing: not in the top ten, whatever its rating
+    with env.db.tx() as c:
+        c.execute("UPDATE strategies SET games=3, build_games=3, rating=1900 WHERE name='fresh'")
     ann.tick(now=TUESDAY)
     assert calls == []
     ann.tick(now=MONDAY)

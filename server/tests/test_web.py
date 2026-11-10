@@ -55,7 +55,7 @@ def test_public_pages_render_and_submit_needs_a_sign_in(tmp_path):
     assert '<h1 id="the-arena">The arena</h1>' in rules.text and '<h1 id="codecraft-2020-the-game">' in rules.text
     assert '<nav class="toc"><div class="toc">' in rules.text and 'href="#leagues"' in rules.text
     assert 'href="#vec2int32"' not in rules.text            # the object sections stay out of the contents
-    assert "then one a day" in client.get("/").text
+    assert "then one an hour, less often as the build ages" in client.get("/").text
     r = client.get("/submit")
     assert r.status_code == 303 and r.headers["location"].startswith("/login?next=")
 
@@ -149,7 +149,7 @@ def test_a_replay_plays_in_the_local_runners_viewer(tmp_path):
     seats = [{"slot": 0, "strategy": "bot", "label": "</script><b>bot"}, {"slot": 1, "strategy": "quickstart",
                                                                            "label": "quickstart"}]
     gid = db.queue_game("Finals", 7, None, seats, kind="sandbox", rated=False)
-    db.finish_game(gid, "finished", None, 40.0, 7, [{**s, "score": 10} for s in seats], {"initial": 1200, "k": 32},
+    db.finish_game(gid, "finished", None, 40.0, 7, [{**s, "score": 10} for s in seats], {"initial": 1200},
                    [8, 4, 2, 1], rated=False)
     db.set_game_engine(gid, "codecraft/sim-cpp:0123456789ab")
     assert client.get(f"/games/{gid}/viewer").status_code == 404             # no replay yet
@@ -201,7 +201,7 @@ def test_the_quick_start_and_the_cover_point_a_newcomer_the_same_way(tmp_path):
     assert qs.text.count('<div class="lang" data-lang="') == 15 and 'data-lang="python-pypy"' in qs.text
     assert '<p class="lang-label">Java (GraalVM native)</p>' in qs.text   # the label for readers without JavaScript
     assert '<code class="language-bash">cd python\npython3 main.py' in qs.text   # the fence inside the block renders
-    assert "plays 10 rated games against strategies of similar rating, then one rated game a day" in qs.text
+    assert "plays 30 rated placement games against strategies of similar rating, then one" in qs.text
     assert "1 s to answer a tick and 40 s of CPU time for the whole game" in qs.text
     assert "today (every game page names" not in qs.text                 # no engine source in the test root: no version
     cover = client.get("/").text

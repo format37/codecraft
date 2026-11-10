@@ -30,7 +30,7 @@
   <h3 style="margin-top:0">How it works</h3>
   <ol style="padding-left:18px">
     <li>The worker builds a docker image: official client + your files + <code>compile.sh</code>.</li>
-    <li>If the build succeeds the version becomes <b>active</b>: it plays {{ cfg.worker.sandbox_games_per_build or 'its' }} rated sandbox games a few minutes apart (Round 1, Round 2 and Finals formats){% if cfg.worker.sandbox_daily_games %}, then {{ 'one' if cfg.worker.sandbox_daily_games == 1 else cfg.worker.sandbox_daily_games }} a day for as long as the strategy is enabled{% endif %}. No rounds, no deadlines: <a href="/rules#the-arena">the arena</a>.</li>
+    <li>If the build succeeds the version becomes <b>active</b>: it plays {{ cfg.worker.sandbox_games_per_build or 'its' }} rated placement games one after another (Round 1, Round 2 and Finals formats){% if cfg.worker.sandbox_interval_hours %}, then one {{ 'an hour' if cfg.worker.sandbox_interval_hours == 1 else 'every %s hours' % cfg.worker.sandbox_interval_hours }}, less often as the build ages, for as long as the strategy is enabled{% endif %}. No rounds, no deadlines: <a href="/rules#the-arena">the arena</a>.</li>
     <li>Build logs and your strategy's stderr of every game are on your strategy page (only you see them).</li>
     <li>Start a <a href="/games/new">custom game</a> to test against anyone, including your own older versions. Custom games are not rated.</li>
   </ol>

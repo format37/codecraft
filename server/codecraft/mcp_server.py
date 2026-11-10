@@ -57,9 +57,10 @@ WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHin
 def instructions(ax: A.Agents) -> str:
     cfg = ax.cfg
     sub = cfg["submissions"]
-    per_build = int(cfg.get("worker", "sandbox_games_per_build", default=10) or 0)
-    daily = int(cfg.get("worker", "sandbox_daily_games", default=1) or 0)
-    daily_text = f", then {'one' if daily == 1 else daily} a day" if daily else ""
+    per_build = int(cfg.get("worker", "sandbox_games_per_build", default=30) or 0)
+    interval = float(cfg.get("worker", "sandbox_interval_hours", default=1) or 0)
+    interval_text = ((" one after another, then one " + ("an hour" if interval == 1 else f"every {interval:g} hours")
+                      + " (less often as the version ages)") if interval else "")
     engine = ("our own open-source engine (the rules, protocol and replays of the official one, with one change: "
               "under fog of war a path search remembers the resources and buildings its player has seen, "
               "rules(section=\"The engine\"))")
@@ -72,7 +73,7 @@ A program ("strategy") commands builders, melee and ranged units, bases, houses 
 map for up to 1000 ticks; score comes from mining, building and destroying (each type's build_score and
 destroy_score are in rules(section="Entity properties")). The server builds a strategy
 from source in any of the 15 official client languages, plays it in Docker with {engine} and
-keeps an Elo ladder. You act as the user who owns the token: their strategies, their games, their quotas.
+keeps a rated ladder in leagues. You act as the user who owns the token: their strategies, their games, their quotas.
 
 The loop:
 1. whoami() shows your strategies, what is pending, your quotas, the languages and the limits. rules()
@@ -105,10 +106,13 @@ games waiting, {int(sub.get("custom_games_per_day") or 50)} a day. A quota error
 for that version or game instead of retrying.
 
 Ratings: custom games (play) are unrated. The rating comes from sandbox games the server schedules by
-itself: every new active version of an enabled strategy plays {per_build or "a series of"} rated games
-against strategies of similar rating{daily_text}. To get rated, submit and wait; strategy(name)["sandbox"] shows
-the progress. Do not spam custom games for that. There are no rounds and no deadlines: the ladder runs on, in
-leagues by strength once it is big enough (rules(section="The arena")).
+itself: every new active version of an enabled strategy plays {per_build or "a series of"} rated placement games
+against strategies of similar rating{interval_text}. The ratings are one fit over every rated game (the
+Elo scale: 400 points expect 10 to 1), each with its standard error; a new version starts from the rating of the
+one before it and is `placing` until it has played its placement games. To get rated, submit and wait:
+strategy(name)["sandbox"] shows the progress, about ten minutes for the placement. Do not spam custom games for
+that. There are no rounds and no deadlines: the ladder runs on, in leagues by strength (league 0 the strongest;
+leaderboard() gives the lines between them and every strategy's league, rules(section="Leagues") the rules).
 
 Slots (seats) are numbered from 0 everywhere (seat 1 on the web page is slot 0). Times are UTC.
 Show the human the pages: {ax.url("/games/<id>")} for a game with its replay viewer,
@@ -158,13 +162,14 @@ def build(ax: A.Agents) -> FastMCP:
         """Who you are here and where things stand. Call it first, and again when a quota error or a
         pending build or game puzzles you.
 
-        Returns JSON: user {name, role}; strategies [{name, title, language, enabled, rating, games, wins,
+        Returns JSON: user {name, role}; strategies [{name, title, language, enabled, rating, rating_sd, league, games, wins,
         active_version {id, number}, latest_version {id, number, status, error}, url}]; pending
         {versions [{id, strategy, number, status}], games [{id, format, status}]}; quotas {versions_today,
         versions_per_day, versions_waiting, versions_waiting_allowed, custom_games_today,
         custom_games_per_day, custom_games_waiting, custom_games_waiting_allowed}; server {formats {name:
         {seats, about}}, languages (the values submit_strategy accepts), gpu, limits {tick_timeout_sec,
-        cpu_time_sec, memory_mb, cpus}, limits_about, ticks, map_size, sandbox_games_per_build, max_zip_mb,
+        cpu_time_sec, memory_mb, cpus}, limits_about, ticks, map_size, sandbox_games_per_build,
+        sandbox_interval_hours, leagues {count, lines, lines_drawn_at, settled_games, margin}, max_zip_mb,
         git_submissions, engine (the engine image, tagged with the version of its source), engine_about}; links
         {site, rules, leaderboard, agents, starter}."""
         return await run(ctx, "whoami")
@@ -182,19 +187,24 @@ def build(ax: A.Agents) -> FastMCP:
 
     @mcp.tool(annotations=READ)
     async def leaderboard(ctx: Context, limit: int = 30) -> CallToolResult:
-        """The rated ladder, best first. Returns JSON {strategies: [{rank, name, title, owner, mine,
-        language, rating, games, wins, avg_place, points, crashes, builtin}], total}. builtin marks the
-        engine's own bot "quickstart". limit: 1-100 rows."""
+        """The rated ladder, best first. Returns JSON {strategies: [{rank, league, league_rank, name, title,
+        owner, mine, language, rating, rating_sd, placing, games, wins, avg_place, points, crashes, builtin}],
+        total, leagues {count, lines, lines_drawn_at, settled_games, margin, about}}. league 0 is the strongest
+        (null: a new strategy, no league yet) and league_rank the place within it; leagues.lines are the ratings
+        between neighbouring leagues, the highest first: the rating to pass to move up. rating_sd is one standard
+        error of the rating; placing: the active version has not played the games that settle a rating yet.
+        builtin marks the engine's own bot "quickstart". limit: 1-100 rows."""
         return await run(ctx, "leaderboard", limit=limit)
 
     @mcp.tool(annotations=READ)
     async def strategy(ctx: Context, name: str) -> CallToolResult:
-        """One strategy (anyone's): owner, mine, language, enabled, rating, games, wins, avg_place, points,
-        crashes, active_version_id, built_at, url, and its last 20 games (rows as in games()).
+        """One strategy (anyone's): owner, mine, language, enabled, rating, rating_sd, league, league_rank,
+        placing, games, wins, avg_place, points, crashes, active_version_id, built_at, url, and its last 20 games
+        (rows as in games()).
         For your own strategy also: versions [{id, number, status, active, language, source, note, error,
         created_at, finished_at}] newest first, limits (tick_timeout_sec, cpu_time_sec, memory_mb, ...)
-        and sandbox {games_per_build, played_by_active_build}: how far the active version is through
-        its rated sandbox games."""
+        and sandbox {games_per_build, played_by_active_build, interval_hours, last_game_at}: how far the active
+        version is through its placement games, and how often it plays after them."""
         return await run(ctx, "strategy", name=name)
 
     @mcp.tool(annotations=READ)
@@ -206,7 +216,7 @@ def build(ax: A.Agents) -> FastMCP:
         wait_s (0-50): wait up to that many seconds for the status to leave queued/building, then answer.
         A build takes seconds to 10 minutes plus the queue: call version(id, wait_s=50) again while pending,
         never sleep in the shell. An ok version becomes the strategy's active version at once and plays
-        its rated sandbox games."""
+        its rated placement games."""
         return await run(ctx, "version", version_id=version_id, wait_s=wait_s, log_tail_kb=log_tail_kb)
 
     @mcp.tool(annotations=READ)

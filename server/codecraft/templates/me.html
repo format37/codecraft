@@ -11,7 +11,7 @@
 {% for s in mine %}
 <div class="card">
   <b><a href="/strategies/{{ s.name }}">{{ s.name }}</a></b> {% if not s.enabled %}<span class="tag warn">disabled</span>{% endif %}
-  <span class="muted">rating {{ s.rating|rating }} · {{ s.games }} games · {{ s.language }}{% if s.gpu %} gpu{% endif %}</span>
+  <span class="muted">rating {{ s.rating|rating }} {{ s.rating_sd|sd }}{% if s.league is not none %} · league {{ s.league }}{% endif %} · {{ s.games }} games · {{ s.language }}{% if s.gpu %} gpu{% endif %}</span>
   <table style="margin-top:8px">
   {% for v in versions[s.name] %}
   <tr><td class="num">v{{ v.number }}{% if v.id == s.active_version %} <span class="tag">active</span>{% endif %}</td>
