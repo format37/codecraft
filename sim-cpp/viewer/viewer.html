@@ -570,6 +570,9 @@
     return COLORS[G.seatOf[e[1]] % 4] || "#999";
   }
   const size = (type) => (G.props[type] || {}).size || 1;
+  // Resources and buildings shrink with their health, as in the official viewer: a resource being mined, a building
+  // hit or still being built. The area drawn is the share of health left, never less than a speck.
+  const shrink = (health, max) => max > 0 ? Math.max(0.15, Math.sqrt(Math.max(0, Math.min(1, health / max)))) : 1;
 
   function draw() {
     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--bg") || "#0a0e13";
@@ -593,10 +596,12 @@
       const type = TYPES[e[2]], k = size(type);
       if (e[3] > x1 || e[3] + k < x0 || e[4] > y1 || e[4] + k < y0) continue;
       const x = sx(e[3]), y = sy(e[4] + k), w = k * c;
+      const max = (G.props[type] || {}).max_health || e[5];
       ctx.globalAlpha = e[6] ? 1 : 0.45;
       ctx.fillStyle = color(e);
       if (type === "RESOURCE") {
-        ctx.fillRect(x + c * 0.08, y + c * 0.08, w - c * 0.16, w - c * 0.16);
+        const d = (w - c * 0.16) * shrink(e[5], max);
+        ctx.fillRect(x + (w - d) / 2, y + (w - d) / 2, d, d);
       } else if (type.endsWith("_UNIT")) {
         const r = type === "BUILDER_UNIT" ? 0.32 : 0.43;
         ctx.beginPath(); ctx.arc(x + w / 2, y + w / 2, w * r, 0, Math.PI * 2); ctx.fill();
@@ -607,15 +612,19 @@
           ctx.beginPath(); ctx.arc(x + w / 2, y + w / 2, w * 0.43, 0, Math.PI * 2); ctx.stroke();
         }
       } else {
-        ctx.fillRect(x + 1, y + 1, w - 2, w - 2);
-        if (c * k >= 14) {
-          ctx.fillStyle = "rgba(0,0,0,0.42)"; ctx.font = `bold ${Math.round(Math.min(c * k * 0.5, 28))}px sans-serif`;
+        const d = (w - 2) * shrink(e[5], max);
+        if (e[5] < max) {                          // the cells it stands on, and a body as big as its health
+          ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1;
+          ctx.strokeRect(x + 1.5, y + 1.5, w - 3, w - 3);
+        }
+        ctx.fillRect(x + (w - d) / 2, y + (w - d) / 2, d, d);
+        if (d >= 14) {
+          ctx.fillStyle = "rgba(0,0,0,0.42)"; ctx.font = `bold ${Math.round(Math.min(d * 0.5, 28))}px sans-serif`;
           ctx.textAlign = "center"; ctx.textBaseline = "middle";
           ctx.fillText(LETTER[type] || "?", x + w / 2, y + w / 2);
         }
       }
       ctx.globalAlpha = 1;
-      const max = (G.props[type] || {}).max_health || e[5];
       if (e[5] < max && type !== "RESOURCE" && c * k >= 6) {
         ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(x + 1, y + w - 4, w - 2, 3);
         ctx.fillStyle = "#4ade80"; ctx.fillRect(x + 1, y + w - 4, (w - 2) * Math.max(0, e[5]) / max, 3);
