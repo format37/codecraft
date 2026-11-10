@@ -1,0 +1,7 @@
+name: system-fable-5-2-xhigh         # a system seed written by Claude Fable 5.2 (xhigh effort); competes on the ladder like any strategy
+title: system-fable-5-2-xhigh (C++)
+language: cpp
+gpu: false
+enabled: true
+source:
+  dir: src                           # exactly one file, MyStrategy.cpp: the client's compile.sh then drops it into the official client
