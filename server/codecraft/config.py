@@ -96,6 +96,23 @@ DEFAULTS: dict = {
                                     # None = the daemon's default
     },
     "hardening": {"no_new_privileges": True, "cap_drop_all": True},
+    # One machine, or two roles (hub.py): the hub (the site, the database, the ladder) and executors (the machines
+    # with Docker that build and play, asking the hub for work over HTTPS).
+    "hub": {
+        "url": None,                # an executor's hub, e.g. https://codecraft.day (or CW_HUB_URL); None = one machine
+        "token": None,              # the shared secret of the hub and its executors (CW_HUB_TOKEN); unset = no hub API
+        "lease_sec": 600,           # an executor silent this long loses its running games and builds to the queue
+        "offline_sec": 120,         # the site says the game server is offline after this silence
+        "replay_days": 30,          # the hub keeps a replay this many days, the executor for good (0 = keep forever);
+                                    # an older one is fetched from its executor when somebody opens it
+        "telegram_token": None,     # alerts to the operator (CW_TELEGRAM_TOKEN / CW_TELEGRAM_CHAT): GPU work waits
+        "telegram_chat": None,      # and no machine with a GPU is online
+        "gpu_alert_minutes": 10,    # ... for this long
+    },
+    "executor": {
+        "name": None,               # how the hub knows this machine (or CW_EXECUTOR_NAME); default: the host name
+        "heartbeat_sec": 15,
+    },
 }
 
 # Seats per game format; the engine supports at most 4 players.
@@ -163,12 +180,28 @@ class Config:
             data["sentry"]["environment"] = env["CW_SENTRY_ENVIRONMENT"].strip()
         if env.get("CW_TRUSTED_PROXIES", "").strip():
             data["web"]["trusted_proxies"] = env["CW_TRUSTED_PROXIES"]
+        for key, var in (("prefix", "CW_DOCKER_PREFIX"), ("label", "CW_DOCKER_LABEL"), ("seat_subnets", "CW_SEAT_SUBNETS")):
+            if env.get(var, "").strip():        # two workers on one Docker: each its own names, label and subnets
+                data["docker"][key] = env[var].strip()
         if env.get("CW_DOCKER_RUNTIME", "").strip():
             data["docker"]["runtime"] = env["CW_DOCKER_RUNTIME"].strip()
         if env.get("CW_ENGINE_IMAGE", "").strip():
             data["engine"]["image"] = env["CW_ENGINE_IMAGE"].strip()
         if env.get("CW_ENGINE_CONTEXT", "").strip():
             data["engine"]["context"] = env["CW_ENGINE_CONTEXT"].strip()
+        for key, var in (("url", "CW_HUB_URL"), ("token", "CW_HUB_TOKEN"), ("telegram_token", "CW_TELEGRAM_TOKEN"),
+                         ("telegram_chat", "CW_TELEGRAM_CHAT")):
+            if env.get(var, "").strip():
+                data["hub"][key] = env[var].strip()
+        if env.get("CW_EXECUTOR_NAME", "").strip():
+            data["executor"]["name"] = env["CW_EXECUTOR_NAME"].strip()
+        for key in ("sandbox", "builds"):       # true / false / gpu (only the work that needs a GPU)
+            var = f"CW_WORKER_{key.upper()}"
+            if env.get(var, "").strip():
+                v = env[var].strip().lower()
+                data["worker"][key] = "gpu" if v == "gpu" else _tri(v) is True
+        if env.get("CW_PARALLEL_GAMES", "").strip():
+            data["worker"]["parallel_games"] = int(env["CW_PARALLEL_GAMES"])
         if env.get("CW_COMMUNITY_URL", "").strip():
             data["community"]["url"] = env["CW_COMMUNITY_URL"].strip()
         if env.get("CW_DISCORD_WEBHOOK", "").strip():
@@ -181,6 +214,18 @@ class Config:
         if str(data["auth"].get("cookie_secure", "auto")).lower() == "auto":
             data["auth"]["cookie_secure"] = str(data["auth"].get("base_url") or "").lower().startswith("https")
         return cls(data, root_path)
+
+    # Roles -------------------------------------------------------------
+    @property
+    def remote(self) -> bool:
+        """An executor of a hub elsewhere: no database here, the work comes over HTTPS (remote.py)."""
+        return bool(self.data["hub"].get("url"))
+
+    @property
+    def executor_name(self) -> str:
+        import socket
+
+        return str(self.data["executor"].get("name") or socket.gethostname())
 
     # GPU ---------------------------------------------------------------
     def resolve_gpu(self, client) -> bool:

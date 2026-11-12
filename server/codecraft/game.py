@@ -20,9 +20,10 @@ from pathlib import Path
 import docker
 from docker.types import DeviceRequest, IPAMConfig, IPAMPool, LogConfig, Ulimit
 
+from . import replay as R
 from .builder import Builder, EngineImage
 from .config import MAX_TICKS, SEATS, Config
-from .db import DB
+from .db import DB, LeaseLost
 from .strategies import Strategy
 
 log = logging.getLogger("codecraft.game")
@@ -178,8 +179,12 @@ def gpu_available(cfg: Config, client: docker.DockerClient | None) -> bool:
 
 
 class GameRunner:
-    def __init__(self, cfg: Config, client: docker.DockerClient, db: DB, engine: EngineImage | None = None):
+    def __init__(self, cfg: Config, client: docker.DockerClient, db: DB, engine: EngineImage | None = None,
+                 publish=None):
         self.cfg = cfg
+        # (stage, game_id, game dir) -> None, an executor's upload to its hub: stage "results" right before the
+        # result is recorded (the replay, the logs: a finished game has them at once), "final" after it
+        self.publish = publish
         self.client = client
         self.db = db
         self.engine = engine or EngineImage(Builder(cfg, client))     # the engine image, kept to its source
@@ -262,6 +267,7 @@ class GameRunner:
         finally:
             self._cleanup(engine, seats, networks)
         duration = time.time() - started
+        self._publish("results", game_id, gdir)
 
         rows = self._record(game_id, fmt, status, error, duration, self._seed_from_results(gdir, seed),
                             [s.row() for s in seats], rated)
@@ -272,14 +278,23 @@ class GameRunner:
         }, indent=2, default=str))
         log.info("game %d: %s in %.0fs: %s", game_id, status, duration,
                  ", ".join(f"{r['label'] or r['strategy'] or 'empty'}={r['score']}(#{r['place']})" for r in rows))
-        if status == "finished" and (gdir / "replay.dat").exists():
+        if status == "finished" and R.replay_file(gdir) is not None:     # plain, or sent up and compressed
             try:   # the link-preview image, so a shared link shows the board at once
                 from . import preview
                 preview.ensure(gdir, [r["label"] or r["strategy"] or "empty" for r in rows], game_id, fmt,
                                footer=preview.site_host(self.cfg["auth"].get("base_url")))
             except Exception as exc:  # noqa: BLE001
                 log.warning("game %d: preview image not rendered: %s", game_id, exc)
+        self._publish("final", game_id, gdir)
         return outcome
+
+    def _publish(self, stage: str, game_id: int, gdir: Path) -> None:
+        if self.publish is None:
+            return
+        try:
+            self.publish(stage, game_id, gdir)
+        except Exception:  # noqa: BLE001 - the files stay here; the hub asks for the replay again when needed
+            log.exception("game %d: the %s files did not reach the hub", game_id, stage)
 
     def _record(self, game_id: int, fmt: str, status: str, error: str | None, duration: float,
                 seed: int | None, rows: list[dict], rated: bool) -> list[dict]:
@@ -289,6 +304,9 @@ class GameRunner:
                 return self.db.finish_game(game_id, status, error, duration, seed, rows,
                                            self.cfg["rating"], self.cfg["points"][fmt], rated=rated,
                                            leagues_cfg=self.cfg["leagues"])
+            except LeaseLost as exc:
+                log.warning("game %d: not recorded: %s", game_id, exc)
+                return [dict(r, place=None, points=None, rating_before=None, rating_after=None) for r in rows]
             except Exception as exc:  # noqa: BLE001 - e.g. a transient "database is locked"
                 last_exc = exc
                 log.warning("game %d: recording results failed (attempt %d): %s", game_id, attempt + 1, exc)

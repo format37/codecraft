@@ -50,6 +50,8 @@
   .field { margin-bottom:12px; } .field .help { color:var(--muted); font-size:13px; margin-top:3px; }
   .flash { padding:10px 14px; border-radius:6px; margin:10px 0; }
   .flash.msg { background:#e3f5ea; color:#176b3b; } .flash.err { background:#fde7e7; color:#8f2222; }
+  .flash.warn { background:#fff4d6; color:#7a5300; }
+  @media (prefers-color-scheme: dark) { .flash.warn { background:#3a3016; color:#f0d48a; } }
   @media (prefers-color-scheme: dark) { .flash.msg { background:#17372a; color:#9be3b9; } .flash.err { background:#3d1f1f; color:#f0a1a1; } .tag.kind-custom { background:#2d2a52; color:#b8adff; } }
   code { font-size:13px; }
   .cw-side table th, .cw-side table td { padding:4px 6px; }
@@ -89,6 +91,8 @@
   </span>
 </header>
 <main>
+{% set st = server_status() %}
+{% if st and not st.online %}<div class="flash warn">The game server is offline{% if st.since %} since {{ st.since }} UTC{% endif %}: maintenance, or the power is out. The site works and nothing is lost: submissions and games wait in the queue{% if st.queued_builds or st.queued_games %} ({{ st.queued_builds }} build{{ 's' if st.queued_builds != 1 }}, {{ st.queued_games }} game{{ 's' if st.queued_games != 1 }} now){% endif %} and are taken up when it is back.</div>{% endif %}
 {% if msg %}<div class="flash msg">{{ msg }}</div>{% endif %}
 {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
 {% block content %}{% endblock %}

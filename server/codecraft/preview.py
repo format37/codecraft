@@ -5,6 +5,8 @@ Telegram, Slack or Discord shows the board at once."""
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -152,10 +154,14 @@ def ensure(gdir: Path, labels: list[str], game_id: int, fmt: str, footer: str = 
            tick: int | None = None) -> Path:
     """Return the cached preview for the game, rendering it when missing or older than the replay.
     A `tick` at or past the last tick means the final state (`preview.png`)."""
-    raw = gdir / "replay.dat"
+    raw = R.replay_file(gdir)
     if tick is not None:
         tick = max(0, (tick // KEYFRAME) * KEYFRAME)
     path = cache_path(gdir, tick)
+    if raw is None:         # a replay the hub no longer keeps: the final image stays
+        if path.exists() and tick is None:
+            return path
+        raise FileNotFoundError(f"game {game_id} has no replay here")
     if path.exists() and path.stat().st_mtime >= raw.stat().st_mtime:
         return path
     replay = R.load(raw)
@@ -164,7 +170,14 @@ def ensure(gdir: Path, labels: list[str], game_id: int, fmt: str, footer: str = 
         if path.exists() and path.stat().st_mtime >= raw.stat().st_mtime:
             return path
     img = render(replay, labels, tick=tick, heading=f"Game #{game_id} · {fmt}", footer=footer)
-    tmp = path.with_suffix(".tmp")
-    img.save(tmp, format="PNG", optimize=True)
-    tmp.replace(path)
+    fd, tmp_name = tempfile.mkstemp(dir=gdir, prefix=f".{path.stem}.", suffix=".tmp")   # one per request
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            img.save(fh, format="PNG", optimize=True)
+        os.chmod(tmp, 0o644)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return path

@@ -17,6 +17,7 @@ updated (id, value) pairs. See docs/replay-format.md.
 from __future__ import annotations
 
 import json
+import lzma
 import struct
 import sys
 from collections import Counter
@@ -263,8 +264,29 @@ def parse(data: bytes) -> Replay:
     return Replay(initial, ticks)
 
 
+# A game's replay on disk: replay.dat as the engine wrote it, or replay.dat.xz (a fifteenth of it) where it is
+# kept compressed (the hub, and the executors once it is uploaded).
+REPLAY = "replay.dat"
+REPLAY_XZ = "replay.dat.xz"
+
+
+def replay_file(gdir: Path) -> Path | None:
+    """The game's replay file, plain or compressed; None when it has none (here)."""
+    for name in (REPLAY, REPLAY_XZ):
+        if (gdir / name).is_file():
+            return gdir / name
+    return None
+
+
+def read_bytes(path: str | Path) -> bytes:
+    """A replay's bytes, from replay.dat or replay.dat.xz."""
+    path = Path(path)
+    data = path.read_bytes()
+    return lzma.decompress(data) if path.name.endswith(".xz") else data
+
+
 def load(path: str | Path) -> Replay:
-    return parse(Path(path).read_bytes())
+    return parse(read_bytes(path))
 
 
 def to_json(replay: Replay) -> dict:

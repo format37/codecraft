@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import tempfile
+import threading
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
@@ -19,6 +20,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.requests import ClientDisconnect
 
 from . import agents as A
+from . import hub as H
 from . import leagues as L
 from . import mcp_server
 from . import preview as P
@@ -148,10 +150,38 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                 client = None
         cfg.resolve_gpu(client)
     templates.env.globals.update(title=title, SEATS=SEATS, cfg=cfg.data, registration=auth.registration,
-                                 gpu_ok=cfg.gpu_ok)
+                                 gpu_ok=cfg.gpu_ok, server_status=lambda: H.status(cfg, db))
+    if H.enabled(cfg):
+        app.include_router(H.router(cfg, db))      # the executors' API (hub.py)
+    decoding = threading.BoundedSemaphore(2)      # a replay decodes in ~300 MB: not too many at once
 
     def game_dir(game_id: int) -> Path:
         return cfg.games_dir / f"{game_id:06d}"
+
+    def replay_state(row, gdir: Path) -> str | None:
+        """"here", "away" (the hub let it go; the executor that played it uploads it again, asked now) or None."""
+        if R.replay_file(gdir) is not None:
+            return "here"
+        if H.replay_restorable(cfg, row):
+            return "away"
+        return None
+
+    def fetch_replay(row) -> HTTPException:
+        """Ask the executor for a replay the hub let go; the answer for the meantime."""
+        db.request_restore(row["id"])
+        st = H.status(cfg, db)
+        when = "in a minute" if st and st.get("online") else "when the game server is back (it is offline now)"
+        return HTTPException(503, f"the replay of game #{row['id']} is kept on the game server; it is being fetched, "
+                                  f"try again {when}", headers={"Retry-After": "30"})
+
+    def game_files(gdir: Path) -> list[str]:
+        names = []
+        if gdir.exists():
+            for p in sorted(gdir.iterdir()):
+                if p.name.endswith((".gz", ".tmp")) or p.name.startswith("."):
+                    continue
+                names.append("replay.dat" if p.name == R.REPLAY_XZ else p.name)
+        return sorted(set(names))
 
     def absolute(request: Request, path: str) -> str:
         """Absolute URL for link previews: the configured base URL, else the request's."""
@@ -274,7 +304,7 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
         gid = cfg["web"].get("featured_game")
         candidates = [db.game(int(gid))[0]] if gid else db.featured_games()
         for g in candidates:
-            if g is not None and (game_dir(g["id"]) / "replay.dat").exists():
+            if g is not None and R.replay_file(game_dir(g["id"])) is not None:
                 featured = g
                 break
         labels = []
@@ -362,15 +392,9 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
             raise HTTPException(404, "no such game")
         gdir = game_dir(game_id)
         user = request.state.user
-        files = []
-        if gdir.exists():
-            for p in sorted(gdir.iterdir()):
-                if p.name.endswith((".gz", ".tmp")):
-                    continue
-                if p.name.startswith("player-") and not (user and (is_admin(user) or _owns_slot(user, players, p.name))):
-                    continue
-                files.append(p.name)
-        has_replay = (gdir / "replay.dat").exists()
+        files = [n for n in game_files(gdir)
+                 if not (n.startswith("player-") and not (user and (is_admin(user) or _owns_slot(user, players, n))))]
+        has_replay = replay_state(row, gdir) is not None
         return render(request, "game.html", game=row, players=players, files=files, has_replay=has_replay,
                       labels=player_labels(players), og=game_og(request, row, players, has_replay))
 
@@ -381,11 +405,11 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
         if row is None:
             raise HTTPException(404, "no such game")
         gdir = game_dir(game_id)
-        if not (gdir / "replay.dat").exists():
-            raise HTTPException(404, "no replay for this game")
         try:
             path = P.ensure(gdir, player_labels(players), game_id, row["format"],
                             footer=P.site_host(cfg["auth"].get("base_url")), tick=tick)
+        except FileNotFoundError:
+            raise HTTPException(404, "no replay for this game")
         except R.ReplayError as exc:
             raise HTTPException(500, f"replay cannot be decoded: {exc}")
         return FileResponse(path, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
@@ -404,12 +428,16 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
     def game_replay(request: Request, game_id: int):
         gdir = game_dir(game_id)
         cache = gdir / "replay.json.gz"
-        raw = gdir / "replay.dat"
-        if not raw.exists():
+        raw = R.replay_file(gdir)
+        if raw is None:
+            row, _ = db.game(game_id)
+            if H.replay_restorable(cfg, row):
+                raise fetch_replay(row)
             raise HTTPException(404, "no replay for this game")
         if not cache.exists() or cache.stat().st_mtime < raw.stat().st_mtime:
             try:
-                data = R.to_json(R.load(raw))
+                with decoding:
+                    data = R.to_json(R.load(raw))
             except R.ReplayError as exc:
                 raise HTTPException(500, f"replay cannot be decoded: {exc}")
             # a temp file of its own: two requests at once (a phone loads it twice) must not share one
@@ -433,8 +461,16 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
         row, players = db.game(game_id)
         if row is None:
             raise HTTPException(404, "no such game")
-        if not (game_dir(game_id) / "replay.dat").exists():
+        state = replay_state(row, game_dir(game_id))
+        if state is None:
             raise HTTPException(404, "no replay for this game")
+        if state == "away":                         # a page that waits for it, reloading itself
+            exc = fetch_replay(row)
+            return HTMLResponse(f'<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="15">'
+                                f'<title>Replay #{game_id}</title><body style="font:15px system-ui;margin:2em;'
+                                f'color:#888">{exc.detail}. This page reloads itself.</body>', status_code=503,
+                                headers={"Content-Security-Policy": "frame-ancestors 'self'",
+                                         "X-Frame-Options": "SAMEORIGIN", "Cache-Control": "no-cache"})
         engine = row["engine"] or ""
         site = {"game": game_id, "page": f"/games/{game_id}", "replay": f"/games/{game_id}/replay.json",
                 "download": f"/games/{game_id}/files/replay.dat", "labels": player_labels(players),
@@ -448,9 +484,18 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
 
     @app.get("/games/{game_id}/files/{name}")
     def game_file(request: Request, game_id: int, name: str):
-        if "/" in name or name.startswith(".") or name.endswith(".gz"):
+        if "/" in name or name.startswith(".") or name.endswith((".gz", ".xz")):
             raise HTTPException(400, "bad file name")
-        path = game_dir(game_id) / name
+        gdir = game_dir(game_id)
+        path = gdir / name
+        if name == R.REPLAY and not path.is_file():
+            xz = gdir / R.REPLAY_XZ
+            if xz.is_file():
+                return Response(R.read_bytes(xz), media_type="application/octet-stream",
+                                headers={"Content-Disposition": f'attachment; filename="{name}"'})
+            row, _ = db.game(game_id)
+            if H.replay_restorable(cfg, row):
+                raise fetch_replay(row)
         if not path.is_file():
             raise HTTPException(404, "no such file")
         if name.startswith("player-"):

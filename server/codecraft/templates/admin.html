@@ -29,6 +29,14 @@
 <p class="muted">Registration mode: <b>{{ registration }}</b> (config.yaml → auth.registration: open / invite / closed).</p>
 </div>
 <div>
+{% set st = server_status() %}
+{% if st %}
+<h2>Game servers</h2>
+<table><tr><th>executor</th><th>GPU</th><th>last heard</th><th></th></tr>
+{% for e in st.executors %}<tr><td>{{ e.name }}</td><td>{{ 'yes' if e.gpu else '' }}</td><td class="muted">{{ e.last_seen }} UTC</td><td>{{ 'online' if e.online else 'offline' }}</td></tr>{% endfor %}
+{% if not st.executors %}<tr><td colspan="4" class="muted">none has called yet</td></tr>{% endif %}
+</table>
+{% endif %}
 <h2>Build queue</h2>
 <table>
 <tr><th>Version</th><th>Status</th><th>Since</th><th></th></tr>

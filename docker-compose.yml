@@ -7,6 +7,10 @@
 #   docker compose up -d web worker            # UI on :8080; worker builds submissions and plays games
 #   docker compose run --rm cli play --format Round2 --players format37-2020 thermit-2020 dragoonxen-2020 quickstart
 #
+# Or split in two (docs/hub.md): the site and the database on a small always-on machine (compose.hub.yml), the
+# building and playing on machines with Docker that may be switched off (`docker compose up -d worker` with
+# CW_HUB_URL and CW_HUB_TOKEN in .env).
+#
 # Mail for sign-in codes: set CW_RESEND_API_KEY (+ CW_MAIL_FROM) or configure mail.smtp in config.yaml;
 # without either, codes are printed in the web service log (docker compose logs web).
 
@@ -32,6 +36,18 @@ x-server: &server
     CW_SENTRY_ENVIRONMENT: ${CW_SENTRY_ENVIRONMENT:-}
     CW_COMMUNITY_URL: ${CW_COMMUNITY_URL:-}
     CW_DISCORD_WEBHOOK: ${CW_DISCORD_WEBHOOK:-}
+    # hub and executors (server/codecraft/hub.py, docs/hub.md)
+    CW_HUB_URL: ${CW_HUB_URL:-}
+    CW_HUB_TOKEN: ${CW_HUB_TOKEN:-}
+    CW_EXECUTOR_NAME: ${CW_EXECUTOR_NAME:-}
+    CW_WORKER_SANDBOX: ${CW_WORKER_SANDBOX:-}
+    CW_WORKER_BUILDS: ${CW_WORKER_BUILDS:-}
+    CW_PARALLEL_GAMES: ${CW_PARALLEL_GAMES:-}
+    CW_TELEGRAM_TOKEN: ${CW_TELEGRAM_TOKEN:-}
+    CW_TELEGRAM_CHAT: ${CW_TELEGRAM_CHAT:-}
+    CW_DOCKER_PREFIX: ${CW_DOCKER_PREFIX:-}
+    CW_DOCKER_LABEL: ${CW_DOCKER_LABEL:-}
+    CW_SEAT_SUBNETS: ${CW_SEAT_SUBNETS:-}
   user: "${CW_UID:-1000}:${CW_GID:-1000}"
 
 services:

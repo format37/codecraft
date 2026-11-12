@@ -39,6 +39,7 @@ from typing import Any, Callable
 import anyio
 from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
+from . import hub as H
 from . import replay as R
 from . import rules as RU
 from .auth import RateLimiter, hash_token
@@ -747,7 +748,8 @@ def whoami(ax: Agents, user: dict) -> dict:
             "max_zip_mb": int(sub.get("max_zip_mb") or 20),
             "git_submissions": bool(sub.get("allow_git", True)),
             "engine": _engine(cfg),
-            "engine_about": ENGINE_ABOUT},
+            "engine_about": ENGINE_ABOUT,
+            **({"game_server": _server_note(ax) or "online"} if H.status(cfg, db) else {})},
         "links": {"site": ax.base, "rules": ax.url("/rules"), "quickstart": ax.url("/quickstart"),
                   "leaderboard": ax.url("/leaderboard"), "agents": ax.url("/agents"), "starter": STARTER,
                   **({"community": cfg.get("community", "url")} if cfg.get("community", "url") else {})},
@@ -861,6 +863,8 @@ def version(ax: Agents, user: dict, version_id: int, wait_s: int = 0, log_tail_k
            "build_sec": _seconds(v["started_at"], v["finished_at"])}
     if v["status"] == "queued":
         out["queued_ahead"] = db.versions_ahead(v["id"])
+        if _server_note(ax):
+            out["game_server"] = _server_note(ax)
     kb = _clamp(log_tail_kb, 0, MAX_LOG_KB)
     if kb:
         path = (cfg.data_dir / v["log_path"] if v["log_path"]
@@ -894,6 +898,15 @@ def games(ax: Agents, user: dict, strategy: str | None = None, kind: str | None 
     return {"games": [_game_row(ax, g, seats.get(g["id"], [])) for g in rows]}
 
 
+def _server_note(ax: Agents) -> str | None:
+    """Why queued work waits, when the machines that build and play are away (hub.status)."""
+    st = H.status(ax.cfg, ax.db)
+    if st is None or st["online"]:
+        return None
+    return (f"the game server is offline{' since ' + st['since'] + ' UTC' if st['since'] else ''} (maintenance or a "
+            f"power cut): builds and games wait in the queue and run when it is back; nothing is lost")
+
+
 @tool(read=True, pending=lambda r: r["status"] in ("queued", "running"))
 def game(ax: Agents, user: dict, game_id: int, wait_s: int = 0) -> dict:
     """`wait_s` is applied by `call`, which polls this function while the game is pending."""
@@ -910,8 +923,9 @@ def game(ax: Agents, user: dict, game_id: int, wait_s: int = 0) -> dict:
                 continue
             if p.name.startswith("player-") and not (is_admin(user) or _slot_of_file(p.name) in mine):
                 continue
-            files.append(p.name)
-    has_replay = (gdir / "replay.dat").is_file()
+            files.append("replay.dat" if p.name == R.REPLAY_XZ else p.name)
+    files = sorted(set(files))
+    has_replay = R.replay_file(gdir) is not None or H.replay_restorable(ax.cfg, row)
 
     def played(p) -> dict:
         """The version in the seat: recorded when an older one was seated, else the one built into the image."""
@@ -932,6 +946,8 @@ def game(ax: Agents, user: dict, game_id: int, wait_s: int = 0) -> dict:
            "replay_json": ax.url(f"/games/{row['id']}/replay.json") if has_replay else None}
     if row["status"] == "queued":
         out["queued_ahead"] = db.games_ahead(row["id"])
+        if _server_note(ax):
+            out["game_server"] = _server_note(ax)
     if row["status"] in ("queued", "running"):
         out["next"] = f"game({row['id']}, wait_s=50) again until it is finished"
     elif has_replay:
@@ -947,8 +963,12 @@ def game_timeline(ax: Agents, user: dict, game_id: int, every: int = 50) -> dict
     row, players = ax.db.game(game_id)
     if row is None:
         raise AgentError(f"no game #{game_id}")
-    path = ax.game_dir(game_id) / "replay.dat"
-    if not path.is_file():
+    path = R.replay_file(ax.game_dir(game_id))
+    if path is None:
+        if H.replay_restorable(ax.cfg, row):
+            ax.db.request_restore(game_id)
+            raise AgentError(f"the replay of game #{game_id} is kept on the game server and is being fetched; call "
+                             f"game_timeline({game_id}) again in a minute")
         if row["status"] in ("queued", "running"):
             raise AgentError(f"game #{game_id} is {row['status']}, no replay yet; wait with game({game_id}, wait_s=50)")
         raise AgentError(f"game #{game_id} has no replay ({row['status']}" + (f": {row['error']})" if row["error"] else ")"))

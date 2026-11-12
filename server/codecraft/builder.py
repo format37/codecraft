@@ -451,13 +451,13 @@ class Builder:
         return self.logs_dir / f"{self.log_name(strategy)}.log"
 
     def build_strategy(self, strategy: Strategy, force: bool = False, nocache: bool = False,
-                       timeout: int | None = None) -> tuple[str, str]:
+                       timeout: int | None = None, log_file: Path | None = None) -> tuple[str, str]:
         """Returns (image, build_hash). Compiles only when the sources, the base image or the recipe changed,
         unless forced; `nocache` rebuilds the base image too."""
         if strategy.is_builtin:
             raise BuildError(f"{strategy.name} is a built-in bot, nothing to build")
         timeout = int(timeout or self.cfg.get("build", "timeout_sec", default=1200) or 1200)
-        with _CappedLog(self.log_path(strategy), self.log_cap) as out, \
+        with _CappedLog(log_file or self.log_path(strategy), self.log_cap) as out, \
                 tempfile.TemporaryDirectory(prefix=f"cw-build-{strategy.name}-") as tmp:
             src = Path(tmp) / "src"
             out.write(f"[cw] {self.log_name(strategy)}: {strategy.language}"

@@ -18,7 +18,7 @@ def make(tmp_path, **worker):
         db.upsert_strategy(seed(n), 1200)
         db.set_image(n, f"img/{n}:1", "1")
     w = object.__new__(Worker)              # the matchmaking needs neither docker nor a builder
-    w.cfg, w.db, w.seeds, w.gpu, w.rng = cfg, db, {}, False, random.Random(5)
+    w.cfg, w.db, w.seeds, w.gpu, w.rng, w.sandbox = cfg, db, {}, False, random.Random(5), True
     return w, db, cfg
 
 

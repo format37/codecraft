@@ -28,8 +28,12 @@ def _context(args):
     handler = logging.FileHandler(cfg.data_dir / "codecraft.log")
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logging.getLogger().addHandler(handler)
-    db = DB(cfg.db_path)
     strategies = load_strategies(cfg)
+    if cfg.remote:          # an executor: the database is the hub's (remote.py); the hub registers the seeds
+        from .remote import Hub, RemoteDB
+
+        return cfg, RemoteDB(Hub(cfg)), strategies
+    db = DB(cfg.db_path)
     for s in strategies.values():
         db.upsert_strategy(s, float(cfg["rating"]["initial"]))
     if db.ensure_ratings(cfg["rating"]):         # a database of the Elo days: fitted once, its history too
@@ -142,7 +146,8 @@ def cmd_worker(args):
     cfg, db, seeds = _context(args)
     client = _docker()
     Worker(cfg, db, client, seeds, sandbox=None if not args.no_sandbox else False,
-           builds=None if not args.no_builds else False).run(max_games=args.max_games)
+           builds=None if not args.no_builds else False,
+           hub=getattr(db, "hub", None)).run(max_games=args.max_games)
 
 
 def cmd_serve(args):
@@ -151,6 +156,12 @@ def cmd_serve(args):
     from .web import create_app
 
     cfg, db, _ = _context(args)
+    if cfg.remote:
+        sys.exit("this machine is an executor of the hub at hub.url (CW_HUB_URL): the site is served there")
+    from . import hub as H
+
+    if H.enabled(cfg):      # executors build and play; this process keeps their leases, the leagues, the replays
+        H.HubLoop(cfg, db).start()
     # Agent tokens (/mcp/<token>/) and upload tickets (/mcp/upload/<ticket>/) ride in URLs; the access
     # log would print them.
     monitoring.install_log_redaction()

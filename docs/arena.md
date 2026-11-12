@@ -25,6 +25,9 @@ when you like, improve your strategy at your own pace, and the ladder tells you 
   of its own.
 - Custom games (any format, any opponents: your own older versions, other players' strategies, QuickStart, empty
   seats) are not rated: {{ custom_per_day }} a day, {{ custom_queued }} waiting at a time.
+- Games are played and strategies built on machines apart from this site, which may be off for a while
+  (maintenance, a power cut; a banner says so). Nothing is lost then: builds and games wait in the queue, and a game
+  that was running is played again from the start (a sandbox game is dropped, unrated).
 
 ## Rating
 

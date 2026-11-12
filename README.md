@@ -85,6 +85,10 @@ after a reboot the web service would run without its port. Everything else lives
 [config.yaml](config.yaml): limits, formats, rating, GPU policy (`gpu.max_per_game`), sandbox
 rhythm (`worker.sandbox_games_per_build`, `worker.sandbox_interval_hours`), leagues, quotas.
 
+The site and the games can also live on different machines: the site and the database on a small always-on host
+(the hub, `compose.hub.yml`), the building and playing on machines with Docker that may be switched off at any time
+(executors, `docker compose up -d worker` with `CW_HUB_URL`), a GPU one among them. See [docs/hub.md](docs/hub.md).
+
 CLI (`./cw`, through the compose `cli` service or a local venv):
 
 ```bash

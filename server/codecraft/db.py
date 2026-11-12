@@ -148,11 +148,28 @@ CREATE TABLE IF NOT EXISTS build_ratings (         -- what is rated is a build: 
     first_game INTEGER,                             -- its first rated game: the order of a strategy's builds
     PRIMARY KEY (strategy, image)
 );
+CREATE TABLE IF NOT EXISTS executors (             -- the machines that build and play (hub.py): their last word
+    name       TEXT PRIMARY KEY,
+    gpu        INTEGER DEFAULT 0,
+    engine     TEXT,                                -- the engine image its games run on
+    info       TEXT,                                -- JSON: what it said in its last heartbeat
+    first_seen TEXT,
+    last_seen  TEXT
+);
 CREATE TABLE IF NOT EXISTS meta (                  -- single values: the rating model in use, the league lines
     key   TEXT PRIMARY KEY,
     value TEXT
 );
 """
+
+class LeaseLost(RuntimeError):
+    """An executor reports on a game or a build that is no longer its own (it was silent too long and the hub gave
+    the work back to the queue)."""
+
+
+# A seat that needs a GPU, in a game `g`: the version it plays, or the strategy when no version is named
+GPU_SEAT_SQL = ("SELECT 1 FROM game_players p LEFT JOIN strategy_versions v ON v.id=p.version_id "
+                "LEFT JOIN strategies s ON s.name=p.strategy WHERE p.game_id=g.id AND COALESCE(v.gpu, s.gpu, 0)=1")
 
 RATING_MODEL = "fit-1"      # meta 'rating_model': a database rated otherwise is refitted once (DB.ensure_ratings)
 
@@ -162,7 +179,10 @@ ADDED_COLUMNS = {
                    "limits": "TEXT", "created_at": "TEXT", "rating_sd": "REAL", "league": "INTEGER",
                    "build_games": "INTEGER DEFAULT 0"},
     "games": {"kind": "TEXT DEFAULT 'sandbox'", "created_by": "INTEGER", "rated": "INTEGER DEFAULT 1",
-              "started_at": "TEXT", "engine": "TEXT"},
+              "started_at": "TEXT", "engine": "TEXT",
+              "executor": "TEXT",       # the machine that plays (played) it; its replay stays there
+              "restore_at": "TEXT"},    # someone asked for a replay the hub no longer keeps: the executor uploads it
+    "strategy_versions": {"executor": "TEXT"},
     "game_players": {"version_id": "INTEGER", "label": "TEXT"},
 }
 
@@ -507,6 +527,10 @@ class DB:
         return {"games": games, "placing": placing, "interval_hours": interval, "overdue": overdue,
                 "formats": stats["formats"], "last_game_at": last}
 
+    def sandbox_states(self, worker_cfg: dict, builds: list) -> dict[str, dict]:
+        """sandbox_state of several (name, image) builds at once: one call for an executor over the net."""
+        return {name: self.sandbox_state(worker_cfg, name, image) for name, image in builds}
+
     def sandbox_last_game_at(self, name: str) -> str | None:
         """When the strategy's latest sandbox game was started (any seat, running or done)."""
         row = self.one("SELECT g.created_at FROM game_players p JOIN games g ON g.id=p.game_id WHERE p.strategy=? "
@@ -733,30 +757,46 @@ class DB:
     def ok_versions(self, strategy: str) -> list[sqlite3.Row]:
         return self.q("SELECT * FROM strategy_versions WHERE strategy=? AND status='ok' ORDER BY number DESC", strategy)
 
-    def next_queued_version(self) -> sqlite3.Row | None:
-        return self.one("SELECT * FROM strategy_versions WHERE status='queued' ORDER BY id LIMIT 1")
+    def next_queued_version(self, gpu: bool = True, gpu_only: bool = False) -> sqlite3.Row | None:
+        """The oldest queued version a builder takes: a GPU version needs a machine with a GPU (`gpu`), and one
+        that builds only those (`gpu_only`) takes no other."""
+        return self.one("SELECT * FROM strategy_versions WHERE status='queued' AND (gpu=1 OR NOT ?) "
+                        "AND (gpu=0 OR ?) ORDER BY id LIMIT 1", int(bool(gpu_only)), int(bool(gpu)))
 
     def build_queue(self) -> list[sqlite3.Row]:
         return self.q("SELECT * FROM strategy_versions WHERE status IN ('queued', 'building') ORDER BY id")
 
-    def start_version(self, version_id: int) -> None:
+    def start_version(self, version_id: int, executor: str | None = None) -> bool:
+        """Take a queued version for building; False when another builder took it first."""
         with self.tx() as c:
-            c.execute("UPDATE strategy_versions SET status='building', started_at=?, error=NULL WHERE id=?",
-                      (now(), version_id))
+            cur = c.execute("UPDATE strategy_versions SET status='building', started_at=?, error=NULL, executor=? "
+                            "WHERE id=? AND status='queued'", (now(), executor, version_id))
+            return cur.rowcount == 1
 
     def finish_version(self, version_id: int, status: str, image: str | None = None, build_hash: str | None = None,
-                       error: str | None = None, log_path: str | None = None, commit_hash: str | None = None) -> None:
+                       error: str | None = None, log_path: str | None = None, commit_hash: str | None = None,
+                       executor: str | None = None) -> bool:
+        """Record a build. With `executor`, only while that machine still holds it (a machine that was silent
+        too long lost it to the queue, hub.Hub.expire): False and nothing changed otherwise."""
         with self.tx() as c:
-            c.execute("""UPDATE strategy_versions SET status=?, image=?, build_hash=?, error=?, log_path=?,
-                         commit_hash=COALESCE(?, commit_hash), finished_at=? WHERE id=?""",
-                      (status, image, build_hash, error, log_path, commit_hash, now(), version_id))
+            cur = c.execute("""UPDATE strategy_versions SET status=?, image=?, build_hash=?, error=?, log_path=?,
+                         commit_hash=COALESCE(?, commit_hash), finished_at=? WHERE id=?"""
+                            + (" AND status='building' AND executor=?" if executor else ""),
+                            (status, image, build_hash, error, log_path, commit_hash, now(), version_id)
+                            + ((executor,) if executor else ()))
+            if cur.rowcount != 1:
+                return False
         if status == "ok":
             self.activate_version(version_id)
+        return True
 
-    def abort_stale_builds(self) -> int:
+    def abort_stale_builds(self, executor: str | None = None) -> int:
+        """Builds left 'building' by a builder that stopped (restarted, switched off, silent too long): back in the
+        queue, to be built again. `executor` limits it to that machine's builds (None: every build)."""
         with self.tx() as c:
-            cur = c.execute("UPDATE strategy_versions SET status='failed', error='worker restarted during the build', "
-                            "finished_at=? WHERE status='building'", (now(),))
+            cur = c.execute("UPDATE strategy_versions SET status='queued', started_at=NULL, executor=NULL "
+                            "WHERE status='building'" + (" AND executor=?" if executor else ""),
+                            (executor,) if executor else ())
             return cur.rowcount
 
     def user_pending_versions(self, user_id: int) -> int:
@@ -781,13 +821,14 @@ class DB:
 
     # Games -----------------------------------------------------------------
     def create_game(self, fmt: str, seed: int | None, tag: str | None = None, kind: str = "sandbox",
-                    created_by: int | None = None, rated: bool = True, status: str = "running") -> int:
+                    created_by: int | None = None, rated: bool = True, status: str = "running",
+                    executor: str | None = None) -> int:
         with self.tx() as c:
             cur = c.execute(
-                "INSERT INTO games(format, seed, status, tag, created_at, kind, created_by, rated, started_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO games(format, seed, status, tag, created_at, kind, created_by, rated, started_at, executor) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (fmt, None if seed is None else str(seed), status, tag, now(), kind, created_by, int(rated),
-                 now() if status == "running" else None))
+                 now() if status == "running" else None, executor))
             return int(cur.lastrowid)
 
     def queue_game(self, fmt: str, seed: int | None, created_by: int | None, seats: list[dict], kind: str = "custom",
@@ -800,17 +841,27 @@ class DB:
                           (game_id, s["slot"], s.get("strategy"), s.get("image"), s.get("version_id"), s.get("label")))
         return game_id
 
-    def next_queued_game(self) -> sqlite3.Row | None:
-        return self.one("SELECT * FROM games WHERE status='queued' ORDER BY id LIMIT 1")
+    def next_queued_game(self, gpu: bool = True) -> sqlite3.Row | None:
+        """The oldest queued game; without `gpu` the oldest with no GPU strategy in it."""
+        return self.one("SELECT * FROM games g WHERE status='queued' AND (? OR NOT EXISTS (" + GPU_SEAT_SQL + ")) "
+                        "ORDER BY id LIMIT 1", int(bool(gpu)))
+
+    def gpu_waiting(self) -> dict:
+        """Work only a machine with a GPU takes: queued GPU versions and queued games with a GPU seat."""
+        versions = self.q("SELECT id, strategy, number, created_at FROM strategy_versions WHERE status='queued' "
+                          "AND gpu=1 ORDER BY id")
+        games = self.q("SELECT id, created_at FROM games g WHERE status='queued' AND EXISTS (" + GPU_SEAT_SQL + ") "
+                       "ORDER BY id")
+        return {"versions": [dict(v) for v in versions], "games": [dict(g) for g in games]}
 
     def set_game_engine(self, game_id: int, engine: str) -> None:
         with self.tx() as c:
             c.execute("UPDATE games SET engine=? WHERE id=?", (engine, game_id))
 
-    def claim_game(self, game_id: int) -> bool:
+    def claim_game(self, game_id: int, executor: str | None = None) -> bool:
         with self.tx() as c:
-            cur = c.execute("UPDATE games SET status='running', started_at=? WHERE id=? AND status='queued'",
-                            (now(), game_id))
+            cur = c.execute("UPDATE games SET status='running', started_at=?, executor=? WHERE id=? AND status='queued'",
+                            (now(), executor, game_id))
             return cur.rowcount == 1
 
     def game_queue(self) -> list[sqlite3.Row]:
@@ -834,11 +885,11 @@ class DB:
 
     def finish_game(self, game_id: int, status: str, error: str | None, duration_sec: float, seed: int | None,
                     seats: list[dict], rating_cfg: dict, points_table: list[int], rated: bool = True,
-                    leagues_cfg: dict | None = None) -> list[dict]:
+                    leagues_cfg: dict | None = None, executor: str | None = None) -> list[dict]:
         """Store per-seat results and, for a finished rated game, the statistics and the ratings: every build is
         fitted again with this game among the others (and with `leagues_cfg` the leagues follow).
         `seats`: dicts with slot, strategy (None for an Empty seat), image, score, crashed, comment, cpu_sec,
-        version_id, label."""
+        version_id, label. With `executor`, only while that machine holds the game (else LeaseLost)."""
         scores = [float(s.get("score") or 0) for s in seats]
         places = R.placements(scores)
         pts = R.points(places, points_table)
@@ -846,7 +897,9 @@ class DB:
         rated_idx = [i for i, s in enumerate(seats) if s.get("strategy")] if update_stats else []
         initial = float(rating_cfg.get("initial", 1200))
         with self.tx() as c:
-            game = c.execute("SELECT engine FROM games WHERE id=?", (game_id,)).fetchone()
+            game = c.execute("SELECT engine, status, executor FROM games WHERE id=?", (game_id,)).fetchone()
+            if executor and (game is None or game["status"] != "running" or game["executor"] != executor):
+                raise LeaseLost(f"game {game_id} is no longer {executor}'s to finish")
             engine = (game["engine"] if game is not None else None) or ""
             build = {i: (seats[i]["strategy"], seats[i].get("image") or engine) for i in rated_idx}
             before = {i: self._build_rating(c, *build[i], initial) for i in rated_idx}
@@ -880,16 +933,55 @@ class DB:
             self.update_leagues(leagues_cfg)
         return out
 
-    def mark_error(self, game_id: int, error: str) -> None:
+    def mark_error(self, game_id: int, error: str, executor: str | None = None) -> None:
         with self.tx() as c:
-            c.execute("UPDATE games SET status='error', error=?, finished_at=? WHERE id=?", (error, now(), game_id))
+            c.execute("UPDATE games SET status='error', error=?, finished_at=? WHERE id=?"
+                      + (" AND status='running' AND executor=?" if executor else ""),
+                      (error, now(), game_id) + ((executor,) if executor else ()))
 
-    def abort_stale_running(self) -> int:
-        """Games left in 'running' by a crashed orchestrator (no process can still be playing them)."""
+    def abort_stale_running(self, executor: str | None = None) -> int:
+        """Games left 'running' by a player that stopped (restarted, switched off, silent too long; `executor`
+        limits it to that machine's games, None: every game). A queued game (its seats were chosen when it was
+        queued: custom games) goes back to the queue and is played again; a sandbox game, made up on the spot,
+        ends as an error and counts for nobody."""
+        only = (" AND executor=?", (executor,)) if executor else ("", ())
         with self.tx() as c:
-            cur = c.execute("UPDATE games SET status='error', error='orchestrator restarted during the game', "
-                            "finished_at=? WHERE status='running'", (now(),))
-            return cur.rowcount
+            back = c.execute("UPDATE games SET status='queued', started_at=NULL, executor=NULL, engine=NULL, error=NULL "
+                             "WHERE status='running' AND EXISTS (SELECT 1 FROM game_players p WHERE p.game_id=games.id)"
+                             + only[0], only[1]).rowcount
+            dead = c.execute("UPDATE games SET status='error', error='the game server stopped during the game', "
+                             "finished_at=? WHERE status='running'" + only[0], (now(),) + only[1]).rowcount
+            return back + dead
+
+    # Executors (hub.py) ------------------------------------------------------
+    def heartbeat(self, name: str, gpu: bool, engine: str | None, info: dict) -> None:
+        with self.tx() as c:
+            c.execute("INSERT INTO executors(name, gpu, engine, info, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?) "
+                      "ON CONFLICT(name) DO UPDATE SET gpu=excluded.gpu, engine=excluded.engine, info=excluded.info, "
+                      "last_seen=excluded.last_seen", (name, int(bool(gpu)), engine, json.dumps(info), now(), now()))
+
+    def executors(self) -> list[sqlite3.Row]:
+        return self.q("SELECT * FROM executors ORDER BY name")
+
+    def executors_silent(self, seconds: float) -> list[str]:
+        """Machines that hold running games or builds and have not been heard of for `seconds`."""
+        cut = ts(datetime.now(timezone.utc) - timedelta(seconds=seconds))
+        rows = self.q("SELECT name FROM executors WHERE last_seen<? AND (name IN (SELECT executor FROM games WHERE "
+                      "status='running') OR name IN (SELECT executor FROM strategy_versions WHERE status='building'))",
+                      cut)
+        return [r["name"] for r in rows]
+
+    def request_restore(self, game_id: int) -> None:
+        with self.tx() as c:
+            c.execute("UPDATE games SET restore_at=COALESCE(restore_at, ?) WHERE id=?", (now(), game_id))
+
+    def restore_requests(self, executor: str) -> list[int]:
+        return [r["id"] for r in self.q("SELECT id FROM games WHERE restore_at IS NOT NULL AND executor=? ORDER BY id",
+                                        executor)]
+
+    def restored(self, game_id: int) -> None:
+        with self.tx() as c:
+            c.execute("UPDATE games SET restore_at=NULL WHERE id=?", (game_id,))
 
     def games(self, limit: int = 50, offset: int = 0, kind: str | None = None, strategy: str | None = None,
               user_id: int | None = None, status: str | None = None) -> list[sqlite3.Row]:

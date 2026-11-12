@@ -1,0 +1,27 @@
+# The hub (docs/hub.md): the site, the database and the ladder, without Docker access. Executors elsewhere build and
+# play (`docker compose up -d worker` there, with CW_HUB_URL and CW_HUB_TOKEN). Here: CW_HUB_TOKEN in .env, and the
+# web joins the reverse proxy's network instead of publishing a port.
+#
+#   docker compose -f compose.hub.yml build
+#   docker compose -f compose.hub.yml up -d
+#   docker compose -f compose.hub.yml run --rm cli ladder        # the database commands (no docker ones)
+
+name: codecraft
+
+services:
+  web:
+    extends: {file: docker-compose.yml, service: web}
+    ports: !reset []
+    networks: [proxy]
+
+  cli:
+    extends: {file: docker-compose.yml, service: web}
+    command: []
+    ports: !reset []
+    restart: "no"
+    profiles: ["cli"]
+
+networks:
+  proxy:
+    external: true
+    name: ${CW_PROXY_NETWORK:-reverse-proxy_default}
