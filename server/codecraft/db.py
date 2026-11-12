@@ -841,10 +841,12 @@ class DB:
                           (game_id, s["slot"], s.get("strategy"), s.get("image"), s.get("version_id"), s.get("label")))
         return game_id
 
-    def next_queued_game(self, gpu: bool = True) -> sqlite3.Row | None:
-        """The oldest queued game; without `gpu` the oldest with no GPU strategy in it."""
+    def next_queued_game(self, gpu: bool = True, gpu_only: bool = False) -> sqlite3.Row | None:
+        """The oldest queued game; without `gpu` the oldest with no GPU strategy in it, with `gpu_only` the oldest
+        with one (a machine kept for the GPU)."""
         return self.one("SELECT * FROM games g WHERE status='queued' AND (? OR NOT EXISTS (" + GPU_SEAT_SQL + ")) "
-                        "ORDER BY id LIMIT 1", int(bool(gpu)))
+                        "AND (NOT ? OR EXISTS (" + GPU_SEAT_SQL + ")) ORDER BY id LIMIT 1",
+                        int(bool(gpu)), int(bool(gpu_only)))
 
     def gpu_waiting(self) -> dict:
         """Work only a machine with a GPU takes: queued GPU versions and queued games with a GPU seat."""

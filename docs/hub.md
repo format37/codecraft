@@ -49,8 +49,8 @@ for it to come back. A replay fetched back stays another `replay_days`.
 ## GPU
 
 A version or a game that needs a GPU waits for an executor with one (`gpu: true` in its heartbeat; Docker's nvidia
-runtime). An executor kept for the GPU takes only that work: `CW_WORKER_SANDBOX=gpu` (it starts only sandbox games
-of GPU strategies; the other seats are anybody's) and `CW_WORKER_BUILDS=gpu`. When GPU work has waited
+runtime). An executor kept for the GPU takes only that work: `CW_WORKER_SANDBOX=gpu` (custom games with a GPU seat,
+and sandbox games started by a GPU strategy; the other seats are anybody's) and `CW_WORKER_BUILDS=gpu`. When GPU work has waited
 `hub.gpu_alert_minutes` (10) with no GPU executor online, the hub sends a Telegram message (`CW_TELEGRAM_TOKEN`,
 `CW_TELEGRAM_CHAT`), again every 6 hours while it waits. The hub says `CW_GPU_ENABLED=true`, so that the site
 offers the CUDA languages.

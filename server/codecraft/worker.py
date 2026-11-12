@@ -219,7 +219,7 @@ class Worker:
     # Loops ---------------------------------------------------------------
     def _play_queued(self) -> bool:
         with self.lock:
-            game = self.db.next_queued_game(gpu=self.gpu)
+            game = self.db.next_queued_game(gpu=self.gpu, gpu_only=self.sandbox == "gpu")
             if game is None or not self.db.claim_game(game["id"], self.name):
                 return False
         self.playing.add(game["id"])

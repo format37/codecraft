@@ -171,6 +171,12 @@ def test_gpu_work_waits_for_a_gpu_machine_and_the_operator_hears_of_it(tmp_path)
     v = 1
     assert node.next_queued_game(gpu=False)["id"] == plain
     assert node.next_queued_game(gpu=True)["id"] == gid
+    assert node.next_queued_game(gpu=True, gpu_only=True)["id"] == gid     # a GPU machine takes GPU games only
+    with db.tx() as c:
+        c.execute("UPDATE games SET status='finished' WHERE id=?", (gid,))
+    assert node.next_queued_game(gpu=True, gpu_only=True) is None
+    with db.tx() as c:
+        c.execute("UPDATE games SET status='queued' WHERE id=?", (gid,))
     assert node.next_queued_version(gpu=False) is None                       # a GPU build needs a GPU machine
     assert node.next_queued_version(gpu=True, gpu_only=True)["id"] == v
     sent = []
