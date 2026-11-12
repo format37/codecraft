@@ -32,6 +32,8 @@ def _context(args):
     if cfg.remote:          # an executor: the database is the hub's (remote.py); the hub registers the seeds
         from .remote import Hub, RemoteDB
 
+        logging.getLogger("httpx").setLevel(logging.WARNING)     # a line for every call to the hub otherwise
+
         return cfg, RemoteDB(Hub(cfg)), strategies
     db = DB(cfg.db_path)
     for s in strategies.values():
