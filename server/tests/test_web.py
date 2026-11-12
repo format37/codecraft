@@ -177,6 +177,13 @@ def test_a_replay_plays_in_the_local_runners_viewer(tmp_path):
     assert {"map_size", "fog_of_war", "max_tick_count", "properties", "players", "entities", "actions",
             "ticks"} <= rep.keys()
     assert rep["ticks"][0]["t"] == 1 and [p[1] for p in rep["players"]] == [0, 1]
+    # requests at once while the cache is stale each write a temp file of their own (CODECRAFT-C)
+    from concurrent.futures import ThreadPoolExecutor
+    (gdir / "replay.json.gz").unlink()
+    with ThreadPoolExecutor(8) as pool:
+        rs = list(pool.map(lambda _: client.get(f"/games/{gid}/replay.json"), range(8)))
+    assert [r.status_code for r in rs] == [200] * 8 and all(r.json() == rep for r in rs)
+    assert not list(gdir.glob("*.tmp")) and not list(gdir.glob(".*.tmp"))
 
     game = client.get(f"/games/{gid}").text
     assert f'<iframe class="viewer" src="/games/{gid}/viewer"' in game and "viewer.js" not in game

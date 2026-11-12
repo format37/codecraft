@@ -6,6 +6,8 @@ import contextlib
 import gzip
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
@@ -410,10 +412,17 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                 data = R.to_json(R.load(raw))
             except R.ReplayError as exc:
                 raise HTTPException(500, f"replay cannot be decoded: {exc}")
-            tmp = cache.with_suffix(".tmp")
-            with gzip.open(tmp, "wb", compresslevel=6) as fh:
-                fh.write(json.dumps(data, separators=(",", ":")).encode())
-            tmp.replace(cache)
+            # a temp file of its own: two requests at once (a phone loads it twice) must not share one
+            fd, tmp_name = tempfile.mkstemp(dir=gdir, prefix=".replay.", suffix=".tmp")
+            tmp = Path(tmp_name)
+            try:
+                with os.fdopen(fd, "wb") as raw_fh, gzip.GzipFile(fileobj=raw_fh, mode="wb", compresslevel=6) as fh:
+                    fh.write(json.dumps(data, separators=(",", ":")).encode())
+                os.chmod(tmp, 0o644)
+                tmp.replace(cache)
+            except BaseException:
+                tmp.unlink(missing_ok=True)
+                raise
         return FileResponse(cache, media_type="application/json",
                             headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=86400"})
 
