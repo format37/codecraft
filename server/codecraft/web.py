@@ -298,6 +298,26 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
                '<rect x="9" y="3" width="4" height="4" fill="#9fc0ff"/><rect x="3" y="9" width="4" height="4" fill="#9fc0ff"/></svg>')
         return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=604800"})
 
+    @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+    def robots(request: Request):
+        """Search engines: the public pages yes, a user's own pages and the APIs no; where the sitemap is."""
+        private = ["/me", "/admin", "/login", "/submit", "/games/new", "/api/", "/internal/", "/mcp"]
+        lines = ["User-agent: *", "Allow: /", *(f"Disallow: {p}" for p in private), "",
+                 f"Sitemap: {absolute(request, '/sitemap.xml')}"]
+        return PlainTextResponse("\n".join(lines) + "\n", headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/sitemap.xml", include_in_schema=False)
+    def sitemap(request: Request):
+        """The site's pages for search engines: the cover, the manuals, the ladder and every strategy on it."""
+        from urllib.parse import quote
+        from xml.sax.saxutils import escape
+        paths = ["/", "/quickstart", "/rules", "/leaderboard", "/games", "/agents"]
+        paths += [f"/strategies/{quote(s['name'])}" for s in db.leaderboard()]
+        urls = "".join(f"<url><loc>{escape(absolute(request, p))}</loc></url>" for p in paths)
+        xml = ('<?xml version="1.0" encoding="UTF-8"?>'
+               f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>')
+        return Response(xml, media_type="application/xml", headers={"Cache-Control": "public, max-age=3600"})
+
     @app.get("/", response_class=HTMLResponse)
     def cover(request: Request):
         featured = None

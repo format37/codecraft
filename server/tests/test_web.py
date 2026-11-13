@@ -225,3 +225,14 @@ def test_the_community_link_appears_once_configured(tmp_path):
     assert cover.count(link) == 3                                          # the header, Start here, Join
     assert link in client.get("/agents").text and link in client.get("/leaderboard").text
     assert "is where the players are" in client.get("/quickstart").text
+
+
+def test_robots_and_sitemap_for_search_engines(tmp_path):
+    client, auth, db = make(tmp_path)
+    r = client.get("/robots.txt")
+    assert r.status_code == 200 and "User-agent: *" in r.text and "Disallow: /admin" in r.text
+    assert "Sitemap: http://testserver/sitemap.xml" in r.text
+    s = client.get("/sitemap.xml")
+    assert s.status_code == 200 and s.headers["content-type"].startswith("application/xml")
+    for path in ("/", "/quickstart", "/rules", "/leaderboard"):
+        assert f"<loc>http://testserver{path}</loc>" in s.text
