@@ -106,6 +106,11 @@
   <label class="chk"><input type="checkbox" id="optAttacks" checked> attacks</label>
   <label class="chk"><input type="checkbox" id="optMoves"> move targets (all units)</label>
   <label class="chk"><input type="checkbox" id="optGrid" checked> grid</label>
+  <div id="fogBox" hidden
+    title="what the players ticked are shown (together, when several), the rest of the map under fog">
+    <h3>Fog of war of</h3>
+    <div id="fogOpts"></div>
+  </div>
   <div id="debugOpts"></div>
   <h3>Selected</h3>
   <div id="info" class="small muted">click an entity</div>
@@ -327,7 +332,7 @@
     if (sizeChanged || !cam.fitted) fit();
     $("slider").min = G.first;
     $("restart").hidden = G.replay; $("sameSeed").parentElement.hidden = G.replay;
-    renderSide(); renderDebugOpts(); waitingBanner(); updateBar(); control();
+    renderSide(); renderDebugOpts(); renderFogOpts(); waitingBanner(); updateBar(); control();
     document.title = SITE ? `Game #${SITE.game} · CodeCraft` : "CodeCraft runner";
     dirty = true;
   }
@@ -630,6 +635,7 @@
         ctx.fillStyle = "#4ade80"; ctx.fillRect(x + 1, y + w - 4, (w - 2) * Math.max(0, e[5]) / max, 3);
       }
     }
+    drawFog(s);
     const moves = prefs.moves;
     ctx.lineWidth = 1;
     for (const [id, a] of s.actions) {
@@ -672,6 +678,72 @@
     drawDebug();
     drawTop(s);
     document.title = SITE ? `Game #${SITE.game} · tick ${view.tick}` : `CodeCraft runner · tick ${view.tick}`;
+  }
+
+  // Fog of war, as the seats ticked have it: the cells within the sight range (Manhattan, from the whole square) of
+  // a seat's entities are clear, as the engine shows them to its strategy (sight_map in src/view.cpp); what none of
+  // the seats ticked sees is under a light fog, with what stands there still to be seen through it. Each seat's
+  // sight has its edge in the seat's colour. No seat ticked: no fog shown.
+  const fogSeats = new Set();          // the seats ticked: none when the page opens (not remembered)
+  let fog = null;                      // { s, t, mask, n, seen, image }: the layer of the state and seats drawn last
+  function fogMask() {                 // a bit per seat ticked
+    let mask = 0;
+    if (G.fog) for (const k of fogSeats) if (k < G.seats.length) mask |= 1 << k;
+    return mask;
+  }
+  function fogLayer(s) {
+    const mask = fogMask();
+    if (!mask) return null;
+    if (fog && fog.s === s && fog.t === view.tick && fog.mask === mask && fog.n === G.size) return fog;
+    const n = G.size, seen = new Uint8Array(n * n);          // per cell: a bit per seat (ticked) that sees it
+    for (const e of s.entities.values()) {
+      const bit = e[1] == null ? 0 : (1 << G.seatOf[e[1]]) & mask;
+      if (!bit) continue;
+      const p = G.props[TYPES[e[2]]] || {}, k = p.size || 1, r = p.sight_range || 0;
+      for (let x = Math.max(e[3] - r, 0), x1 = Math.min(e[3] + k + r, n); x < x1; x++) {
+        const rest = r - Math.max(0, e[3] - x, x - (e[3] + k - 1));
+        for (let y = Math.max(e[4] - rest, 0), y1 = Math.min(e[4] + k + rest, n); y < y1; y++) seen[y * n + x] |= bit;
+      }
+    }
+    const image = fog && fog.n === n ? fog.image : document.createElement("canvas");
+    image.width = image.height = n;
+    const ictx = image.getContext("2d"), data = ictx.createImageData(n, n), px = data.data;
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        if (seen[y * n + x]) continue;
+        const o = ((n - 1 - y) * n + x) * 4;           // the image's rows go down, the map's up
+        px[o] = 4; px[o + 1] = 7; px[o + 2] = 11; px[o + 3] = 120;
+      }
+    }
+    ictx.putImageData(data, 0, 0);
+    fog = { s, t: view.tick, mask, n, seen, image };
+    return fog;
+  }
+  function drawFog(s) {
+    const f = fogLayer(s);
+    if (!f) return;
+    const n = f.n, c = cam.scale, seen = f.seen;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(f.image, sx(0), sy(n), n * c, n * c);
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalAlpha = 0.55; ctx.lineWidth = 1;
+    for (let seat = 0; seat < G.seats.length; seat++) {      // the edge of what each seat sees, in its colour
+      const b = 1 << seat;
+      if (!(f.mask & b)) continue;
+      ctx.strokeStyle = COLORS[seat % 4];
+      ctx.beginPath();
+      for (let y = 0; y < n; y++) {
+        for (let x = 0; x < n; x++) {
+          if (!(seen[y * n + x] & b)) continue;
+          if (x + 1 < n && !(seen[y * n + x + 1] & b)) { ctx.moveTo(sx(x + 1), sy(y)); ctx.lineTo(sx(x + 1), sy(y + 1)); }
+          if (x > 0 && !(seen[y * n + x - 1] & b)) { ctx.moveTo(sx(x), sy(y)); ctx.lineTo(sx(x), sy(y + 1)); }
+          if (y + 1 < n && !(seen[(y + 1) * n + x] & b)) { ctx.moveTo(sx(x), sy(y + 1)); ctx.lineTo(sx(x + 1), sy(y + 1)); }
+          if (y > 0 && !(seen[(y - 1) * n + x] & b)) { ctx.moveTo(sx(x), sy(y)); ctx.lineTo(sx(x + 1), sy(y)); }
+        }
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // What the strategies drew: the tick's drawings and the persistent layer of debug_update, per seat.
@@ -759,7 +831,7 @@
   function renderSide() {
     if (!G) return;
     const seed = G.replay && !(SITE && G.seed) ? "replay" : `seed ${G.seed}`;
-    $("seed").textContent = seed + (G.fog ? " · fog of war (all shown)" : "");
+    $("seed").textContent = seed + (G.fog ? ` · fog of war${fogMask() ? "" : " (all shown)"}` : "");
     const s = stateAt(view.tick), per = counts(s);
     $("seats").innerHTML = G.seats.map((seat, k) => {
       const p = [...s.players.values()].find((x) => x[1] === k);
@@ -792,6 +864,32 @@
         `<span style="color:${COLORS[k % 4]}">${esc(seat.label)}</span>`;
       l.querySelector("input").onchange = (e) => { G.showDebug[k] = e.target.checked; dirty = true; };
       box.appendChild(l);
+    });
+  }
+  function renderFogOpts() {                   // whose fog to show, in a game that has it: none ticked, all shown
+    $("fogBox").hidden = !G.fog;
+    const box = $("fogOpts");
+    box.innerHTML = "";
+    const row = (html, checked, change) => {
+      const l = document.createElement("label");
+      l.className = "chk";
+      l.innerHTML = `<input type="checkbox" ${checked ? "checked" : ""}> ${html}`;
+      l.querySelector("input").onchange = (e) => {
+        change(e.target.checked); renderFogOpts(); renderSide(); dirty = true;
+      };
+      box.appendChild(l);
+      return l.querySelector("input");
+    };
+    const seats = G.seats.map((seat, k) => k), on = seats.filter((k) => fogSeats.has(k)).length;
+    if (seats.length > 1) {                    // one click for every player: all of them, or none
+      row("all players", on === seats.length, (checked) => {
+        seats.forEach((k) => { if (checked) fogSeats.add(k); else fogSeats.delete(k); });
+      }).indeterminate = on > 0 && on < seats.length;
+    }
+    G.seats.forEach((seat, k) => {
+      row(`<span style="color:${COLORS[k % 4]}">${esc(seat.label)}</span>`, fogSeats.has(k), (checked) => {
+        if (checked) fogSeats.add(k); else fogSeats.delete(k);
+      });
     });
   }
   function toView(seat, x, y, k) {             // a cell in a seat's own frame (what its strategy sees)

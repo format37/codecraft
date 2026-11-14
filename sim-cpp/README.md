@@ -78,6 +78,10 @@ ten, the slider and the speed (1 to 100 ticks a second, or as fast as the strate
 the wheel zooms, a right drag or Shift+drag moves the camera, **Home** fits the map, a click shows an entity (its
 position also in its owner's frame, the one its strategy sees) and its stored order; **Ctrl-S** saves the replay
 so far, **Ctrl-E** the state of the tick shown as a `LoadFrom` file (both into the runner's working directory).
+In a game with fog of war the viewer shows everything, or with players ticked under **Fog of war of** in the panel,
+what those players are shown (together, when several): the cells their entities see are clear, each player's sight
+edged in its colour, and the rest lies under a light fog, with what stands there still visible. No player is ticked when
+the viewer opens; **all players** ticks or clears them all at once.
 
 The debug interface is the official GUI's (how the official runner answers it was probed on its binary:
 `docs/private/engine-probes/step9`):
