@@ -9,12 +9,14 @@ docs/private/engine-probes/step9); and the official configs' null host and token
   debug_update drawings on the persistent layer.
 - The viewer's controls hold the game (paused, a step plays one tick); Ctrl-E and Ctrl-S save a state the replay
   agrees with; the server answers only the page (Host and JSON checks); a config screen starts games.
-- The server's limits for TCP seats (the server's numbers by default): as on the server, a seat slower than it
-  allows, to answer a tick or in all, is cut off there; warn only (`--limits warn`, or the viewer's switch at any
-  moment) lets it play on; the viewer gets every answer's time either way.
+- The server's limits for TCP seats (the server's numbers by default): a seat slower than they allow, to answer a
+  tick or in all, is only warned about by default and plays on; `--limits server`, or the viewer's switch at any
+  moment, cuts it off there as the server does; the viewer gets every answer's time either way.
 - A null host listens on 127.0.0.1 and a null token takes any token: the official engine, the Python and the C++ one.
 - `--replay FILE` streams a replay file (ours, and the official engine's) state for state.
 - Restart ends the game at once and plays its config again, waiting for the strategies to reconnect.
+- Auto-restart (the default) does so by itself when a strategy disconnects in a game, and when one connects again
+  after a game; `--auto-restart off`, or the viewer's switch, leaves the game as it is.
 """
 from __future__ import annotations
 
@@ -75,6 +77,7 @@ class Client(threading.Thread):
                     if time.time() > deadline:
                         raise
                     time.sleep(0.05)
+            self.sock = sock
             f = sock.makefile("rwb")
             self.rd, self.wr = StreamWrapper(f), StreamWrapper(f)
             self.wr.write_string(self.token)
@@ -456,7 +459,8 @@ def slow(seconds: float, ticks=None):
 
 @needs_cpp
 def test_the_server_limits_by_default(tmp_path):
-    """Without options the runner holds TCP seats to the server's own limits, cut off past them."""
+    """Without options the runner measures TCP seats against the server's own limits and only warns past them; it
+    restarts the game by itself when a strategy goes away."""
     config = {"seed": 1, "game": {"Create": custom(20)}, "players": [tcp_seat(free_port()), "QuickStart"]}
     p, port, log = live(tmp_path, config)
     try:
@@ -464,7 +468,8 @@ def test_the_server_limits_by_default(tmp_path):
         stream.start()
         assert until(lambda: stream.named("init"), 10), "".join(log)
         tick, game = server_limits()
-        assert stream.named("init")[0]["limits"] == {"server": True, "tick": tick, "game": game}
+        assert stream.named("init")[0]["limits"] == {"server": False, "tick": tick, "game": game}
+        assert stream.named("init")[0]["auto_restart"] is True
     finally:
         p.kill()
 
@@ -478,8 +483,8 @@ def test_a_strategy_is_cut_off_past_the_server_limits(tmp_path, case):
     config = {"seed": 1, "game": {"Create": custom(12)}, "players": [tcp_seat(port), "QuickStart"]}
     c = Client(port, script=slow(0.5, {2}) if case == "tick" else slow(0.25))
     c.start()
-    p, vport, log = live(tmp_path, config, "--viewer-speed", "0", "--viewer-exit", "--tick-limit", "0.3",
-                         "--game-limit", "0.6", "--save-results", str(tmp_path / "results.json"))
+    p, vport, log = live(tmp_path, config, "--viewer-speed", "0", "--viewer-exit", "--limits", "server",
+                         "--tick-limit", "0.3", "--game-limit", "0.6", "--save-results", str(tmp_path / "results.json"))
     stream = Stream(vport)
     stream.start()
     assert p.wait(60) == 0, "".join(log)
@@ -506,8 +511,8 @@ def test_warn_only_lets_a_strategy_think(tmp_path):
     plays on, every answer timed; switched back mid-game, the next slow answer is cut off."""
     port = free_port()
     config = {"seed": 1, "game": {"Create": custom(30)}, "players": [tcp_seat(port), "QuickStart"]}
-    p, vport, log = live(tmp_path, config, "--viewer-speed", "0", "--viewer-exit", "--tick-limit", "0.2",
-                         "--game-limit", "0.5")
+    p, vport, log = live(tmp_path, config, "--viewer-speed", "0", "--viewer-exit", "--limits", "server",
+                         "--tick-limit", "0.2", "--game-limit", "0.5")
     try:
         stream = Stream(vport)
         stream.start()
@@ -625,3 +630,72 @@ def test_the_container_image_defaults(tmp_path):
             assert p.wait(timeout=120) == 0, "".join(log)
         finally:
             p.kill()
+
+
+def hang_up(at: int):
+    """A client script: the strategy goes away (its debugger stopped) when asked for the orders of tick `at`."""
+    def script(c, kind, tick):
+        if kind == "get_action" and tick == at:
+            c.sock.shutdown(socket.SHUT_RDWR)
+            raise ConnectionError("gone")
+    return script
+
+
+@needs_cpp
+def test_auto_restart(tmp_path):
+    """A strategy that disconnects in a game restarts it (the viewer's "same seed" kept), and the game waits for
+    the strategy to connect again; after a game that ended by itself, a strategy that connects starts the next one
+    and plays it from tick 0; switched off in the viewer, the game goes on without the strategy."""
+    port = free_port()
+    config = {"seed": None, "game": {"Create": custom(8)}, "players": [tcp_seat(port), "QuickStart"]}
+    p, vport, log = live(tmp_path, config, "--viewer-speed", "0")
+    try:
+        stream = Stream(vport)
+        stream.start()
+        inits = lambda: stream.named("init")  # noqa: E731
+        assert until(lambda: inits(), 10), "".join(log)
+        post(vport, "/control", {"same_seed": True})
+        a = Client(port, script=hang_up(3))
+        a.start()
+        assert until(lambda: len(inits()) == 2, 10), "".join(log)
+        assert a.ticks == [0, 1, 2, 3] and not a.finished
+        assert inits()[1]["seed"] == inits()[0]["seed"] and inits()[1]["seats"][0]["status"] == "waiting"
+        assert stream.named("notice")[-1]["text"].endswith("disconnected at tick 3: the game started again")
+        assert not stream.over.is_set()
+        b = Client(port)                                         # plays the game to its end
+        b.start()
+        assert stream.over.wait(20), "".join(log)
+        assert until(lambda: b.finished, 5) and b.ticks == list(range(8))
+        time.sleep(0.5)                                          # the port listens again
+        after = Stream(vport)
+        after.start()
+        c = Client(port)                                         # the debugger started again: the next game
+        c.start()
+        assert until(lambda: c.finished, 20), "".join(log)
+        assert c.ticks == list(range(8)) and c.error is None
+        assert until(lambda: len(after.named("init")) == 1 and after.over.is_set(), 5)
+        assert post(vport, "/control", {"auto_restart": False})[0] == 200
+        time.sleep(0.5)
+        with pytest.raises(OSError):                             # nobody listens for a strategy now
+            socket.create_connection(("127.0.0.1", port), timeout=2)
+        assert p.poll() is None, "".join(log)
+    finally:
+        p.kill()
+
+
+@needs_cpp
+def test_auto_restart_off(tmp_path):
+    """`--auto-restart off`: a strategy that disconnects is a crashed seat, and the game plays on to its end."""
+    port = free_port()
+    config = {"seed": 3, "game": {"Create": custom(8)}, "players": [tcp_seat(port), "QuickStart"]}
+    p, vport, log = live(tmp_path, config, "--viewer-speed", "0", "--auto-restart", "off")
+    try:
+        stream = Stream(vport)
+        stream.start()
+        a = Client(port, script=hang_up(3))
+        a.start()
+        assert stream.over.wait(20), "".join(log)
+        assert len(stream.named("init")) == 1 and stream.named("init")[0]["auto_restart"] is False
+        assert stream.named("over")[0]["players"][0]["crashed"] and stream.named("over")[0]["tick"] == 8
+    finally:
+        p.kill()

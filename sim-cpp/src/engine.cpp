@@ -267,13 +267,15 @@ struct SeatInfo {
 };
 
 // The first event of a game: the map, the seats, the first state (the replay.json format, see history.hpp), and
-// the server's limits for the TCP seats ({server: cut off past them, tick, game: seconds}; null for a replay).
+// the server's limits for the TCP seats ({server: cut off past them, tick, game: seconds}; null for a replay),
+// and whether the game restarts by itself when a strategy goes away.
 std::string init_json(const Model& m, const std::vector<SeatInfo>& seats, const std::string& seed, bool replay,
-                      const std::string& limits = "null") {
+                      const std::string& limits = "null", bool auto_restart = false) {
     Out o;
     o.raw('{').key("map_size").num(m.map_size).key("fog_of_war").boolean(m.fog_of_war);
     o.key("max_tick_count").num(m.max_tick_count).key("tick").num(m.current_tick);
     o.key("seed").str(seed).key("replay").boolean(replay).key("limits").raw(limits.c_str());
+    o.key("auto_restart").boolean(auto_restart);
     o.key("properties");
     properties_json(o, m.props);
     std::vector<Player> players;
@@ -368,6 +370,14 @@ void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& re
         g.seats[k]->crash(error, log);
         live.event("seat", seat_json(k, *g.seats[k], "crashed"));
     };
+    // a strategy that went away (its connection lost, not a limit's cut): with auto-restart the game starts again
+    // and waits for it, as after the viewer's Restart
+    auto gone = [&](size_t k) {
+        Control c = live.control();
+        if (!c.auto_restart) return;
+        live.request_reset(c.same_seed, seat_label(opts, k) + " disconnected at tick " +
+                                            std::to_string(m.current_tick) + ": the game started again");
+    };
     auto debugging = [&] {
         for (size_t k = 0; k < tcp.size(); k++)
             if (tcp[k] && !g.seats[k]->crashed && tcp[k]->connected()) return true;
@@ -386,6 +396,7 @@ void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& re
                 tcp[k]->debug_update(player_view(*at, by_seat.at(static_cast<int>(k))));
             } catch (const IoError& e) {
                 crash(k, e.what());
+                gone(k);
             }
         }
     };
@@ -415,6 +426,7 @@ void live_loop(Game& g, std::vector<TcpPlayer*>& tcp, Live& live, GameRecord& re
                     if (t->limit_hit()) why = left < opts.tick_limit ? game_cut : tick_cut;
                 }
                 crash(seat, why);
+                if (t && !t->limit_hit()) gone(seat);
                 continue;
             }
             if (t) {
@@ -469,7 +481,14 @@ int play_live(Game& g, Live& live, const LiveOptions& opts, Log& log) {
     Out limits;
     limits.raw('{').key("server").boolean(live.control().server_limits).key("tick").flt(opts.tick_limit);
     limits.key("game").flt(opts.game_limit).raw('}');
-    live.new_game("init", init_json(m, seat_infos(g, opts), std::to_string(g.seed), false, limits.s), rec);
+    live.new_game("init", init_json(m, seat_infos(g, opts), std::to_string(g.seed), false, limits.s,
+                                    live.control().auto_restart), rec);
+    if (std::string notice = live.take_notice(); !notice.empty()) {      // why this game started by itself
+        log.info(notice);
+        Out o;
+        o.raw('{').key("text").str(notice).raw('}');
+        live.event("notice", o.s);
+    }
     std::vector<TcpPlayer*> tcp(g.seats.size(), nullptr);
     for (size_t k = 0; k < g.seats.size(); k++) {
         tcp[k] = dynamic_cast<TcpPlayer*>(g.seats[k].get());
@@ -548,7 +567,7 @@ std::string default_config() {
 }  // namespace
 
 int run_live(const Json* config, const LiveOptions& opts, Log& log) {
-    Live live(log, opts.speed, opts.server_limits);
+    Live live(log, opts.speed, opts.server_limits, opts.auto_restart && !opts.exit_when_over);
     int port;
     try {
         port = live.listen(opts.bind, opts.port);
@@ -566,6 +585,13 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
     if (config) next = *config;
     bool from_file = config != nullptr;
     Json base;                             // the config chosen (a restart plays it again)
+    // Auto-restart after a game: the TCP seats' ports listen again, and a strategy that connects starts the next
+    // game, whose seat takes the socket with the strategy waiting on it.
+    std::map<int, net::socket_t> knocked;
+    auto close_all = [&] {
+        for (auto& kv : knocked) net::close(kv.second);
+        knocked.clear();
+    };
     while (true) {
         Json cfg;
         if (next) {
@@ -587,10 +613,19 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
             g = setup(cfg, log, opts.bind);
         } catch (const std::exception& e) {
             log.error(std::string("panicked at '") + e.what() + "'");
+            close_all();
             if (from_file) return PANIC;        // a bad --config file ends the runner, as in batch mode
             error = e.what();
             continue;
         }
+        for (auto& s : g.seats)
+            if (auto* t = dynamic_cast<TcpPlayer*>(s.get())) {
+                auto it = knocked.find(t->port());
+                if (it == knocked.end()) continue;
+                t->adopt(it->second);
+                knocked.erase(it);
+            }
+        close_all();
         from_file = false;
         error.clear();
         int code;
@@ -606,7 +641,34 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
         bool restart = live.take_reset(same_seed);
         if (!restart) {
             if (opts.exit_when_over) return code;
-            restart = live.wait_next() == Live::Next::Restart && live.take_reset(same_seed);
+            std::vector<std::pair<std::string, int>> ports;
+            for (auto& s : g.seats)
+                if (auto* t = dynamic_cast<TcpPlayer*>(s.get())) ports.emplace_back(t->host(), t->port());
+            while (true) {
+                Live::Next n = live.wait_next(ports.empty() ? -1 : 200);
+                if (n == Live::Next::Restart) restart = live.take_reset(same_seed);
+                if (n != Live::Next::Waiting) break;
+                Control c = live.control();
+                if (!c.auto_restart) {
+                    close_all();
+                    continue;
+                }
+                if (knocked.empty())
+                    for (const auto& hp : ports) {
+                        try {
+                            knocked[hp.second] = net::listen_tcp(hp.first, hp.second, 1);
+                        } catch (const std::exception&) {      // taken meanwhile: tried again
+                        }
+                    }
+                bool knock = false;
+                for (const auto& kv : knocked) knock = knock || net::wait_readable(kv.second, 0) > 0;
+                if (!knock) continue;
+                restart = true;
+                same_seed = c.same_seed;
+                log.info("A strategy connects after the game: it starts again");
+                break;
+            }
+            if (!restart) close_all();
         }
         if (restart) next = same_seed ? with_seed(base, g.seed) : base;
     }

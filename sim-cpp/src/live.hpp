@@ -26,7 +26,9 @@ struct Control {
     double speed = 10;          // ticks per second; 0 = as fast as the engine goes
     bool follow = true;         // the viewer shows the newest tick
     int display = 0;            // the tick it shows otherwise
-    bool server_limits = true;  // the TCP seats are cut off past the server's limits (else only warned about)
+    bool server_limits = false; // the TCP seats are cut off past the server's limits (else only warned about)
+    bool auto_restart = true;   // a strategy that goes away, or comes back after a game, restarts the game
+    bool same_seed = false;     // such a restart keeps the seed (the viewer's "same seed")
 };
 
 // What the viewer may save of the game being played: its states (Ctrl-E) and its replay so far (Ctrl-S).
@@ -40,7 +42,7 @@ struct GameRecord {
 
 class Live : public DebugHost {
 public:
-    Live(Log& log, double speed, bool server_limits = true);
+    Live(Log& log, double speed, bool server_limits = false, bool auto_restart = false);
     ~Live() override;
     int listen(const std::string& host, int port);      // throws std::runtime_error; returns the port bound
     void start();                                        // serves from its own threads
@@ -61,8 +63,13 @@ public:
     void set_interrupt(std::function<void(bool force)> f);
     bool reset_requested();
     bool take_reset(bool& same_seed);
-    enum class Next { NewGame, Restart };
-    Next wait_next();                // after a game: the config screen, or a restart
+    // The engine's own restart (auto-restart), unless one is asked for already; `notice` is shown by the viewer
+    // with the next game (take_notice()).
+    void request_reset(bool same_seed, const std::string& notice);
+    std::string take_notice();
+    enum class Next { NewGame, Restart, Waiting };
+    // after a game: the config screen, or a restart; Waiting after timeout_ms with neither (below 0: no timeout)
+    Next wait_next(int timeout_ms = -1);
 
     void debug_ops(int seat, int layer, std::vector<DebugOp> ops) override;
     DebugInput debug_input() override;
@@ -86,6 +93,7 @@ private:
     std::optional<Json> config_;
     bool new_game_ = false;
     std::optional<bool> reset_;                // a restart asked for: with the same seed or not
+    std::string notice_;                       // why the engine restarted by itself, for the next game's viewers
     std::function<void(bool)> interrupt_;
     std::condition_variable ended_cv_;
     long inputs_ = 0;                          // counts the viewer's controls, for wait()

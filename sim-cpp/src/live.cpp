@@ -157,9 +157,10 @@ std::string cwd_path(const std::string& name) {
 
 }  // namespace
 
-Live::Live(Log& log, double speed, bool server_limits) : log_(log) {
+Live::Live(Log& log, double speed, bool server_limits, bool auto_restart) : log_(log) {
     control_.speed = speed;
     control_.server_limits = server_limits;
+    control_.auto_restart = auto_restart;
 }
 
 Live::~Live() {
@@ -258,7 +259,7 @@ void Live::stream(net::socket_t fd) {
 
 std::string Live::post(const std::string& path, const Json& body) {
     if (path == "/control") {
-        bool limits_changed = false;
+        bool limits_changed = false, auto_changed = false;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             control_.playing = flag(body, "playing", control_.playing);
@@ -270,6 +271,12 @@ std::string Live::post(const std::string& path, const Json& body) {
                 limits_changed = control_.server_limits != (limits->s == "server");
                 control_.server_limits = limits->s == "server";
             }
+            const Json* automatic = body.get("auto_restart");
+            if (automatic && automatic->kind == Json::Bool) {
+                auto_changed = control_.auto_restart != automatic->b;
+                control_.auto_restart = automatic->b;
+            }
+            control_.same_seed = flag(body, "same_seed", control_.same_seed);
             if (flag(body, "step", false)) steps_++;
             inputs_++;
             input_cv_.notify_all();
@@ -278,6 +285,11 @@ std::string Live::post(const std::string& path, const Json& body) {
             Out o;
             o.raw('{').key("server").boolean(control().server_limits).raw('}');
             event("limits", o.s);
+        }
+        if (auto_changed) {
+            Out o;
+            o.raw('{').key("on").boolean(control().auto_restart).raw('}');
+            event("auto", o.s);
         }
         return "{}";
     }
@@ -442,9 +454,27 @@ bool Live::take_reset(bool& same_seed) {
     return true;
 }
 
-Live::Next Live::wait_next() {
+void Live::request_reset(bool same_seed, const std::string& notice) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (reset_) return;
+    reset_ = same_seed;
+    notice_ = notice;
+    inputs_++;
+    input_cv_.notify_all();
+}
+
+std::string Live::take_notice() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::string out;
+    out.swap(notice_);
+    return out;
+}
+
+Live::Next Live::wait_next(int timeout_ms) {
     std::unique_lock<std::mutex> lock(mutex_);
-    input_cv_.wait(lock, [&] { return stop_ || new_game_ || reset_.has_value(); });
+    auto ready = [&] { return stop_ || new_game_ || reset_.has_value(); };
+    if (timeout_ms < 0) input_cv_.wait(lock, ready);
+    else if (!input_cv_.wait_for(lock, std::chrono::milliseconds(timeout_ms), ready)) return Next::Waiting;
     if (reset_) return Next::Restart;
     new_game_ = false;
     return Next::NewGame;

@@ -58,8 +58,12 @@ struct LiveOptions {
     std::string save_results, save_replay;
     std::vector<std::string> names;    // --player-names
     // The server's limits for a strategy (its config.yaml: tick_timeout_sec, cpu_time_sec), for the TCP seats:
-    // as on the server, a seat is cut off past them; or only warned about (the viewer switches between the two).
-    bool server_limits = true;
+    // a seat past them is only warned about (the default: a breakpoint may take its time), or cut off as on the
+    // server (the viewer switches between the two).
+    bool server_limits = false;
+    // A TCP seat's strategy went away (its connection lost in a game), or connects again after a game: the game
+    // starts again by itself, as with the viewer's Restart (the viewer switches it; off with --viewer-exit).
+    bool auto_restart = true;
     double tick_limit = 1.0;           // seconds to answer a tick
     double game_limit = 40.0;          // seconds of answers in all (the server counts CPU time)
     bool rules_2020 = false;           // --rules 2020: the 2020 rules exactly (default: the arena's, FogMemory)

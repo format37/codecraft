@@ -61,8 +61,12 @@ int main(int argc, char** argv) {
                    "  --no-browser            do not open the browser\n"
                    "  --viewer-exit           exit when the game is over (default: wait for the next game)\n"
                    "  --replay FILE           watch a replay file (--save-replay, Ctrl-S) in the viewer\n"
-                   "  --limits server|warn    the server's limits for TCP seats: cut a strategy off past them, as\n"
-                   "                          the server does (default), or only warn (the viewer switches too)\n"
+                   "  --limits server|warn    the server's limits for TCP seats: only warn about a strategy\n"
+                   "                          past them (default), or cut it off as the server does (the\n"
+                   "                          viewer switches too)\n"
+                   "  --auto-restart on|off   on (default): the game starts again by itself when a TCP seat's\n"
+                   "                          strategy disconnects, or connects again after a game; restart\n"
+                   "                          your debugger and play on (the viewer switches too)\n"
                    "  --tick-limit SEC        the server's time to answer a tick (default 1)\n"
                    "  --game-limit SEC        the server's time to answer in all, a game (default 40; the server\n"
                    "                          counts CPU time, the runner the time to answer)\n",
@@ -89,6 +93,13 @@ int main(int argc, char** argv) {
                 return 2;
             }
             live.server_limits = v == "server";
+        } else if (a == "--auto-restart") {
+            std::string v = value();
+            if (v != "on" && v != "off") {
+                fprintf(stderr, "error: --auto-restart is on or off, not %s\n", v.c_str());
+                return 2;
+            }
+            live.auto_restart = v == "on";
         } else if (a == "--rules") {
             std::string v = value();
             if (v != "codecraft" && v != "2020") {

@@ -83,6 +83,10 @@ public:
     void crash(const std::string& error, Log& log) override;
     std::optional<std::string> failure;
     int port() const { return port_; }
+    const std::string& host() const { return host_; }
+    // A socket already listening on host:port (the runner's auto-restart kept it after the last game, with the
+    // strategy that connected to it waiting there): listen() takes it as it is.
+    void adopt(net::socket_t listener) { listener_ = listener; }
     bool connected() const { return sock_ != net::INVALID; }
 
     // The viewer's debug interface (GUI mode): `seat` turns the client's points into the global frame.

@@ -51,7 +51,7 @@ TcpPlayer::~TcpPlayer() {
 }
 
 void TcpPlayer::listen() {
-    listener_ = net::listen_tcp(host_, port_, 1);
+    if (listener_ == net::INVALID) listener_ = net::listen_tcp(host_, port_, 1);
     log_.info("Waiting for connection on port " + std::to_string(port_));
 }
 

@@ -51,6 +51,11 @@ official clients end as after a game; one that does not answer, at a breakpoint,
 1.5 s), so you change your code, run it again, and play on without restarting the runner; with **same seed** the
 new game has the same map and dice. "New game…" after a game opens the config screen.
 
+**Auto-restart** (the **auto** box beside Restart, on by default; `--auto-restart off`): the game restarts by itself
+when a TCP seat's strategy disconnects in a game, and when a strategy connects again after a game. Stop your
+strategy or your debugger, run it again, and the game starts again with it, with no click in the viewer; "same
+seed" holds for these restarts too. A seat cut off by the server's limits does not restart the game.
+
 Players get it without building it: `.github/workflows/runner.yml` publishes every engine version of `master` as the
 image `ghcr.io/format37/codecraft-runner:<version>` (and `:latest`; the same Dockerfile as the server's engine
 image, linux/amd64 and arm64) and as binaries on the GitHub release `runner-<version>` (Linux x86_64 and arm64,
@@ -64,10 +69,10 @@ at 127.0.0.1, gets 403.
 
 **Server limits.** On the server a strategy has 1 s to answer a tick and 40 s of CPU time for the game
 (`tick_timeout_sec` and `cpu_time_sec` in the server's `config.yaml`), and is cut off past them. The runner holds
-TCP seats to the same numbers. By default it cuts a strategy off as the server would: after a tick's time with no
-answer, or once its answers took the game's time in all, with the reason in the seat's comment. Switched to *only
-warn* (in the viewer's panel, or `--limits warn`), it waits as long as it takes, a breakpoint included, and marks
-what the server would not have allowed. Either way the panel shows each TCP seat's time to answer the tick shown,
+TCP seats to the same numbers. By default it *only warns*: it waits as long as it takes, a breakpoint included, and
+marks what the server would not have allowed. Switched to *cut off* (in the viewer's panel, or `--limits server`),
+it cuts a strategy off as the server would: after a tick's time with no answer, or once its answers took the game's
+time in all, with the reason in the seat's comment. Either way the panel shows each TCP seat's time to answer the tick shown,
 its total, and when the server would stop it at the current pace. The runner counts the time to answer (the view
 sent, the answer back, debug drawings included), which is close to a one-threaded strategy's CPU time; a strategy
 with several threads uses more CPU than that, and the server's core may be slower than yours. `--tick-limit` and

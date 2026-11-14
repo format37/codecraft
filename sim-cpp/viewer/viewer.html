@@ -97,8 +97,8 @@
   <div id="seats"></div>
   <div id="limitsBox" class="small" hidden>
     <select id="limits" title="what the runner does when your strategy takes longer than the server allows">
-      <option value="server">Server limits: cut off, as the server does</option>
       <option value="warn">Server limits: only warn, let it think</option>
+      <option value="server">Server limits: cut off, as the server does</option>
     </select>
     <div id="limitsNote" class="muted"></div>
   </div>
@@ -129,6 +129,9 @@
     title="end this game and start it again; your strategy reconnects (run it again)">↻ Restart</button>
   <label class="chk small runner-only" title="restart with this game's seed: the same map and the same dice">
     <input type="checkbox" id="sameSeed"> same seed</label>
+  <label class="chk small runner-only" title="restart by itself when your strategy disconnects, or connects again
+after a game: stop your strategy (or your debugger), run it again, and the game starts again with it">
+    <input type="checkbox" id="autoRestart" checked> auto</label>
   <button id="saveReplay" class="runner-only" title="save the replay so far (Ctrl-S)">Save replay</button>
   <button id="saveState" class="runner-only" title="save the state of the tick shown, for LoadFrom (Ctrl-E)">
     Save state</button>
@@ -148,6 +151,8 @@
     <tr><td><kbd>Home</kbd></td><td>fit the map</td></tr>
     <tr class="runner-only"><td>↻ Restart</td><td>end the game and start it again (same seats; "same seed": same
       map and dice); connected strategies get Finish, then run yours again</td></tr>
+    <tr class="runner-only"><td>auto</td><td>the game restarts by itself when your strategy disconnects, or
+      connects again after a game: restart your debugger and play on, with no click here</td></tr>
     <tr class="runner-only"><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>save the replay so far</td></tr>
     <tr class="runner-only"><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td>
       <td>save the state of the tick shown (a LoadFrom file)</td></tr>
@@ -163,9 +168,9 @@
   <p class="small muted runner-only">Your strategy gets the mouse, the keys held and the camera through
     <code>debug_interface.get_state()</code>; what it draws shows on the tick it drew it for.</p>
   <p class="small muted runner-only">Server limits: on the server a strategy has 1 s to answer a tick and 40 s of
-    CPU time for the whole game, and is cut off past them. "Cut off" does that here (the default): the runner
-    stops waiting after the time to answer a tick, or once the answers took the game's time in all. "Only warn"
-    waits as long as it takes (for a breakpoint, say) and marks what the server would not have allowed. The runner
+    CPU time for the whole game, and is cut off past them. "Only warn" (the default) waits as long as it takes
+    (for a breakpoint, say) and marks what the server would not have allowed. "Cut off" does as the server: the
+    runner stops waiting after the time to answer a tick, or once the answers took the game's time in all. The runner
     counts the time to answer, not CPU time: a strategy with several threads uses more CPU than that, and the
     server's core may be slower than yours. The server also caps memory (1 GB a strategy); the runner does not.</p>
   <p class="small muted runner-only">Engine version <code>%ENGINE_VERSION%</code>, the hash of its source. The
@@ -254,6 +259,8 @@
     es.addEventListener("config", (e) => onConfig(JSON.parse(e.data)));
     es.addEventListener("answers", (e) => onAnswers(JSON.parse(e.data)));
     es.addEventListener("limits", (e) => onLimits(JSON.parse(e.data)));
+    es.addEventListener("auto", (e) => { $("autoRestart").checked = JSON.parse(e.data).on; });
+    es.addEventListener("notice", (e) => toast(JSON.parse(e.data).text));
     es.onerror = () => { if (G) banner("The runner is gone (stopped?): this page will reconnect when it is back."); };
     es.onopen = () => { if (G && !G.over && G.waiting === 0) banner(null); };
   }
@@ -332,6 +339,8 @@
     if (sizeChanged || !cam.fitted) fit();
     $("slider").min = G.first;
     $("restart").hidden = G.replay; $("sameSeed").parentElement.hidden = G.replay;
+    $("autoRestart").parentElement.hidden = G.replay || !G.seats.some((x) => x.kind === "tcp");
+    $("autoRestart").checked = !!d.auto_restart;
     renderSide(); renderDebugOpts(); renderFogOpts(); waitingBanner(); updateBar(); control();
     document.title = SITE ? `Game #${SITE.game} · CodeCraft` : "CodeCraft runner";
     dirty = true;
@@ -429,7 +438,10 @@
     const rows = order.map(([score, k]) => `<span style="color:${COLORS[k % 4]}">${esc(G.seats[k].label)}</span> ` +
       `${score}${d.players[k].crashed ? ' <span class="bad">(crashed)</span>' : ""}`).join(" &nbsp;·&nbsp; ");
     const err = d.error ? `<div class="bad">${esc(d.error)}</div>` : "";
-    banner(`<b>Game over</b> at tick ${d.tick} (seed ${esc(d.seed)})<div>${rows}</div>${err}` +
+    const again = G.seats.some((x) => x.kind === "tcp") ? `<div class="small muted" id="againNote"` +
+      `${$("autoRestart").checked ? "" : " hidden"}>Run your strategy again: the game restarts with it (auto).` +
+      `</div>` : "";
+    banner(`<b>Game over</b> at tick ${d.tick} (seed ${esc(d.seed)})<div>${rows}</div>${err}${again}` +
       `<button id="restartOver">↻ Restart</button><button id="newGame">New game…</button>` +
       `<button id="closeBanner">Keep looking</button>`);
     $("restartOver").onclick = restart;
@@ -470,7 +482,7 @@
     clearTimeout(controlTimer);
     controlTimer = 0;
     post("/control", Object.assign({ playing: view.playing, speed: view.speed, follow: view.follow,
-      display: view.tick }, extra || {}));
+      display: view.tick, same_seed: $("sameSeed").checked }, extra || {}));
   }
   function goTo(t, follow) {
     if (!G) return;
@@ -949,6 +961,7 @@
   function onConfig(d) {
     G = null; cache = null; dirty = true;
     $("restart").hidden = true; $("sameSeed").parentElement.hidden = true; $("limitsBox").hidden = true;
+    $("autoRestart").parentElement.hidden = true;
     banner(null);
     $("logs").innerHTML = ""; $("top").innerHTML = "";
     cfgBase = d.config || {};
@@ -1193,8 +1206,13 @@
   $("limits").onchange = (e) => post("/control", { limits: e.target.value });
   $("restart").onclick = restart;
   $("sameSeed").checked = !!prefs.sameSeed;
-  $("sameSeed").onchange = (e) => { prefs.sameSeed = e.target.checked; save(); };
+  $("sameSeed").onchange = (e) => { prefs.sameSeed = e.target.checked; save(); control(); };
+  $("autoRestart").onchange = (e) => {
+    post("/control", { auto_restart: e.target.checked });
+    if ($("againNote")) $("againNote").hidden = !e.target.checked;
+  };
   $("restart").hidden = true; $("sameSeed").parentElement.hidden = true;
+  $("autoRestart").parentElement.hidden = true;
   $("saveReplay").onclick = saveReplay;
   $("saveState").onclick = saveState;
   $("helpBtn").onclick = () => { $("help").hidden = !$("help").hidden; };

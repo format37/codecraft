@@ -178,14 +178,15 @@ house and logs the count of its entities) appears on the tick it belongs to, his
 interface, the official GUI's, yours to use. Lines your strategy prints to stderr show in its own terminal here, and
 in the game's log on the server, visible to you alone.
 
-Stop your strategy, change it, press **↻ Restart** in the viewer (with **same seed** for the same map and dice) and
-start it again: the runner waits for it. No need to restart the runner, ever; **New game…** after a game opens the
-config screen again.
+Stop your strategy, change it and start it again: the game restarts by itself and plays with it (**auto**, beside
+**↻ Restart**, on by default; with **same seed** for the same map and dice), so a debugger restarted is all it takes.
+**↻ Restart** does it at any moment by hand. No need to restart the runner, ever; **New game…** after a game opens
+the config screen again.
 
-The runner holds your strategy to the server's limits, {{ runner_limits }}, and cuts it off past them as the server
-would; the panel shows how long every answer took. To stop at a breakpoint in a debugger, start the runner with
-`--limits warn` (or switch in the panel): it then waits as long as it takes and only marks what the server would
-not have allowed.
+The runner measures your strategy against the server's limits, {{ runner_limits }}; the panel shows how long every
+answer took. By default it only warns: it waits as long as it takes, at a breakpoint in a debugger say, and marks
+what the server would not have allowed. Start it with `--limits server` (or switch in the panel) and it cuts your
+strategy off past the limits, as the server would.
 
 **Ctrl-S** saves the replay so far, **Ctrl-E** the state of the tick shown, which a config can start a game from;
 `--replay replay.dat` watches a replay (every game page here offers its own); `--config game.json` plays a game of
