@@ -13,6 +13,8 @@ services:
     extends: {file: docker-compose.yml, service: web}
     ports: !reset []
     networks: [proxy]
+    mem_limit: 1536m      # cap: the hub shares a 7.7 GB VPS; a leak here once pushed it into swapless thrashing
+    memswap_limit: 2048m
 
   cli:
     extends: {file: docker-compose.yml, service: web}
