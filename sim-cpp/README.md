@@ -88,6 +88,17 @@ what those players are shown (together, when several): the cells their entities 
 edged in its colour, and the rest lies under a light fog, with what stands there still visible. No player is ticked when
 the viewer opens; **all players** ticks or clears them all at once.
 
+**Charts** of the game sit in the corner under the panel, a line per player, their tabs on the right: score, resource
+in store, population (dashes: its limit), builders, melee units, ranged units, and, counted from the attacks of
+every tick, resource mined, damage dealt to the other players and taken from them (the health it took), units killed
+and lost (buildings are not counted). They follow the tick shown: a line and a dot on every player's line mark it, its
+values stand over the chart, and what comes after it (a replay, a look back in a live game) is drawn fainter. The
+pointer on the chart reads the values of the tick under it. A click on the chart, or **C**, makes it big: a strip of
+its own between the map and the bar, the map still in view above it, where a click or a drag goes to that tick as the
+slider does; **C** or **Esc** makes it small again, and **–** leaves only its head. The viewer counts them itself from
+the ticks (`statsEvents` in `viewer/viewer.html`), so they are there for a live game, a replay file and a game page
+of the server alike.
+
 The debug interface is the official GUI's (how the official runner answers it was probed on its binary:
 `docs/private/engine-probes/step9`):
 

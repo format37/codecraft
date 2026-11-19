@@ -136,9 +136,10 @@ make -C sim-cpp && sim-cpp/build/codecraft-sim-cpp
 
 It plays the server's games (the same engine, rules and maps): `--version` shows the version of its source, each
 game page names the engine it was played on, and `ghcr.io/format37/codecraft-runner:<version>` is that very engine.
-Pause, step, rewind, zoom, inspect entities, save a replay (Ctrl-S) or the state of a tick (Ctrl-E), restart the
-game for your changed strategy without restarting the runner, `--replay replay.dat`, the server's limits held or only
-warned about (`--limits warn`, for breakpoints): [sim-cpp/README.md](sim-cpp/README.md#the-local-runner).
+Pause, step, rewind, zoom, inspect entities, charts of the game (score, economy, army, damage, kills), save a replay
+(Ctrl-S) or the state of a tick (Ctrl-E), restart the game for your changed strategy without restarting the runner,
+`--replay replay.dat`, the server's limits held or only warned about (`--limits warn`, for breakpoints):
+[sim-cpp/README.md](sim-cpp/README.md#the-local-runner).
 
 ## Layout
 

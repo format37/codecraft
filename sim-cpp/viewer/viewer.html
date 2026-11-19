@@ -17,7 +17,13 @@
   button { padding: 4px 10px; cursor: pointer; }
   button:hover { border-color: var(--accent); }
   select, input { padding: 3px 6px; }
-  #map { position: absolute; left: 0; top: 0; width: 100%; height: calc(100% - 46px); display: block;
+  /* The charts take room: --dock under the side panel (the small panel, or only its head), or --strip between the
+     map and the bar (the big one, a strip of its own). */
+  body { --dock: 0px; --strip: 0px; }
+  body.charts-small { --dock: 228px; }
+  body.charts-off { --dock: 44px; }
+  body.charts-big { --strip: clamp(220px, 38vh, 380px); }
+  #map { position: absolute; left: 0; top: 0; width: 100%; height: calc(100% - 46px - var(--strip)); display: block;
     cursor: crosshair; }
   #bar { position: absolute; left: 0; right: 0; bottom: 0; height: 46px; display: flex; align-items: center; gap: 10px;
     padding: 0 12px; background: var(--panel); border-top: 1px solid var(--line); box-sizing: border-box; }
@@ -31,7 +37,8 @@
   #logs { position: absolute; top: 8px; left: 10px; max-width: 32%; max-height: 45%; overflow: hidden;
     pointer-events: none; font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap;
     text-shadow: 0 0 3px #000, 0 0 2px #000; }
-  #side { position: absolute; top: 8px; right: 8px; width: 290px; max-height: calc(100% - 70px); overflow: auto;
+  #side { position: absolute; top: 8px; right: 8px; width: 290px;
+    max-height: calc(100% - 70px - var(--dock) - var(--strip)); overflow: auto;
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
     box-sizing: border-box; }
   #side.hidden > :not(.head) { display: none; }
@@ -54,8 +61,48 @@
   #banner { position: absolute; left: 50%; top: 104px; transform: translateX(-50%); background: var(--panel);
     border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; max-width: 70%; text-align: center; }
   #banner button { margin: 8px 4px 0; }
-  #toast { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); background: var(--panel);
-    border: 1px solid var(--accent); border-radius: 6px; padding: 8px 14px; max-width: 80%; word-break: break-all; }
+  #toast { position: absolute; left: 50%; bottom: calc(60px + var(--strip)); transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 8px 14px; max-width: 80%;
+    word-break: break-all; }
+  /* The charts: a small panel in the corner under the side panel, its tabs on its right; big, a strip as wide as the
+     page over the bar, the map above it; off, only its head. */
+  #charts { position: absolute; right: 8px; bottom: 54px; width: 290px; height: 220px; display: flex;
+    flex-direction: column; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 8px 8px 12px; box-sizing: border-box; }
+  #charts .head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+  #charts .head b { white-space: nowrap; }
+  #charts .head .grow { flex: 1; }
+  #charts .head button { padding: 1px 8px; line-height: 18px; }
+  #chartSize svg { display: block; margin: 3px 0; }
+  #chartNote { display: none; }
+  #chartVals { order: 9; flex: 0 0 100%; display: flex; flex-wrap: wrap; gap: 0 10px; min-height: 18px;
+    font-variant-numeric: tabular-nums; }
+  #chartVals .cv { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  #chartVals i { width: 9px; height: 3px; border-radius: 2px; flex: none; }
+  #chartVals .who { display: none; color: var(--muted); max-width: 16em; overflow: hidden; text-overflow: ellipsis; }
+  #chartVals b { font-weight: 600; }
+  #charts .body { flex: 1; min-height: 0; display: flex; gap: 6px; }
+  #chartPlot { flex: 1; min-width: 0; position: relative; cursor: zoom-in; }
+  #chart { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+  #chartTabs { flex: none; display: flex; flex-direction: column; }
+  #chartTabs button { flex: 1 1 0; min-height: 0; max-height: 26px; padding: 0 6px; border: 0;
+    border-left: 2px solid transparent; border-radius: 0 4px 4px 0; background: none; color: var(--muted);
+    font-size: 11px; line-height: 1; text-align: left; white-space: nowrap; }
+  #chartTabs button:hover { color: var(--fg); }
+  #chartTabs button[aria-selected="true"] { color: var(--fg); background: #1a2430; border-left-color: var(--accent); }
+  #chartTabs .long { display: none; }
+  body.charts-off #charts { width: auto; height: auto; padding: 7px 8px 7px 12px; }
+  body.charts-off #charts > :not(.head), body.charts-off #chartVals, body.charts-off #chartTick,
+  body.charts-off #chartSize { display: none; }
+  body.charts-big #charts { left: 0; right: 0; bottom: 46px; width: auto; height: var(--strip); border-width: 1px 0 0;
+    border-radius: 0; padding: 8px 12px; }
+  body.charts-big #chartNote { display: inline; }
+  body.charts-big #chartVals { order: 0; flex: 0 1 auto; gap: 0 16px; }
+  body.charts-big #chartVals .who { display: inline-block; }
+  body.charts-big #chartPlot { cursor: crosshair; touch-action: none; }
+  body.charts-big #chartTabs button { font-size: 12px; padding: 0 12px 0 9px; }
+  body.charts-big #chartTabs .long { display: inline; }
+  body.charts-big #chartTabs .short { display: none; }
   #config { position: absolute; inset: 0; background: rgba(5, 8, 12, 0.88); display: flex; align-items: center;
     justify-content: center; }
   #config .card { background: #121a23; border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px;
@@ -79,7 +126,7 @@
   body.site .runner-only, body:not(.site) .site-only { display: none !important; }
   @media (max-width: 700px) {
     #cell, #top { display: none; }
-    #side { width: min(290px, calc(100% - 16px)); }
+    #side, #charts { width: min(290px, calc(100% - 16px)); }
     #bar { gap: 6px; padding: 0 8px; }
   }
   [hidden] { display: none !important; }
@@ -114,6 +161,21 @@
   <div id="debugOpts"></div>
   <h3>Selected</h3>
   <div id="info" class="small muted">click an entity</div>
+</div>
+<div id="charts" hidden>
+  <div class="head">
+    <b id="chartName">Charts</b>
+    <span id="chartNote" class="muted small"></span>
+    <span id="chartTick" class="muted small"></span>
+    <div id="chartVals" class="small"></div>
+    <span class="grow"></span>
+    <button id="chartSize" class="small"></button>
+    <button id="chartHide" class="small" title="hide or show the charts">–</button>
+  </div>
+  <div class="body">
+    <div id="chartPlot"><canvas id="chart" role="img" aria-label="chart of the game, a line per player"></canvas></div>
+    <div id="chartTabs" role="tablist" aria-label="what to chart"></div>
+  </div>
 </div>
 <div id="bar">
   <button id="play" title="play / pause (P)">❚❚</button>
@@ -159,7 +221,13 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     <tr><td>wheel<span id="ctrlWheel" hidden> with <kbd>Ctrl</kbd></span>, pinch</td><td>zoom</td></tr>
     <tr><td>drag</td><td>move the camera</td></tr>
     <tr><td>click</td><td>select an entity</td></tr>
+    <tr><td><kbd>C</kbd>, click the chart</td><td>the chart bigger, in a strip of its own under the map (small
+      again: <kbd>C</kbd>, <kbd>Esc</kbd>); in the strip a click or a drag goes to that tick</td></tr>
   </table>
+  <p class="small muted">The charts, a line per player: score, resource in store, population (dashes: its limit),
+    builders, melee units, ranged units, and counted from the attacks, resource mined, damage dealt to the other
+    players and taken from them (the health it took), units killed and lost (not buildings). The lines run to the
+    newest tick, fainter past the tick shown.</p>
   <p class="small muted site-only">The same viewer is the local runner's, which plays a game live with your
     strategy and its debug drawings. Download the replay to watch it there,
     <code>codecraft-sim-cpp --replay replay.dat</code>, and save the state of a tick to start a game from (Ctrl-E):
@@ -226,13 +294,17 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
   let G = null;                        // the game shown: what "init" said, and every tick since
   let cache = null;                    // the last state rebuilt for a past tick
   const view = { tick: 0, playing: true, speed: 10, follow: true, selected: null };
-  const cam = { x: 40, y: 40, scale: 8, fitted: false };
+  const cam = { x: 40, y: 40, scale: 8, fitted: false, auto: true };      // auto: as fit() left it, not moved since
   const mouse = { x: -1, y: -1, inside: false };
   const pressed = new Set();
   let W = 0, H = 0, dirty = true, lastSeed = null, playAcc = 0, playLast = 0;
+  // the charts: "small" under the side panel, "big" in a strip of its own, "off" only its head; which one is shown
+  // (an index in CHARTS), the tick under the pointer, and where the last drawing put the ticks
+  const chart = { mode: "small", at: 0, hover: null, vals: [], w: 0, h: 0, x0: 0, pw: 1, first: 0, last: 1 };
+  let chartDirty = true;
 
   const prefs = load("cc-runner-prefs", { speed: 10, attacks: true, moves: false, grid: true, side: true,
-    sameSeed: false });
+    sameSeed: false, charts: true, chart: "score" });
   function load(key, fallback) {
     try { return Object.assign({}, fallback, JSON.parse(localStorage.getItem(key) || "{}")); }
     catch (e) { return fallback; }
@@ -341,6 +413,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     $("restart").hidden = G.replay; $("sameSeed").parentElement.hidden = G.replay;
     $("autoRestart").parentElement.hidden = G.replay || !G.seats.some((x) => x.kind === "tcp");
     $("autoRestart").checked = !!d.auto_restart;
+    statsStart(); chartSeats();
     renderSide(); renderDebugOpts(); renderFogOpts(); waitingBanner(); updateBar(); control();
     document.title = SITE ? `Game #${SITE.game} · CodeCraft` : "CodeCraft runner";
     dirty = true;
@@ -349,8 +422,11 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
   function onTick(d) {
     if (!G) return;
     G.ticks.push(d);
+    statsEvents(d);
     applyTick(G.live, d);
+    statsPush();
     G.newest = d.t;
+    chartDirty = true;
     if ((d.t - G.first) % KEYFRAME === 0) G.keys.set(d.t, clone(G.live));
     if (view.follow) view.tick = G.newest;
     updateBar();
@@ -488,7 +564,11 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     if (!G) return;
     view.tick = Math.max(G.first, Math.min(G.newest, t));
     view.follow = follow === undefined ? view.tick === G.newest : follow;
-    updateBar(); renderSide(); dirty = true;
+    updateBar(); renderSide(); dirty = true; chartDirty = true;
+  }
+  function seek(t) {                           // to a tick picked by hand (the slider, the chart): the play stops there
+    if (view.playing) setPlaying(false);
+    goTo(t); control();
   }
   function setPlaying(on) {
     if (on && G && G.replay && view.tick >= G.newest) goTo(G.first, false);      // a replay from its start again
@@ -525,6 +605,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     }
     playLast = now;
     if (dirty) { dirty = false; draw(); }
+    if (chartDirty) drawChart();
     requestAnimationFrame(frame);
   }
 
@@ -545,14 +626,16 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     if (G && !cam.fitted) fit();
     dirty = true; input();
   }
-  function fit() {                             // the map in the room left of the side panel, when there is room
+  function fit() {                             // the map in the room left of the panels, when there is room
     if (!G || !W) return;
-    const side = $("side");
-    const panel = !side.classList.contains("hidden") && W - side.offsetWidth > 480 ? side.offsetWidth + 16 : 0;
+    const side = $("side"), right = !side.classList.contains("hidden") || chart.mode === "small";
+    const panel = right && W - side.offsetWidth > 480 ? side.offsetWidth + 16 : 0;
     cam.scale = Math.min(W - panel, H) / G.size * 0.94;
-    cam.x = G.size / 2 + panel / 2 / cam.scale; cam.y = G.size / 2; cam.fitted = true;
+    cam.x = G.size / 2 + panel / 2 / cam.scale; cam.y = G.size / 2; cam.fitted = true; cam.auto = true;
     dirty = true; input();
   }
+  function refit() { if (cam.auto) fit(); }    // the room changed (a panel, the charts): the map fits it again,
+                                               // unless the camera was moved by hand
   const sx = (x) => W / 2 + (x - cam.x) * cam.scale;
   const sy = (y) => H / 2 - (y - cam.y) * cam.scale;
   const wx = (px) => cam.x + (px - W / 2) / cam.scale;
@@ -956,10 +1039,281 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
   }
   function targets(types) { return types.length ? ", " + types.map((t) => TYPES[t]).join("/") : ""; }
 
+  // Charts -------------------------------------------------------------------------------------------------------
+  // How the game went, a line per player: what the players' rows hold (score, resource), what stands on the map
+  // (population, builders, melee and ranged units) and what the attacks add up to (resource mined, damage, units
+  // killed and lost).
+  // Counted here from the ticks as they come, a value per seat and tick, so a live game and a replay chart alike.
+  const CHARTS = [
+    { id: "score", tab: "Score", name: "Score", tip: "the score" },
+    { id: "resource", tab: "Resource", name: "Resource", tip: "resource in store" },
+    { id: "pop", limit: "cap", tab: "Population", name: "Population",
+      tip: "population in use; dashes: its limit, what the active buildings provide" },
+    { id: "builders", tab: "Builders", name: "Builders", tip: "builder units" },
+    { id: "melee", tab: "Melee", name: "Melee", tip: "melee units" },
+    { id: "ranged", tab: "Ranged", name: "Ranged", tip: "ranged units" },
+    { id: "mined", tab: "Mined", name: "Resource mined", tip: "resource mined so far" },
+    { id: "dealt", tab: "Dmg dealt", name: "Damage dealt",
+      tip: "health taken from the other players' units and buildings so far" },
+    { id: "taken", tab: "Dmg taken", name: "Damage taken", tip: "health lost to the other players' attacks so far" },
+    { id: "kills", tab: "Kills", name: "Units killed",
+      tip: "units of the other players killed so far (buildings are not counted)" },
+    { id: "lost", tab: "Losses", name: "Units lost", tip: "own units killed so far (buildings are not counted)" },
+  ];
+  const STATS = ["score", "resource", "pop", "cap", "builders", "melee", "ranged", "mined", "dealt", "taken", "kills",
+    "lost"];
+  const PANEL = "#0f151d", MUTED = "#8b98a5";
+  const seatOf = (player) => {                 // the seat of a player id; -1 for nobody's (a resource)
+    const k = player == null ? null : G.seatOf[player];
+    return k == null || k < 0 || k >= G.seats.length ? -1 : k;
+  };
+
+  function statsStart() {
+    const zeros = () => G.seats.map(() => 0);
+    G.sum = { mined: zeros(), dealt: zeros(), taken: zeros(), kills: zeros(), lost: zeros() };    // so far, per seat
+    G.stats = {}; G.top = {};                  // per stat: a seat's values, one a tick from the first; the highest
+    for (const id of STATS) { G.stats[id] = G.seats.map(() => []); G.top[id] = 0; }
+    statsPush();
+  }
+  // What a tick's attacks add up to, read against the state the tick started from (before its changes are applied).
+  // As the engine plays them (hit in src/rules.cpp), in its order: a hit takes the attacker's damage from the
+  // target's health and counts here for the health that was left to take; a hit that collects (a builder's, on a
+  // resource) mines that much; the first hit that takes a unit to zero is the one that kills it (the last hit of
+  // the tick when the damage does not add up, as in the server's timeline). A unit removed is a unit lost.
+  function statsEvents(d) {
+    const s = G.live, sum = G.sum, health = new Map(), blow = new Map();
+    for (const ev of d.ev || []) {
+      if (ev[0] !== 0) continue;
+      const a = s.entities.get(ev[1]), b = s.entities.get(ev[2]);
+      const attack = a && (G.props[TYPES[a[2]]] || {}).attack;
+      if (!attack || !b) continue;
+      const before = health.has(b[0]) ? health.get(b[0]) : b[5];
+      const took = Math.max(0, Math.min(attack.damage, before));
+      health.set(b[0], before - attack.damage);
+      const from = seatOf(a[1]), to = seatOf(b[1]);
+      const mine = attack.collect_resource ? (G.props[TYPES[b[2]]] || {}).resource_per_health || 0 : 0;
+      if (mine && from >= 0) sum.mined[from] += took * mine;
+      if (to < 0 || from === to) continue;       // a resource, or its own (a named target)
+      if (from >= 0) sum.dealt[from] += took;
+      sum.taken[to] += took;
+      const killing = before > 0 && before <= attack.damage, known = blow.get(b[0]);
+      if (!known || !known.killing) blow.set(b[0], { by: from, killing });
+    }
+    for (const id of d.r || []) {
+      const e = s.entities.get(id), seat = e ? seatOf(e[1]) : -1;
+      if (seat < 0 || !TYPES[e[2]].endsWith("_UNIT")) continue;
+      sum.lost[seat]++;
+      const by = blow.has(id) ? blow.get(id).by : -1;
+      if (by >= 0) sum.kills[by]++;
+    }
+  }
+  function statsPush() {                       // the values after a tick (and at the first one), from the newest state
+    const s = G.live, per = counts(s);
+    for (const p of s.players.values()) {
+      const k = seatOf(p[0]);
+      if (k < 0) continue;
+      const c = per[p[0]] || { used: 0, provided: 0, b: 0, m: 0, r: 0 };
+      const now = { score: p[2], resource: p[3], pop: c.used, cap: c.provided, builders: c.b, melee: c.m,
+        ranged: c.r, mined: G.sum.mined[k], dealt: G.sum.dealt[k], taken: G.sum.taken[k], kills: G.sum.kills[k],
+        lost: G.sum.lost[k] };
+      for (const id of STATS) {
+        G.stats[id][k].push(now[id]);
+        if (now[id] > G.top[id]) G.top[id] = now[id];
+      }
+    }
+  }
+
+  const plot = $("chartPlot"), cv = $("chart"), cx = cv.getContext("2d");
+  function chartSize() {                       // the canvas as big as its place, sharp on any screen
+    const r = plot.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    chart.w = Math.round(r.width); chart.h = Math.round(r.height);
+    cv.width = Math.max(1, Math.round(chart.w * dpr)); cv.height = Math.max(1, Math.round(chart.h * dpr));
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawChart();
+  }
+  function roundSteps(top, most) {             // from 0 to a round number over `top`, in at most `most` round steps
+    const raw = Math.max(top, 1) / most, p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * p).find((v) => v >= raw && Number.isInteger(v)) || 1;
+    return { step, max: Math.max(1, Math.ceil(top / step)) * step };
+  }
+  const compact = (v) => v >= 1e6 ? `${+(v / 1e6).toFixed(2)}M` : v >= 1000 ? `${+(v / 1000).toFixed(1)}K` : String(v);
+
+  function drawChart() {
+    chartDirty = false;
+    const w = chart.w, h = chart.h;
+    cx.clearRect(0, 0, w, h);
+    if (!G || !G.stats || chart.mode === "off" || w < 60 || h < 50) return;
+    const def = CHARTS[chart.at], rows = G.stats[def.id], limit = def.limit ? G.stats[def.limit] : null;
+    const big = chart.mode === "big", seats = G.seats.map((x, k) => k).filter((k) => rows[k].length).reverse();
+    // the ticks so far across the width (a game's first ticks are not stretched over all of it), the values from 0 to
+    // a round number over the highest so far
+    const first = G.first, last = Math.max(G.newest, first + 50);
+    const ys = roundSteps(Math.max(G.top[def.id], limit ? G.top[def.limit] : 0), big ? 5 : 4);
+    const text = ys.max >= 10000 ? compact : String;
+    cx.font = `${big ? 11 : 10}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+    let x0 = 0;
+    for (let v = 0; v <= ys.max; v += ys.step) x0 = Math.max(x0, cx.measureText(text(v)).width);
+    x0 = Math.ceil(x0) + 7;
+    const y0 = 7, pw = w - x0 - 8, ph = h - y0 - 17;
+    const X = (t) => x0 + (t - first) / (last - first) * pw, Y = (v) => y0 + ph - v / ys.max * ph;
+    Object.assign(chart, { x0, pw, first, last });
+
+    cx.lineWidth = 1; cx.fillStyle = MUTED; cx.textBaseline = "middle"; cx.textAlign = "right";
+    for (let v = 0; v <= ys.max; v += ys.step) {           // hairlines at the round values
+      const y = Math.round(Y(v)) + 0.5;
+      cx.strokeStyle = v ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.2)";
+      cx.beginPath(); cx.moveTo(x0, y); cx.lineTo(x0 + pw, y); cx.stroke();
+      cx.fillText(text(v), x0 - 6, y);
+    }
+    const most = Math.max(2, Math.floor(pw / 56));         // the ticks along the bottom, at round ones
+    const every = [10, 20, 50, 100, 200, 250, 500, 1000, 2000, 5000].find((v) => (last - first) / v <= most) || 10000;
+    cx.textBaseline = "alphabetic"; cx.textAlign = "center"; cx.strokeStyle = "rgba(255,255,255,0.2)";
+    cx.beginPath();
+    for (let t = Math.ceil(first / every) * every; t <= last; t += every) {
+      const x = X(t), half = cx.measureText(String(t)).width / 2;
+      cx.moveTo(Math.round(x) + 0.5, y0 + ph); cx.lineTo(Math.round(x) + 0.5, y0 + ph + 4);
+      cx.fillText(String(t), Math.min(Math.max(x, half), w - half), h - 2);
+    }
+    cx.stroke();
+
+    // the lines: up to the tick shown as they are, what comes after it fainter (a replay, a look back in a game)
+    const at = view.tick - first, n = G.newest - first, xc = X(view.tick);
+    const path = (vals) => {
+      cx.beginPath(); cx.moveTo(X(first), Y(vals[0]));
+      for (let i = 1; i <= n; i++) cx.lineTo(X(first + i), Y(vals[i]));
+    };
+    const stroke = (vals, alpha) => {
+      if (at < n) { cx.globalAlpha = alpha * 0.3; path(vals); cx.stroke(); }
+      cx.save();
+      cx.beginPath(); cx.rect(0, 0, xc + 1, h); cx.clip();
+      cx.globalAlpha = alpha; path(vals); cx.stroke();
+      cx.restore();
+      cx.globalAlpha = 1;
+    };
+    cx.lineJoin = "round"; cx.lineCap = "round";
+    if (limit) {
+      cx.lineWidth = 1; cx.setLineDash([3, 3]);
+      for (const k of seats) { cx.strokeStyle = COLORS[k % 4]; stroke(limit[k], 0.6); }
+      cx.setLineDash([]);
+    }
+    cx.lineWidth = big ? 2 : 1.5;
+    for (const k of seats) { cx.strokeStyle = COLORS[k % 4]; stroke(rows[k], 1); }       // the first seat's on top
+
+    // the tick shown: a line and a dot on every player's line; the tick under the pointer: a hairline and rings
+    const mark = (t, x, r, ring) => {
+      for (const k of seats) {
+        const y = Y(rows[k][t - first]);
+        cx.fillStyle = PANEL; cx.beginPath(); cx.arc(x, y, r + (ring ? 0 : 1.5), 0, Math.PI * 2); cx.fill();
+        if (ring) { cx.lineWidth = 1.5; cx.strokeStyle = COLORS[k % 4]; cx.stroke(); continue; }
+        cx.fillStyle = COLORS[k % 4]; cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill();
+      }
+    };
+    const rule = (x, style) => {
+      cx.lineWidth = 1; cx.strokeStyle = style;
+      cx.beginPath(); cx.moveTo(Math.round(x) + 0.5, y0 - 4); cx.lineTo(Math.round(x) + 0.5, y0 + ph); cx.stroke();
+    };
+    const hover = chart.hover != null && chart.hover <= G.newest && chart.hover !== view.tick ? chart.hover : null;
+    if (hover != null) rule(X(hover), "rgba(255,255,255,0.25)");
+    rule(xc, "rgba(255,255,255,0.55)");
+    if (hover != null) mark(hover, X(hover), 3, true);
+    mark(view.tick, xc, big ? 4 : 3, false);
+
+    // the values at that tick (the pointer's, when it is on the chart), a player after another
+    const t = hover != null ? hover : view.tick;
+    $("chartTick").textContent = hover != null ? `at tick ${t}` : "";
+    chart.vals.forEach((node, k) => {
+      const v = rows[k][t - first];
+      node.textContent = v == null ? "" : limit ? `${v}/${limit[k][t - first]}` : String(v);
+    });
+  }
+
+  function chartSeats() {                      // the players of the values row: a key in the seat's colour, its value
+    const box = $("chartVals");
+    box.textContent = "";
+    chart.vals = G.seats.map((seat, k) => {
+      const item = document.createElement("span"), key = document.createElement("i");
+      const who = document.createElement("span"), value = document.createElement("b");
+      item.className = "cv"; item.title = seat.label;
+      key.style.background = COLORS[k % 4];
+      who.className = "who"; who.textContent = seat.label;
+      item.append(key, who, value);
+      box.appendChild(item);
+      return value;
+    });
+    chart.hover = null;
+    $("charts").hidden = false;
+    chartSize();
+  }
+  function chartHead() {
+    const def = CHARTS[chart.at];
+    $("chartName").textContent = chart.mode === "off" ? "Charts" : def.name;
+    $("chartNote").textContent = def.tip;
+  }
+  function showChart(i) {
+    chart.at = i;
+    [...$("chartTabs").children].forEach((b, k) => b.setAttribute("aria-selected", k === i ? "true" : "false"));
+    chartHead();
+    chartDirty = true;
+  }
+  const icon = (d) => `<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" ` +
+    `stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  const BIGGER = icon("M7 1h4v4M5 11H1V7M11 1 7 5M1 11l4-4"), SMALLER = icon("M11 5H7V1M1 7h4v4M7 5l4-4M5 7l-4 4");
+  function setCharts(mode) {
+    chart.mode = mode; chart.hover = null;
+    for (const m of ["off", "small", "big"]) document.body.classList.toggle("charts-" + m, m === mode);
+    $("chartHide").textContent = mode === "off" ? "+" : "–";
+    const size = $("chartSize");
+    size.innerHTML = mode === "big" ? SMALLER : BIGGER;
+    size.title = mode === "big" ? "the chart small again, in the corner (C, Esc)" :
+      "the chart bigger, in a strip of its own under the map (C)";
+    size.setAttribute("aria-label", mode === "big" ? "smaller chart" : "bigger chart");
+    chartHead();
+    resize(); refit();                         // the map has the room the strip leaves
+    chartSize();
+  }
+  CHARTS.forEach((def, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.setAttribute("role", "tab"); b.title = `${def.name}: ${def.tip}`;
+    b.innerHTML = `<span class="short">${def.tab}</span><span class="long">${def.name}</span>`;
+    b.onclick = () => { showChart(i); prefs.chart = def.id; save(); };
+    $("chartTabs").appendChild(b);
+  });
+  new ResizeObserver(chartSize).observe(plot);
+
+  // The pointer on the chart: the values of the tick under it; a click makes the small chart big, and in the big one
+  // a click or a drag goes to that tick, as the slider does.
+  const tickAt = (e) => {
+    const r = plot.getBoundingClientRect();
+    const t = chart.first + Math.round((e.clientX - r.left - chart.x0) / chart.pw * (chart.last - chart.first));
+    return Math.max(G.first, Math.min(G.newest, t));
+  };
+  let scrub = false;
+  plot.addEventListener("pointerdown", (e) => {
+    if (!G || e.button !== 0 || chart.mode !== "big") return;
+    e.preventDefault();
+    scrub = true;
+    seek(tickAt(e));
+    try { plot.setPointerCapture(e.pointerId); } catch (err) { /* the drag ends at the chart's edge then */ }
+  });
+  plot.addEventListener("pointermove", (e) => {
+    if (!G) return;
+    chart.hover = tickAt(e); chartDirty = true;
+    if (scrub) seek(chart.hover);
+  });
+  for (const type of ["pointerup", "pointercancel"]) plot.addEventListener(type, () => { scrub = false; });
+  plot.addEventListener("pointerleave", () => { chart.hover = null; chartDirty = true; });
+  plot.addEventListener("click", () => { if (G && chart.mode === "small") setCharts("big"); });
+  $("chartSize").onclick = () => setCharts(chart.mode === "big" ? "small" : "big");
+  $("chartHide").onclick = () => {
+    setCharts(chart.mode === "off" ? "small" : "off");
+    prefs.charts = chart.mode !== "off"; save();
+  };
+
   // Config screen ------------------------------------------------------------------------------------------------
   let cfgBase = null;
   function onConfig(d) {
     G = null; cache = null; dirty = true;
+    $("charts").hidden = true;
     $("restart").hidden = true; $("sameSeed").parentElement.hidden = true; $("limitsBox").hidden = true;
     $("autoRestart").parentElement.hidden = true;
     banner(null);
@@ -1079,7 +1433,11 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     else if (e.code === "ArrowLeft") { e.preventDefault(); step(e.shiftKey ? -10 : -1); }
     else if (e.code === "ArrowRight") { e.preventDefault(); step(e.shiftKey ? 10 : 1); }
     else if (e.code === "Home") fit();
-    else if (e.code === "Escape") { $("help").hidden = true; }
+    else if (e.code === "KeyC") { if (G) setCharts(chart.mode === "big" ? "small" : "big"); }
+    else if (e.code === "Escape") {
+      if (!$("help").hidden) $("help").hidden = true;
+      else if (chart.mode === "big") setCharts("small");
+    }
   });
   document.addEventListener("keyup", (e) => {
     const name = keyName(e.code);
@@ -1104,6 +1462,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     if (drag && !drag.click) {
       cam.x = drag.cx - (e.clientX - drag.x) / cam.scale;
       cam.y = drag.cy + (e.clientY - drag.y) / cam.scale;
+      cam.auto = false;
     }
     if (G) {
       const cx = Math.floor(wx(mouse.x)), cy = Math.floor(wy(mouse.y));
@@ -1120,7 +1479,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     const before = [wx(px), wy(py)];
     cam.scale = Math.max(1.5, Math.min(120, cam.scale * factor));
     cam.x += before[0] - wx(px); cam.y += before[1] - wy(py);
-    dirty = true; input();
+    cam.auto = false; dirty = true; input();
   }
   let wheelHint = false;
   canvas.addEventListener("wheel", (e) => {
@@ -1161,7 +1520,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
       if (!touch.tap) {
         cam.x = touch.cx - (x - touch.x) / cam.scale;
         cam.y = touch.cy + (y - touch.y) / cam.scale;
-        dirty = true;
+        cam.auto = false; dirty = true;
       }
     }
   }, { passive: false });
@@ -1184,6 +1543,8 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     }
     view.selected = found;
     renderSide(); dirty = true;
+    // a panel too short for all it holds (a small window, the charts under it): what was clicked shows, at its end
+    if (found != null) $("side").scrollTop = $("side").scrollHeight;
   }
 
   function restart() {
@@ -1197,11 +1558,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
   async function saveState() { if (G) toast((await post("/save-state", { tick: view.tick })).message); }
 
   $("play").onclick = () => G && setPlaying(!view.playing);
-  $("slider").oninput = (e) => {
-    if (!G) return;
-    if (view.playing) setPlaying(false);
-    goTo(+e.target.value); control();
-  };
+  $("slider").oninput = (e) => { if (G) seek(+e.target.value); };
   $("speed").onchange = (e) => { view.speed = +e.target.value; prefs.speed = view.speed; save(); control(); };
   $("limits").onchange = (e) => post("/control", { limits: e.target.value });
   $("restart").onclick = restart;
@@ -1221,13 +1578,16 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     $("side").classList.toggle("hidden", !prefs.side);
     $("hide").textContent = prefs.side ? "–" : "+";
   }
-  $("hide").onclick = () => { prefs.side = !prefs.side; save(); showSide(); };
+  $("hide").onclick = () => { prefs.side = !prefs.side; save(); showSide(); refit(); };
   for (const [id, key] of [["optAttacks", "attacks"], ["optMoves", "moves"], ["optGrid", "grid"]]) {
     $(id).checked = prefs[key];
     $(id).onchange = (e) => { prefs[key] = e.target.checked; save(); dirty = true; };
   }
-  if (SITE && window.innerWidth < 700) prefs.side = false;        // a phone: the map first (not saved)
+  const phone = SITE && window.innerWidth < 700;                  // a phone: the map first (not saved)
+  if (phone) prefs.side = false;
   showSide();
+  showChart(Math.max(0, CHARTS.findIndex((def) => def.id === prefs.chart)));
+  setCharts(prefs.charts && !phone ? "small" : "off");
   view.speed = prefs.speed;
   $("speed").value = String(prefs.speed);
   window.addEventListener("resize", resize);

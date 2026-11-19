@@ -1,5 +1,10 @@
 """The replay decoder, checked against a tiny replay produced by an encoder of the same format."""
+import json
+import re
+import shutil
 import struct
+import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -151,6 +156,70 @@ def test_timeline_samples_counts_and_who_destroyed_what():
     assert tl["events"] == [
         {"tick": 2, "event": "base_destroyed", "slot": 1, "base": "BUILDER_BASE", "by": 0},
         {"tick": 3, "event": "eliminated", "slot": 1, "by": 0}]
+
+
+VIEWER = Path(__file__).resolve().parents[2] / "sim-cpp" / "viewer" / "viewer.html"
+# The viewer's own counting, driven as its page drives it: before a tick's changes, then after them.
+CHARTS_JS = """
+const d = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
+const G = { props: d.properties, seats: d.players.map(() => ({})), seatOf: {},
+  live: { players: new Map(), entities: new Map(), actions: new Map(), events: [] } };
+%s
+d.players.forEach((p) => { G.live.players.set(p[0], p.slice()); G.seatOf[p[0]] = p[1]; });
+d.entities.forEach((e) => G.live.entities.set(e[0], e.slice()));
+statsStart();
+for (const t of d.ticks) { statsEvents(t); applyTick(G.live, t); statsPush(); }
+console.log(JSON.stringify(G.stats));
+"""
+
+
+def viewer_code(*names) -> str:
+    """Functions and constants of the viewer's page, cut out of it by name: each starts at the page's two spaces
+    of indent, a function ends at the first line that closes it there, a list at its `];`."""
+    page = VIEWER.read_text(encoding="utf-8")
+    parts = []
+    for name in names:
+        m = (re.search(rf"^  function {name}\(.*?^  }}$", page, re.M | re.S)
+             or re.search(rf"^  const {name} = \(.*?^  }};$", page, re.M | re.S)
+             or re.search(rf"^  const {name} = \[.*?\];$", page, re.M | re.S))
+        assert m, f"the viewer has no {name} any more"
+        parts.append(m.group(0))
+    return "\n".join(parts)
+
+
+def test_the_viewers_charts_count_a_game_as_the_timeline_does(tmp_path):
+    """The charts of the viewer (sim-cpp/viewer/viewer.html: the runner's page, and the game pages') are counted in
+    the page from replay.json's ticks. Its code, run here by node on the battle above: a value per seat and tick;
+    damage is the health a hit took (the house had 3 left for a hit of 5); units killed and lost are the timeline's,
+    the buildings left out."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed: nothing to run the viewer's code with")
+    rep = R.parse(make_battle_replay())
+    (tmp_path / "replay.json").write_text(json.dumps(R.to_json(rep)))
+    (tmp_path / "charts.js").write_text(CHARTS_JS % viewer_code(
+        "TYPES", "applyTick", "counts", "STATS", "seatOf", "statsStart", "statsEvents", "statsPush"))
+    out = subprocess.run([node, str(tmp_path / "charts.js"), str(tmp_path / "replay.json")], capture_output=True,
+                         text=True, timeout=60)
+    assert out.returncode == 0, out.stderr
+    stats = json.loads(out.stdout)
+    assert all(len(values) == 26 for rows in stats.values() for values in rows)        # ticks 0..25, two seats
+    first5 = {name: [rows[0][:5], rows[1][:5]] for name, rows in stats.items()}
+    assert first5["score"] == [[0, 0, 5000, 5600, 5600], [0] * 5]
+    assert first5["pop"] == [[1, 1, 2, 2, 2], [1, 1, 1, 0, 0]]
+    assert first5["cap"] == [[5] * 5, [5, 5, 0, 0, 0]]              # the unfinished house provides nothing
+    assert first5["builders"] == [[0] * 5, [1, 1, 1, 0, 0]] and first5["melee"] == [[1, 1, 2, 2, 2], [0] * 5]
+    assert first5["dealt"] == [[0, 5, 10, 18, 18], [0] * 5]         # the base 5 + 5, the builder 5, the house 3
+    assert first5["taken"] == [[0] * 5, [0, 5, 10, 18, 18]]
+    assert first5["kills"] == [[0, 0, 0, 1, 1], [0] * 5]            # the builder; the base and the house are buildings
+    assert first5["lost"] == [[0] * 5, [0, 0, 0, 1, 1]]
+    assert first5["mined"] == [[0] * 5, [0] * 5] and first5["resource"] == [[0] * 5, [0] * 5]
+    units, killed, lost = {"BUILDER_UNIT", "MELEE_UNIT", "RANGED_UNIT"}, [0, 0], [0, 0]
+    for sample in R.timeline(rep, 10)["samples"]:
+        for row in sample["seats"]:
+            killed[row["slot"]] += sum(n for name, n in row.get("killed", {}).items() if name in units)
+            lost[row["slot"]] += sum(n for name, n in row.get("lost", {}).items() if name in units)
+    assert [rows[-1] for rows in stats["kills"]] == killed and [rows[-1] for rows in stats["lost"]] == lost
 
 
 def test_decode_roundtrip():
