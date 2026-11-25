@@ -2,6 +2,7 @@
 leases, the GPU queue, the replays the hub lets go and fetches back, the banner of an offline game server."""
 import json
 import lzma
+import re
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -104,6 +105,7 @@ def test_an_executor_plays_a_queued_game_and_its_files_reach_the_site(tmp_path):
     (gdir / "replay.dat").write_bytes(make_battle_replay())
     (gdir / "engine.log").write_text("engine ok")
     (gdir / "player-0.log").write_text("my output")
+    (gdir / "timing.json").write_text('{"first_tick":0,"limit_ms":[1000,null],"ms":[[2.5],null]}')
     remote.upload_results(hub, gid, gdir)
     assert not (gdir / "replay.dat").exists() and (gdir / "replay.dat.xz").is_file()     # kept, compressed
     rows = rdb.finish_game(gid, "finished", None, 3.0, 7, seats(), {"initial": 1}, [2, 0], rated=False)
@@ -111,20 +113,39 @@ def test_an_executor_plays_a_queued_game_and_its_files_reach_the_site(tmp_path):
     (gdir / "meta.json").write_text("{}")
     remote.upload_final(hub, gid, gdir)
     sdir = cfg.games_dir / f"{gid:06d}"
-    assert sorted(p.name for p in sdir.iterdir()) == ["engine.log", "meta.json", "player-0.log", "replay.dat.xz"]
+    assert sorted(p.name for p in sdir.iterdir()) == ["engine.log", "meta.json", "player-0.log", "replay.dat.xz",
+                                                      "timing.json"]
     rep = client.get(f"/games/{gid}/replay.json")
     assert rep.status_code == 200 and rep.json()["ticks"][0]["t"] == 1
     page = client.get(f"/games/{gid}").text
     assert f'/games/{gid}/files/replay.dat"' in page and "replay.dat.xz" not in page
     raw = client.get(f"/games/{gid}/files/replay.dat")
     assert raw.status_code == 200 and raw.content == make_battle_replay()
-    assert client.get(f"/games/{gid}/viewer").status_code == 200
+    viewer = client.get(f"/games/{gid}/viewer")
+    assert viewer.status_code == 200 and f'"timing":"/games/{gid}/files/timing.json"' in viewer.text
     # a game file is only the game's executor's to write, and only the files a game has
     other, _ = executor(cfg, client, "gpu-box")
     with pytest.raises(remote.HubError, match="409"):
         other.put_game_file(gid, "engine.log", b"x")
     with pytest.raises(remote.HubError, match="400"):
         hub.put_game_file(gid, "codecraft.db", b"x")
+
+
+def test_a_hub_that_does_not_know_timing_json_still_gets_the_game(tmp_path, monkeypatch):
+    """Executors may be updated before the hub: a hub that refuses timing.json (older than it) gets the rest."""
+    import codecraft.hub as hub_module
+    cfg, db, client = make(tmp_path)
+    hub, rdb = executor(cfg, client)
+    gid = custom_game(db)
+    assert rdb.claim_game(gid)
+    monkeypatch.setattr(hub_module, "GAME_FILE_RE", re.compile(r"^(engine\.log|replay\.dat\.xz)$"))
+    gdir = tmp_path / "node-games" / f"{gid:06d}"
+    gdir.mkdir(parents=True)
+    (gdir / "engine.log").write_text("engine ok")
+    (gdir / "timing.json").write_text("{}")
+    (gdir / "replay.dat").write_bytes(b"replay")
+    remote.upload_results(hub, gid, gdir)
+    assert sorted(p.name for p in (cfg.games_dir / f"{gid:06d}").iterdir()) == ["engine.log", "replay.dat.xz"]
 
 
 def test_a_result_from_an_executor_that_lost_the_game_is_refused(tmp_path):

@@ -104,12 +104,14 @@ public:
     void set_limit(std::optional<double> seconds) { limit_ = seconds; }
     double answer_seconds() const { return answer_seconds_; }
     bool limit_hit() const { return limit_hit_; }
+    bool asked() const { return asked_; }          // the last get_action sent its view (answer_seconds is its own)
+    std::optional<double> timeout() const { return timeout_; }
 
 private:
     std::optional<double> limit_;
     std::chrono::steady_clock::time_point deadline_;
     double answer_seconds_ = 0;
-    bool limit_hit_ = false;
+    bool limit_hit_ = false, asked_ = false;
     std::string host_;
     std::optional<std::string> token_;
     int port_;

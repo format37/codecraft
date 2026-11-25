@@ -3,6 +3,7 @@
 #pragma once
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -37,17 +38,28 @@ struct Game {
     std::vector<std::unique_ptr<Seat>> seats;
 };
 
+// What the TCP seats' answers took, tick by tick (--save-timing; the server keeps it for the game's page): from the
+// view sent to the orders back, debug messages included, as the runner's viewer shows it live.
+struct AnswerTimes {
+    int first_tick = 0;
+    std::vector<std::vector<std::optional<double>>> seconds;    // [seat][tick - first_tick]; none: not asked
+    void record(size_t seat, int tick, double s);
+    // {"first_tick": T, "limit_ms": [the config's timeout per seat, or null], "ms": [per seat: [per tick from T,
+    // null when not asked], or null for a seat that is not TCP]}
+    std::string json(const std::vector<std::unique_ptr<Seat>>& seats) const;
+};
+
 // throws on a bad config (std::exception); TCP seats still have to be connected before play()
 Game setup(const Json& config, Log& log, const std::string& default_host = "127.0.0.1",
            const SeatMaker* extra = nullptr);
 void play(Model& m, std::vector<std::unique_ptr<Seat>>& seats, PyRandom& rng, ReplayWriter* replay, Log& log,
-          bool rules_2020, TickObserver* observer = nullptr);
+          bool rules_2020, TickObserver* observer = nullptr, AnswerTimes* answers = nullptr);
 Json results(const Model& m, const std::vector<std::unique_ptr<Seat>>& seats, uint64_t seed);
 
 constexpr int PANIC = 101;
 // `rules_2020`: the 2020 rules exactly; by default the arena's (rules.hpp, FogMemory).
 int run(const Json& config, const std::string& save_results, const std::string& save_replay, Log& log,
-        bool rules_2020 = false);
+        bool rules_2020 = false, const std::string& save_timing = "");
 
 struct LiveOptions {
     std::string bind = "127.0.0.1";    // --bind: where the viewer and the TCP seats without a host listen

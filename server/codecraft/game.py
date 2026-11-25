@@ -355,7 +355,8 @@ class GameRunner:
     def _start_engine(self, name: str, seats: list[Seat], config: dict, names: list[str], image: str):
         eng = self.cfg["engine"]
         command = ["--config", "/game/config.json", "--batch-mode", "--save-results", "/game/results.json",
-                   "--save-replay", "/game/replay.dat", "--log-level", "info", "--player-names", *names]
+                   "--save-replay", "/game/replay.dat", "--save-timing", "/game/timing.json",
+                   "--log-level", "info", "--player-names", *names]
         kwargs: dict = dict(
             command=command, name=f"{name}-engine", working_dir="/game",
             mem_limit=f"{eng['memory_mb']}m", nano_cpus=int(float(eng["cpus"]) * 1e9), pids_limit=256,
@@ -432,7 +433,7 @@ class GameRunner:
         return container
 
     def _collect(self, engine, seats: list[Seat], gdir: Path) -> None:
-        for fname in ("results.json", "replay.dat"):
+        for fname in ("results.json", "replay.dat", "timing.json"):
             data = _read_file_from_container(engine, f"/game/{fname}")
             if data is not None:
                 (gdir / fname).write_bytes(data)

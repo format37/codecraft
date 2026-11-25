@@ -133,12 +133,58 @@ void take_orders(Model& m, int32_t player_id, int seat, const Action& actions, L
 
 }  // namespace
 
+void AnswerTimes::record(size_t seat, int tick, double s) {
+    if (seconds.size() <= seat) seconds.resize(seat + 1);
+    auto& row = seconds[seat];
+    size_t i = static_cast<size_t>(tick - first_tick);
+    if (row.size() <= i) row.resize(i + 1);
+    row[i] = s;
+}
+
+std::string AnswerTimes::json(const std::vector<std::unique_ptr<Seat>>& seats) const {
+    Out o;
+    o.raw('{').key("first_tick").num(first_tick).key("limit_ms").raw('[');
+    for (const auto& s : seats) {
+        o.sep();
+        auto* t = dynamic_cast<const TcpPlayer*>(s.get());
+        if (t && t->timeout()) o.flt(*t->timeout() * 1000);
+        else o.raw("null");
+    }
+    o.raw(']').key("ms").raw('[');
+    for (size_t k = 0; k < seats.size(); k++) {
+        o.sep();
+        if (!dynamic_cast<const TcpPlayer*>(seats[k].get())) {
+            o.raw("null");
+            continue;
+        }
+        o.raw('[');
+        if (k < seconds.size())
+            for (const auto& v : seconds[k]) {
+                o.sep();
+                if (v) o.flt(std::round(*v * 10000) / 10);       // ms, to a tenth
+                else o.raw("null");
+            }
+        o.raw(']');
+    }
+    o.raw("]}\n");
+    return o.s;
+}
+
 void play(Model& m, std::vector<std::unique_ptr<Seat>>& seats, PyRandom& rng, ReplayWriter* replay, Log& log,
-          bool rules_2020, TickObserver* observer) {
+          bool rules_2020, TickObserver* observer, AnswerTimes* answers) {
     std::map<int, int32_t> by_seat;
     for (const auto& kv : m.players) by_seat[kv.second.index] = kv.first;
     FogMemory memory;
     if (observer) observer->start(m);
+    if (answers) {
+        answers->first_tick = m.current_tick;
+        answers->seconds.assign(seats.size(), {});
+    }
+    // what a TCP seat's answer took, when it was asked (its view sent): the wait until a failure too
+    auto took = [&](size_t seat, const Seat& s) {
+        auto* t = dynamic_cast<const TcpPlayer*>(&s);
+        if (answers && t && t->asked()) answers->record(seat, m.current_tick, t->answer_seconds());
+    };
     while (!game_over(m)) {
         SightMaps seen;
         if (m.fog_of_war)
@@ -152,9 +198,11 @@ void play(Model& m, std::vector<std::unique_ptr<Seat>>& seats, PyRandom& rng, Re
             try {
                 actions = s.get_action(player_view(m, pid, it == seen.end() ? nullptr : &it->second));
             } catch (const IoError& e) {
+                took(seat, s);
                 s.crash(e.what(), log);
                 continue;
             }
+            took(seat, s);
             take_orders(m, pid, static_cast<int>(seat), actions, log);
         }
         std::vector<Event> events =
@@ -201,7 +249,7 @@ Game setup(const Json& config, Log& log, const std::string& default_host, const 
 }
 
 int run(const Json& config, const std::string& save_results, const std::string& save_replay, Log& log,
-        bool rules_2020) {
+        bool rules_2020, const std::string& save_timing) {
     Game g;
     try {
         g = setup(config, log);
@@ -221,13 +269,16 @@ int run(const Json& config, const std::string& save_results, const std::string& 
     }
     bool over_at_start = game_over(model) && model.current_tick < model.max_tick_count;
     std::unique_ptr<ReplayWriter> replay;
+    AnswerTimes answers;
+    answers.first_tick = model.current_tick;
     int code = 0;
     try {
         if (!save_replay.empty()) {
             replay = std::make_unique<ReplayWriter>(save_replay);
             replay->start(model);
         }
-        if (!game_over(model)) play(model, seats, *rng, replay.get(), log, rules_2020);
+        if (!game_over(model))
+            play(model, seats, *rng, replay.get(), log, rules_2020, nullptr, save_timing.empty() ? nullptr : &answers);
     } catch (const std::exception& e) {
         log.error(std::string("panicked at '") + e.what() + "'");
         code = PANIC;
@@ -239,6 +290,10 @@ int run(const Json& config, const std::string& save_results, const std::string& 
     if (!save_results.empty() && !over_at_start) {
         std::ofstream f(save_results, std::ios::binary);
         f << dump_json(results(model, seats, seed), 2);
+    }
+    if (!save_timing.empty()) {
+        std::ofstream f(save_timing, std::ios::binary);
+        f << answers.json(seats);
     }
     return 0;
 }

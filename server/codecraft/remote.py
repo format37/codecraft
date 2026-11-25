@@ -119,6 +119,8 @@ class RemoteDB:
 # executor keeps it that way too, once the hub has it.
 RESULT_FILES = ("config.json", "results.json", "engine.log")
 FINAL_FILES = ("meta.json", "preview.png")
+# what each strategy's answers took (the page's chart): a hub older than it refuses it, and the game goes on without
+EXTRA_FILES = ("timing.json",)
 
 
 def compress_replay(gdir: Path) -> Path | None:
@@ -137,6 +139,12 @@ def upload_results(hub: Hub, game_id: int, gdir: Path) -> None:
     for name in RESULT_FILES + tuple(sorted(p.name for p in gdir.glob("player-*.log"))):
         if (gdir / name).is_file():
             hub.put_game_file(game_id, name, (gdir / name).read_bytes())
+    for name in EXTRA_FILES:
+        if (gdir / name).is_file():
+            try:
+                hub.put_game_file(game_id, name, (gdir / name).read_bytes())
+            except HubError as exc:
+                log.warning("game %d: %s not sent: %s", game_id, name, exc)
     xz = compress_replay(gdir)
     if xz is not None:
         hub.put_game_file(game_id, xz.name, xz.read_bytes())

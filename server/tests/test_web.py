@@ -167,8 +167,14 @@ def test_a_replay_plays_in_the_local_runners_viewer(tmp_path):
     assert "<" not in data and json.loads(data) == {
         "game": gid, "page": f"/games/{gid}", "replay": f"/games/{gid}/replay.json",
         "download": f"/games/{gid}/files/replay.dat", "labels": ["</script><b>bot", "quickstart"], "seed": "7",
-        "engine": "codecraft/sim-cpp:0123456789ab", "autoplay": True, "speed": 20}
+        "engine": "codecraft/sim-cpp:0123456789ab", "autoplay": True, "speed": 20, "timing": None}
     assert "Engine version <code>0123456789ab</code>" in page
+    # what the strategies' answers took (the engine's --save-timing), for the chart Time, when the game has it
+    timing = {"first_tick": 0, "limit_ms": [1000, None], "ms": [[2.5, 3], None]}
+    (gdir / "timing.json").write_text(json.dumps(timing))
+    site = json.loads(client.get(f"/games/{gid}/viewer").text.split('type="application/json">')[1]
+                      .split("</script>")[0])
+    assert site["timing"] == f"/games/{gid}/files/timing.json" and client.get(site["timing"]).json() == timing
     assert json.loads(client.get(f"/games/{gid}/viewer?speed=7").text.split('type="application/json">')[1]
                       .split("</script>")[0])["speed"] is None                      # not one of the viewer's speeds
 

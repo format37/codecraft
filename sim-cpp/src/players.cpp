@@ -202,7 +202,9 @@ void TcpPlayer::send_debug_state() {
 Action TcpPlayer::get_action(const PlayerView& view) {
     Writer w;
     write_get_action(w, view, debug_ != nullptr);
+    asked_ = false;
     send_all(w.buf);
+    asked_ = true;
     using clock = std::chrono::steady_clock;
     auto started = clock::now();
     limit_hit_ = false;

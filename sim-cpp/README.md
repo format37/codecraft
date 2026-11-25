@@ -19,6 +19,7 @@ for both: a change to it shows in the runner and on the site.
 ```
 make                                   # build/codecraft-sim-cpp (g++, C++17, the standard library only)
 build/codecraft-sim-cpp --config game.json --batch-mode --save-results results.json --save-replay replay.dat
+build/codecraft-sim-cpp ... --batch-mode --save-timing timing.json   # what each TCP seat's answers took, per tick
 build/codecraft-sim-cpp --version            # the version of its source, as the server tags the engine image
 ```
 
@@ -91,13 +92,19 @@ the viewer opens; **all players** ticks or clears them all at once.
 **Charts** of the game sit in the corner under the panel, a line per player, their tabs on the right: score, resource
 in store, population (dashes: its limit), builders, melee units, ranged units, and, counted from the attacks of
 every tick, resource mined, damage dealt to the other players and taken from them (the health it took), units killed
-and lost (buildings are not counted). They follow the tick shown: a line and a dot on every player's line mark it, its
+and lost (buildings are not counted), and the **time to answer**: what each strategy took to answer each tick, from
+the view sent to its orders back (debug messages included), on a scale from 0 to the server's limit for a tick
+(dashes; each seat's own limit in its colour when an admin gave a strategy another), an answer over it running above
+them, as a breakpoint's does; the built-in bot and empty seats have no line. They follow the tick shown: a line and a dot on every player's line mark it, its
 values stand over the chart, and what comes after it (a replay, a look back in a live game) is drawn fainter. The
 pointer on the chart reads the values of the tick under it. A click on the chart, or **C**, makes it big: a strip of
 its own between the map and the bar, the map still in view above it, where a click or a drag goes to that tick as the
 slider does; **C** or **Esc** makes it small again, and **–** leaves only its head. The viewer counts them itself from
 the ticks (`statsEvents` in `viewer/viewer.html`), so they are there for a live game, a replay file and a game page
-of the server alike.
+of the server alike. The time to answer is measured by the engine instead: the runner streams it live (the
+`answers` events), and in batch mode `--save-timing FILE` writes it (`{"first_tick", "limit_ms": [per seat],
+"ms": [per seat: [per tick], or null for a seat that is not TCP]}`), which the server keeps beside a game's replay as
+`timing.json` for its page (games played before it have none). A replay file alone does not carry it.
 
 The debug interface is the official GUI's (how the official runner answers it was probed on its binary:
 `docs/private/engine-probes/step9`):

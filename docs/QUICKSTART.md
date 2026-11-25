@@ -174,8 +174,9 @@ dub run -b release                     # a D compiler (dmd or ldc) and dub
 The game plays at ten ticks a second to begin with; the panel sets the speed, up to as fast as the strategies answer.
 **P** pauses, **←/→** step a tick, the wheel zooms, **Home** fits the map, a click on an entity shows what it is and
 what it was told to do. The chart in the corner draws the game as it goes, a line per player (score, resource,
-population, builders, melee and ranged units, resource mined, damage dealt and taken, units killed and lost: its tabs);
-a click on it, or **C**, makes it big. What your strategy draws and logs while it thinks (the starter draws its planned
+population, builders, melee and ranged units, resource mined, damage dealt and taken, units killed and lost, and the
+time your strategy took to answer each tick against the server's limit for a tick: its tabs); a click on it, or **C**,
+makes it big. What your strategy draws and logs while it thinks (the starter draws its planned
 house and logs the count of its entities) appears on the tick it belongs to, history included: that is the debug
 interface, the official GUI's, yours to use. Lines your strategy prints to stderr show in its own terminal here, and in
 the game's log on the server, visible to you alone.

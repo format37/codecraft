@@ -19,7 +19,7 @@
 extern const char ENGINE_VERSION[];
 
 int main(int argc, char** argv) {
-    std::string config_path, save_results, save_replay, replay_path, log_level = "info";
+    std::string config_path, save_results, save_replay, save_timing, replay_path, log_level = "info";
     bool replay_mode = false, client_gen = false, batch = false;
     cc::LiveOptions live;
     // The image ghcr.io/format37/codecraft-runner sets CODECRAFT_RUNNER_CONTAINER=1 (sim-cpp/Dockerfile): the viewer
@@ -48,6 +48,7 @@ int main(int argc, char** argv) {
                    "  --config FILE           the game: seed, preset or state, seats (the official runner's config)\n"
                    "  --batch-mode            no viewer: play and exit (the server's way)\n"
                    "  --save-results FILE --save-replay FILE --log-level LEVEL --player-names NAME...\n"
+                   "  --save-timing FILE      batch mode: what each TCP seat's answer took, tick by tick (JSON)\n"
                    "  --rules codecraft|2020  codecraft (default): under fog of war, path searches remember the\n"
                    "                          resources and buildings their player has seen; 2020: the rules of\n"
                    "                          the 2020 engine exactly (a cell out of sight is free to a search)\n"
@@ -119,6 +120,8 @@ int main(int argc, char** argv) {
             save_results = value();
         } else if (a == "--save-replay") {
             save_replay = value();
+        } else if (a == "--save-timing") {
+            save_timing = value();
         } else if (a == "--log-level") {
             log_level = value();
         } else if (a == "--player-names") {
@@ -164,5 +167,5 @@ int main(int argc, char** argv) {
         return cc::PANIC;
     }
     if (!batch) return cc::run_live(&config, live, log);
-    return cc::run(config, save_results, save_replay, log, live.rules_2020);
+    return cc::run(config, save_results, save_replay, log, live.rules_2020, save_timing);
 }

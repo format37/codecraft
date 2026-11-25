@@ -203,6 +203,7 @@ def test_the_viewers_charts_count_a_game_as_the_timeline_does(tmp_path):
                          text=True, timeout=60)
     assert out.returncode == 0, out.stderr
     stats = json.loads(out.stdout)
+    assert stats.pop("answer") == [[], []]           # the time to answer comes from elsewhere (timing.json)
     assert all(len(values) == 26 for rows in stats.values() for values in rows)        # ticks 0..25, two seats
     first5 = {name: [rows[0][:5], rows[1][:5]] for name, rows in stats.items()}
     assert first5["score"] == [[0, 0, 5000, 5600, 5600], [0] * 5]
@@ -220,6 +221,34 @@ def test_the_viewers_charts_count_a_game_as_the_timeline_does(tmp_path):
             killed[row["slot"]] += sum(n for name, n in row.get("killed", {}).items() if name in units)
             lost[row["slot"]] += sum(n for name, n in row.get("lost", {}).items() if name in units)
     assert [rows[-1] for rows in stats["kills"]] == killed and [rows[-1] for rows in stats["lost"]] == lost
+
+
+TIMING_JS = """
+let chartDirty = false;
+const CHARTS = [{ id: "score" }], chart = { at: 0 };
+const G = { first: 0, answerLimit: 1000, stats: { answer: [[], [], []] } };
+%s
+timingIn(JSON.parse(process.argv[2]));
+console.log(JSON.stringify({ answer: G.stats.answer, limit: G.answerLimit, limits: G.answerLimits,
+  dirty: chartDirty }));
+"""
+
+
+def test_the_viewers_time_to_answer_chart_reads_the_engines_timing(tmp_path):
+    """A game page charts what each strategy's answers took from the game's timing.json (the engine's
+    --save-timing): a value at the tick answered, a hole where a seat was not asked, nothing for a seat that is not
+    a strategy; the chart's top is the highest limit of a tick, and each seat's own is drawn when they differ."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed: nothing to run the viewer's code with")
+    timing = {"first_tick": 0, "limit_ms": [2000, None, 1000], "ms": [[1.5, None, 2500], None, [0.2, 3]]}
+    (tmp_path / "timing.js").write_text(TIMING_JS % viewer_code("answersAt", "timingIn"))
+    out = subprocess.run([node, str(tmp_path / "timing.js"), json.dumps(timing)], capture_output=True, text=True,
+                         timeout=60)
+    assert out.returncode == 0, out.stderr
+    got = json.loads(out.stdout)
+    assert got == {"answer": [[1.5, None, 2500], [], [0.2, 3]], "limit": 2000, "limits": [2000, None, 1000],
+                   "dirty": True}
 
 
 def test_decode_roundtrip():

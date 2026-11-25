@@ -54,7 +54,7 @@ RPC_METHODS = {
 }
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,40}$")
 GAME_FILE_RE = re.compile(r"^(config\.json|results\.json|meta\.json|engine\.log|preview\.png|replay\.dat\.xz|"
-                          r"player-[0-3]\.log)$")
+                          r"timing\.json|player-[0-3]\.log)$")
 MAX_FILE = 64 * 2 ** 20
 JSON_CACHE_DAYS = 7          # a replay.json.gz nobody opened for this long goes (it is made again on demand)
 LOOP_SEC = 30

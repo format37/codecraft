@@ -359,6 +359,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
       properties: d.properties, players: d.players, seats, entities: d.entities, actions: d.actions });
     d.ticks.forEach(onTick);
     onOver({ replay: true });
+    loadTiming(G);
     if (SITE.speed) { view.speed = SITE.speed; $("speed").value = String(SITE.speed); }
     setPlaying(!!SITE.autoplay);
   }
@@ -446,7 +447,9 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
   }
 
   function onAnswers(d) {
-    if (!G || !G.limits) return;
+    if (!G) return;
+    answersAt(d.t, d.ms);
+    if (!G.limits) return;
     G.answers.set(d.t, d.ms);
     d.ms.forEach((ms, k) => {
       if (ms == null) return;
@@ -1044,6 +1047,8 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
   // (population, builders, melee and ranged units) and what the attacks add up to (resource mined, damage, units
   // killed and lost).
   // Counted here from the ticks as they come, a value per seat and tick, so a live game and a replay chart alike.
+  // The time to answer comes from elsewhere: the runner's "answers" events, a game page's timing.json (the engine's
+  // --save-timing); a seat that is not a strategy of its own (the built-in bot, an empty seat) has none.
   const CHARTS = [
     { id: "score", tab: "Score", name: "Score", tip: "the score" },
     { id: "resource", tab: "Resource", name: "Resource", tip: "resource in store" },
@@ -1059,6 +1064,9 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     { id: "kills", tab: "Kills", name: "Units killed",
       tip: "units of the other players killed so far (buildings are not counted)" },
     { id: "lost", tab: "Losses", name: "Units lost", tip: "own units killed so far (buildings are not counted)" },
+    { id: "answer", tab: "Time", name: "Time to answer", answers: true,
+      tip: "what each strategy took to answer a tick; the top is the server's limit for a tick (dashes), and an " +
+        "answer over it runs above them (a breakpoint does)" },
   ];
   const STATS = ["score", "resource", "pop", "cap", "builders", "melee", "ranged", "mined", "dealt", "taken", "kills",
     "lost"];
@@ -1073,7 +1081,38 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     G.sum = { mined: zeros(), dealt: zeros(), taken: zeros(), kills: zeros(), lost: zeros() };    // so far, per seat
     G.stats = {}; G.top = {};                  // per stat: a seat's values, one a tick from the first; the highest
     for (const id of STATS) { G.stats[id] = G.seats.map(() => []); G.top[id] = 0; }
+    G.stats.answer = G.seats.map(() => []);    // ms, at the tick answered; a hole where a seat was not asked
+    G.answerLimit = G.limits ? G.limits.tick * 1000 : 1000;
+    G.answerLimits = null;                     // per seat, when they differ (an admin's override for a strategy)
     statsPush();
+  }
+  function answersAt(tick, ms) {               // a tick's answers, a seat after another (null: not asked)
+    const i = tick - G.first;
+    if (i < 0) return;
+    ms.forEach((v, k) => { if (v != null && G.stats.answer[k]) G.stats.answer[k][i] = v; });
+    if (CHARTS[chart.at].answers) chartDirty = true;
+  }
+  // A game page's timing.json: {first_tick, limit_ms: [per seat], ms: [per seat: [per tick], or null]}
+  async function loadTiming(game) {
+    if (!SITE.timing) return;
+    let d;
+    try {
+      const r = await fetch(SITE.timing);
+      if (!r.ok) return;
+      d = await r.json();
+    } catch (e) { return; }
+    if (G === game) timingIn(d);               // not another game by now
+  }
+  function timingIn(d) {
+    const per = (d.limit_ms || []).map((v) => (v > 0 ? v : null)), limits = per.filter((v) => v);
+    if (limits.length) {
+      G.answerLimit = Math.max(...limits);
+      G.answerLimits = new Set(limits).size > 1 ? per : null;
+    }
+    const seats = d.ms || [];
+    const ticks = Math.max(0, ...seats.map((row) => (row ? row.length : 0)));
+    for (let i = 0; i < ticks; i++) answersAt(d.first_tick + i, seats.map((row) => (row ? row[i] : null)));
+    chartDirty = true;
   }
   // What a tick's attacks add up to, read against the state the tick started from (before its changes are applied).
   // As the engine plays them (hit in src/rules.cpp), in its order: a hit takes the attacker's damage from the
@@ -1144,18 +1183,22 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     cx.clearRect(0, 0, w, h);
     if (!G || !G.stats || chart.mode === "off" || w < 60 || h < 50) return;
     const def = CHARTS[chart.at], rows = G.stats[def.id], limit = def.limit ? G.stats[def.limit] : null;
-    const big = chart.mode === "big", seats = G.seats.map((x, k) => k).filter((k) => rows[k].length).reverse();
+    const big = chart.mode === "big";
+    const seats = G.seats.map((x, k) => k).filter((k) => rows[k].some((v) => v != null)).reverse();
     // the ticks so far across the width (a game's first ticks are not stretched over all of it), the values from 0 to
-    // a round number over the highest so far
+    // a round number over the highest so far; the time to answer from 0 to the limit for a tick, whatever came
     const first = G.first, last = Math.max(G.newest, first + 50);
-    const ys = roundSteps(Math.max(G.top[def.id], limit ? G.top[def.limit] : 0), big ? 5 : 4);
-    const text = ys.max >= 10000 ? compact : String;
+    const ys = def.answers ? roundSteps(G.answerLimit, big ? 5 : 4) :
+      roundSteps(Math.max(G.top[def.id], limit ? G.top[def.limit] : 0), big ? 5 : 4);
+    const text = def.answers ? (v) => (v >= 1000 ? `${+(v / 1000).toFixed(2)} s` : v ? `${v} ms` : "0") :
+      ys.max >= 10000 ? compact : String;
     cx.font = `${big ? 11 : 10}px system-ui, -apple-system, "Segoe UI", sans-serif`;
     let x0 = 0;
     for (let v = 0; v <= ys.max; v += ys.step) x0 = Math.max(x0, cx.measureText(text(v)).width);
     x0 = Math.ceil(x0) + 7;
     const y0 = 7, pw = w - x0 - 8, ph = h - y0 - 17;
-    const X = (t) => x0 + (t - first) / (last - first) * pw, Y = (v) => y0 + ph - v / ys.max * ph;
+    const X = (t) => x0 + (t - first) / (last - first) * pw;
+    const Y = def.answers ? (v) => Math.max(y0 - 5, y0 + ph - v / ys.max * ph) : (v) => y0 + ph - v / ys.max * ph;
     Object.assign(chart, { x0, pw, first, last });
 
     cx.lineWidth = 1; cx.fillStyle = MUTED; cx.textBaseline = "middle"; cx.textAlign = "right";
@@ -1178,9 +1221,15 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
 
     // the lines: up to the tick shown as they are, what comes after it fainter (a replay, a look back in a game)
     const at = view.tick - first, n = G.newest - first, xc = X(view.tick);
-    const path = (vals) => {
-      cx.beginPath(); cx.moveTo(X(first), Y(vals[0]));
-      for (let i = 1; i <= n; i++) cx.lineTo(X(first + i), Y(vals[i]));
+    const path = (vals) => {                   // a hole where there is no value (a seat not asked)
+      cx.beginPath();
+      let on = false;
+      for (let i = 0; i <= n; i++) {
+        const v = vals[i];
+        if (v == null) { on = false; continue; }
+        if (on) cx.lineTo(X(first + i), Y(v));
+        else { cx.moveTo(X(first + i), Y(v)); on = true; }
+      }
     };
     const stroke = (vals, alpha) => {
       if (at < n) { cx.globalAlpha = alpha * 0.3; path(vals); cx.stroke(); }
@@ -1196,12 +1245,27 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
       for (const k of seats) { cx.strokeStyle = COLORS[k % 4]; stroke(limit[k], 0.6); }
       cx.setLineDash([]);
     }
+    if (def.answers) {                         // the limit for a tick: each seat's own when they differ
+      const dash = (v, style) => {
+        const y = Math.round(Y(v)) + 0.5;
+        cx.strokeStyle = style; cx.beginPath(); cx.moveTo(x0, y); cx.lineTo(x0 + pw, y); cx.stroke();
+      };
+      cx.lineWidth = 1; cx.setLineDash([4, 3]);
+      if (!G.answerLimits) dash(G.answerLimit, "rgba(255,255,255,0.45)");
+      else for (const k of seats) if (G.answerLimits[k]) dash(G.answerLimits[k], COLORS[k % 4]);
+      cx.setLineDash([]);
+      if (!seats.length) {
+        cx.fillStyle = MUTED; cx.textAlign = "center"; cx.textBaseline = "middle";
+        cx.fillText(G.replay ? "not kept for this game" : "no strategy to time", x0 + pw / 2, y0 + ph / 2);
+      }
+    }
     cx.lineWidth = big ? 2 : 1.5;
     for (const k of seats) { cx.strokeStyle = COLORS[k % 4]; stroke(rows[k], 1); }       // the first seat's on top
 
     // the tick shown: a line and a dot on every player's line; the tick under the pointer: a hairline and rings
     const mark = (t, x, r, ring) => {
       for (const k of seats) {
+        if (rows[k][t - first] == null) continue;
         const y = Y(rows[k][t - first]);
         cx.fillStyle = PANEL; cx.beginPath(); cx.arc(x, y, r + (ring ? 0 : 1.5), 0, Math.PI * 2); cx.fill();
         if (ring) { cx.lineWidth = 1.5; cx.strokeStyle = COLORS[k % 4]; cx.stroke(); continue; }
@@ -1223,7 +1287,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     $("chartTick").textContent = hover != null ? `at tick ${t}` : "";
     chart.vals.forEach((node, k) => {
       const v = rows[k][t - first];
-      node.textContent = v == null ? "" : limit ? `${v}/${limit[k][t - first]}` : String(v);
+      node.textContent = v == null ? "" : def.answers ? (v < 10 ? `${v.toFixed(1)} ms` : dur(v)) : limit ? `${v}/${limit[k][t - first]}` : String(v);
     });
   }
 

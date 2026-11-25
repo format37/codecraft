@@ -58,11 +58,12 @@ def tcp_seat(port: int, host=None, token=None) -> dict:
 
 class Client(threading.Thread):
     """A TCP client made of the official Python client's classes: no orders; with the debug interface it runs
-    `script(client, "get_action" | "debug_update", tick)` and records what it was sent."""
+    `script(client, "get_action" | "debug_update", tick)` and records what it was sent; `delay(tick)`: seconds to
+    wait before answering a tick."""
 
-    def __init__(self, port: int, token: str = "any token at all", script=None) -> None:
+    def __init__(self, port: int, token: str = "any token at all", script=None, delay=None) -> None:
         super().__init__(daemon=True)
-        self.port, self.token, self.script = port, token, script
+        self.port, self.token, self.script, self.delay = port, token, script, delay
         self.ticks, self.debug_available, self.updates_before, self.update_ticks, self.states = [], [], [], [], []
         self.finished, self.error, self.drew = False, None, False
 
@@ -93,6 +94,8 @@ class Client(threading.Thread):
                     updates = 0
                     if m.debug_available and self.script:
                         self.script(self, "get_action", tick)
+                    if self.delay:
+                        time.sleep(self.delay(tick))
                     client.ClientMessage.ActionMessage(client.Action({})).write_to(self.wr)
                     self.wr.flush()
                 elif isinstance(m, client.ServerMessage.DebugUpdate):
@@ -350,6 +353,29 @@ def test_a_null_host_and_token_as_the_official_runner(tmp_path, engine):
     assert r.returncode == 0, r.stderr
     assert json.loads((tmp_path / "results.json").read_text())["players"][0] == {"crashed": False, "comment": None}
     assert c.finished and c.ticks == list(range(20)) and not any(c.debug_available)
+
+
+@needs_cpp
+def test_batch_mode_saves_what_each_answer_took(tmp_path):
+    """--save-timing, which the server keeps for a game's page: per TCP seat, what its answer to each tick took
+    (ms), with the config's timeout as its limit; null for a seat that is not TCP."""
+    port = free_port()
+    seat = tcp_seat(port)
+    seat["Tcp"]["timeout"] = 2
+    (tmp_path / "config.json").write_text(json.dumps(
+        {"seed": 5, "game": {"Create": custom(20)}, "players": [seat, "QuickStart"]}))
+    c = Client(port, delay=lambda tick: 0.06 if tick in (3, 7) else 0)
+    c.start()
+    r = subprocess.run([str(CPP), "--config", str(tmp_path / "config.json"), "--batch-mode", "--save-timing",
+                        str(tmp_path / "timing.json")], capture_output=True, text=True, timeout=120)
+    c.join(30)
+    assert r.returncode == 0, r.stderr
+    timing = json.loads((tmp_path / "timing.json").read_text())
+    assert timing["first_tick"] == 0 and timing["limit_ms"] == [2000, None] and timing["ms"][1] is None
+    ms = timing["ms"][0]
+    assert len(ms) == 20 and all(isinstance(v, (int, float)) for v in ms)
+    assert ms[3] >= 60 and ms[7] >= 60
+    assert sorted(ms)[10] < 30            # the others answer at once
 
 
 def streamed_states(events: list) -> list:

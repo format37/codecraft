@@ -495,7 +495,10 @@ def create_app(cfg: Config, db: DB, auth: Auth | None = None) -> FastAPI:
         site = {"game": game_id, "page": f"/games/{game_id}", "replay": f"/games/{game_id}/replay.json",
                 "download": f"/games/{game_id}/files/replay.dat", "labels": player_labels(players),
                 "seed": row["seed"] or "", "engine": engine, "autoplay": autoplay,
-                "speed": speed if speed in VIEWER_SPEEDS else None}
+                "speed": speed if speed in VIEWER_SPEEDS else None,
+                # what each strategy's answers took, tick by tick (the engine's --save-timing; older games have none)
+                "timing": f"/games/{game_id}/files/timing.json" if (game_dir(game_id) / "timing.json").is_file()
+                else None}
         # frame-ancestors makes browsers ignore X-Frame-Options, which a reverse proxy may add (the live one adds
         # DENY to every response, and DENY with SAMEORIGIN is DENY)
         return HTMLResponse(viewer_page(site, engine.rpartition(":")[2] or "unknown"),
