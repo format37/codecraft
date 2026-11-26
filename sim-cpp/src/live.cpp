@@ -140,6 +140,16 @@ bool flag(const Json& body, const char* key, bool fallback) {
     return v && v->kind == Json::Bool ? v->b : fallback;
 }
 
+// The viewer's seed box, "seed": its digits as a string (a JSON number above 2^53 would lose digits in the page),
+// or a JSON number; anything else (null, "") empties it. Absent: as it was.
+void seed_box(const Json& body, std::optional<uint64_t>& seed) {
+    const Json* v = body.get("seed");
+    if (!v) return;
+    if (v->kind == Json::String) seed = parse_u64(v->s);
+    else if ((v->kind == Json::Int && v->i >= 0) || v->kind == Json::UInt) seed = v->as_u64();
+    else seed.reset();
+}
+
 std::string message(const std::string& text) {
     Out o;
     o.raw('{').key("message").str(text).raw('}');
@@ -277,6 +287,7 @@ std::string Live::post(const std::string& path, const Json& body) {
                 control_.auto_restart = automatic->b;
             }
             control_.same_seed = flag(body, "same_seed", control_.same_seed);
+            seed_box(body, control_.seed);
             if (flag(body, "step", false)) steps_++;
             inputs_++;
             input_cv_.notify_all();
@@ -323,6 +334,7 @@ std::string Live::post(const std::string& path, const Json& body) {
     if (path == "/reset") {
         std::unique_lock<std::mutex> lock(mutex_);
         reset_ = flag(body, "same_seed", false);
+        seed_box(body, control_.seed);               // the box as it is at the click
         inputs_++;
         input_cv_.notify_all();
         if (interrupt_) {

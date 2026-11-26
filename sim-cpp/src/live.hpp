@@ -29,6 +29,7 @@ struct Control {
     bool server_limits = false; // the TCP seats are cut off past the server's limits (else only warned about)
     bool auto_restart = true;   // a strategy that goes away, or comes back after a game, restarts the game
     bool same_seed = false;     // such a restart keeps the seed (the viewer's "same seed")
+    std::optional<uint64_t> seed;  // the viewer's seed box: every restart's seed, before "same seed"
 };
 
 // What the viewer may save of the game being played: its states (Ctrl-E) and its replay so far (Ctrl-S).

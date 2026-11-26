@@ -31,6 +31,8 @@
   #tick { font-variant-numeric: tabular-nums; min-width: 118px; }
   #slider { flex: 1; min-width: 80px; accent-color: var(--accent); }
   #cell { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 92px; }
+  #seedBox { width: 11ch; font-variant-numeric: tabular-nums; }
+  #seedBox.bad { border-color: var(--bad); }
   #top { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); pointer-events: none;
     background: rgba(10, 14, 19, 0.72); border-radius: 6px; padding: 4px 12px; font-variant-numeric: tabular-nums;
     white-space: nowrap; max-width: calc(100% - 640px); overflow: hidden; }
@@ -189,6 +191,9 @@
   <span id="cell"></span>
   <button id="restart" class="runner-only"
     title="end this game and start it again; your strategy reconnects (run it again)">↻ Restart</button>
+  <label class="chk small runner-only" title="the seed of every restart, ↻ or auto: the same map and the same dice
+each time. Empty: the config's seed (--seed), else a new one each game. It wins over &quot;same seed&quot;">
+    seed <input id="seedBox" inputmode="numeric" placeholder="config's" autocomplete="off" spellcheck="false"></label>
   <label class="chk small runner-only" title="restart with this game's seed: the same map and the same dice">
     <input type="checkbox" id="sameSeed"> same seed</label>
   <label class="chk small runner-only" title="restart by itself when your strategy disconnects, or connects again
@@ -213,6 +218,8 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     <tr><td><kbd>Home</kbd></td><td>fit the map</td></tr>
     <tr class="runner-only"><td>↻ Restart</td><td>end the game and start it again (same seats; "same seed": same
       map and dice); connected strategies get Finish, then run yours again</td></tr>
+    <tr class="runner-only"><td>seed</td><td>the seed of every restart, ↻ or auto (it wins over "same seed");
+      empty: the config's, <code>--seed</code>, else a new one each game</td></tr>
     <tr class="runner-only"><td>auto</td><td>the game restarts by itself when your strategy disconnects, or
       connects again after a game: restart your debugger and play on, with no click here</td></tr>
     <tr class="runner-only"><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>save the replay so far</td></tr>
@@ -412,6 +419,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     if (sizeChanged || !cam.fitted) fit();
     $("slider").min = G.first;
     $("restart").hidden = G.replay; $("sameSeed").parentElement.hidden = G.replay;
+    $("seedBox").parentElement.hidden = G.replay;
     $("autoRestart").parentElement.hidden = G.replay || !G.seats.some((x) => x.kind === "tcp");
     $("autoRestart").checked = !!d.auto_restart;
     statsStart(); chartSeats();
@@ -561,7 +569,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     clearTimeout(controlTimer);
     controlTimer = 0;
     post("/control", Object.assign({ playing: view.playing, speed: view.speed, follow: view.follow,
-      display: view.tick, same_seed: $("sameSeed").checked }, extra || {}));
+      display: view.tick, same_seed: $("sameSeed").checked, seed: seedBox() }, extra || {}));
   }
   function goTo(t, follow) {
     if (!G) return;
@@ -1379,6 +1387,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     G = null; cache = null; dirty = true;
     $("charts").hidden = true;
     $("restart").hidden = true; $("sameSeed").parentElement.hidden = true; $("limitsBox").hidden = true;
+    $("seedBox").parentElement.hidden = true;
     $("autoRestart").parentElement.hidden = true;
     banner(null);
     $("logs").innerHTML = ""; $("top").innerHTML = "";
@@ -1389,7 +1398,8 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     else if (game.LoadFrom !== undefined) { sel.value = "LoadFrom"; $("cfgState").value = game.LoadFrom; }
     else sel.value = "Custom";
     $("cfgState").hidden = sel.value !== "LoadFrom";
-    $("cfgSeed").value = cfgBase.seed == null ? "" : String(cfgBase.seed);
+    // d.seed: the runner's digits of it (JSON.parse rounds a seed above 2^53)
+    $("cfgSeed").value = d.seed != null ? d.seed : cfgBase.seed == null ? "" : String(cfgBase.seed);
     const last = $("cfgLastSeed");
     last.hidden = !lastSeed;
     last.textContent = lastSeed ? `use the last game's seed (${lastSeed})` : "";
@@ -1616,7 +1626,7 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
     banner(null);
     toast("Restarting: run your strateg" + (G.seats.filter((x) => x.kind === "tcp").length > 1 ? "ies" : "y") +
       " again when it has finished");
-    post("/reset", { same_seed: $("sameSeed").checked });
+    post("/reset", { same_seed: $("sameSeed").checked, seed: seedBox() });
   }
   async function saveReplay() { if (G) toast((await post("/save-replay")).message); }
   async function saveState() { if (G) toast((await post("/save-state", { tick: view.tick })).message); }
@@ -1628,11 +1638,29 @@ after a game: stop your strategy (or your debugger), run it again, and the game 
   $("restart").onclick = restart;
   $("sameSeed").checked = !!prefs.sameSeed;
   $("sameSeed").onchange = (e) => { prefs.sameSeed = e.target.checked; save(); control(); };
+  // The seed box: its digits, as a string (a number above 2^53 would lose digits), or null when empty or not a seed.
+  function seedBox() {
+    const v = $("seedBox").value.trim();
+    return /^\d{1,20}$/.test(v) && BigInt(v) <= 18446744073709551615n ? v : null;
+  }
+  function seedBoxShown() {
+    const v = $("seedBox").value.trim(), ok = seedBox() !== null;
+    $("seedBox").classList.toggle("bad", v !== "" && !ok);
+    if (v !== "" && !ok) $("seedBox").title = "a whole number from 0 to 18446744073709551615";
+    else $("seedBox").removeAttribute("title");          // the label's own title shows
+    $("sameSeed").disabled = ok;                          // the box wins
+    $("sameSeed").parentElement.style.opacity = ok ? 0.5 : "";
+  }
+  $("seedBox").value = prefs.seed || "";
+  seedBoxShown();
+  $("seedBox").oninput = () => { prefs.seed = $("seedBox").value.trim(); save(); seedBoxShown(); control(); };
+  $("seedBox").onkeydown = (e) => { if (e.key === "Enter" || e.key === "Escape") e.target.blur(); };
   $("autoRestart").onchange = (e) => {
     post("/control", { auto_restart: e.target.checked });
     if ($("againNote")) $("againNote").hidden = !e.target.checked;
   };
   $("restart").hidden = true; $("sameSeed").parentElement.hidden = true;
+  $("seedBox").parentElement.hidden = true;
   $("autoRestart").parentElement.hidden = true;
   $("saveReplay").onclick = saveReplay;
   $("saveState").onclick = saveState;

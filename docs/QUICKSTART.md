@@ -184,7 +184,8 @@ the game's log on the server, visible to you alone.
 Stop your strategy, change it and start it again: the game restarts by itself and plays with it (**auto**, beside
 **↻ Restart**, on by default; with **same seed** for the same map and dice), so a debugger restarted is all it takes.
 **↻ Restart** does it at any moment by hand. No need to restart the runner, ever; **New game…** after a game opens
-the config screen again.
+the config screen again. A number in the **seed** box beside them is the seed of every restart from then on, the same
+map and dice until you empty it; `--seed 42` starts the runner on seed 42.
 
 The runner measures your strategy against the server's limits, {{ runner_limits }}; the panel shows how long every
 answer took. By default it only warns: it waits as long as it takes, at a breakpoint in a debugger say, and marks

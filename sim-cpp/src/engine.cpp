@@ -604,6 +604,13 @@ int play_live(Game& g, Live& live, const LiveOptions& opts, Log& log) {
     return code;
 }
 
+std::string default_config() {
+    return "{\"seed\":null,\"game\":{\"Create\":\"Round1\"},\"players\":[{\"Tcp\":{\"host\":null,\"port\":31001,"
+           "\"accept_timeout\":null,\"timeout\":null,\"token\":null}},\"QuickStart\",\"QuickStart\",\"QuickStart\"]}";
+}
+
+}  // namespace
+
 Json with_seed(Json config, uint64_t seed) {
     for (auto& kv : config.obj)
         if (kv.first == "seed") {
@@ -613,13 +620,6 @@ Json with_seed(Json config, uint64_t seed) {
     config.add("seed", Json::unsigned_integer(seed));
     return config;
 }
-
-std::string default_config() {
-    return "{\"seed\":null,\"game\":{\"Create\":\"Round1\"},\"players\":[{\"Tcp\":{\"host\":null,\"port\":31001,"
-           "\"accept_timeout\":null,\"timeout\":null,\"token\":null}},\"QuickStart\",\"QuickStart\",\"QuickStart\"]}";
-}
-
-}  // namespace
 
 int run_live(const Json* config, const LiveOptions& opts, Log& log) {
     Live live(log, opts.speed, opts.server_limits, opts.auto_restart && !opts.exit_when_over);
@@ -636,6 +636,7 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
     log.info("Viewer: " + url);
     if (opts.open_browser) net::open_browser(url);
     std::string offer = config ? dump_json(*config, -1) : default_config(), error;
+    if (!config && opts.seed) offer = dump_json(with_seed(parse_json(offer), *opts.seed), -1);
     std::optional<Json> next;              // a config to play without the config screen
     if (config) next = *config;
     bool from_file = config != nullptr;
@@ -653,8 +654,13 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
             cfg = *next;
             next.reset();
         } else {
+            // the seed as text too: the page's JSON.parse would round one above 2^53
+            const Json* offered = parse_json(offer).get("seed");
             Out o;
-            o.raw('{').key("config").raw(offer.c_str()).key("error");
+            o.raw('{').key("config").raw(offer.c_str()).key("seed");
+            if (offered && offered->is_number()) o.str(dump_json(*offered, -1));
+            else o.raw("null");
+            o.key("error");
             if (error.empty()) o.raw("null");
             else o.str(error);
             o.raw('}');
@@ -725,7 +731,12 @@ int run_live(const Json* config, const LiveOptions& opts, Log& log) {
             }
             if (!restart) close_all();
         }
-        if (restart) next = same_seed ? with_seed(base, g.seed) : base;
+        // the viewer's seed box first, then "same seed", then the config's own seed (none: a new one each game)
+        if (restart) {
+            std::optional<uint64_t> chosen = live.control().seed;
+            if (!chosen && same_seed) chosen = g.seed;
+            next = chosen ? with_seed(base, *chosen) : base;
+        }
     }
 }
 

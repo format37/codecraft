@@ -79,7 +79,12 @@ struct LiveOptions {
     double tick_limit = 1.0;           // seconds to answer a tick
     double game_limit = 40.0;          // seconds of answers in all (the server counts CPU time)
     bool rules_2020 = false;           // --rules 2020: the 2020 rules exactly (default: the arena's, FogMemory)
+    // --seed: the seed the config screen offers (main puts it into a --config file's config itself)
+    std::optional<uint64_t> seed;
 };
+
+// The config with its seed set to `seed` (added when it has none).
+Json with_seed(Json config, uint64_t seed);
 
 // The GUI mode; without a config (null) the viewer's config screen comes first.
 int run_live(const Json* config, const LiveOptions& options, Log& log);

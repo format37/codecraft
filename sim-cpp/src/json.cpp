@@ -379,4 +379,16 @@ std::string dump_json(const Json& value, int indent) {
     return out;
 }
 
+std::optional<uint64_t> parse_u64(const std::string& text) {
+    if (text.empty() || text.size() > 20) return std::nullopt;
+    uint64_t v = 0;
+    for (char c : text) {
+        if (c < '0' || c > '9') return std::nullopt;
+        uint64_t digit = static_cast<uint64_t>(c - '0');
+        if (v > (UINT64_MAX - digit) / 10) return std::nullopt;
+        v = v * 10 + digit;
+    }
+    return v;
+}
+
 }  // namespace cc

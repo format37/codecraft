@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -21,6 +22,7 @@ extern const char ENGINE_VERSION[];
 int main(int argc, char** argv) {
     std::string config_path, save_results, save_replay, save_timing, replay_path, log_level = "info";
     bool replay_mode = false, client_gen = false, batch = false;
+    std::optional<uint64_t> seed;
     cc::LiveOptions live;
     // The image ghcr.io/format37/codecraft-runner sets CODECRAFT_RUNNER_CONTAINER=1 (sim-cpp/Dockerfile): the viewer
     // and the seats listen on every address, to be reached through `docker -p`, and no browser is opened. Flags on
@@ -46,6 +48,9 @@ int main(int argc, char** argv) {
         } else if (a == "-h" || a == "--help") {
             printf("codecraft-sim-cpp %s: the CodeCraft 2020 game engine (our own)\n"
                    "  --config FILE           the game: seed, preset or state, seats (the official runner's config)\n"
+                   "  --seed N                the seed of every game (0 to 2^64-1), in place of the config's:\n"
+                   "                          the same map and dice each time (the viewer's seed box changes\n"
+                   "                          it for the restarts); with no --config the config screen offers it\n"
                    "  --batch-mode            no viewer: play and exit (the server's way)\n"
                    "  --save-results FILE --save-replay FILE --log-level LEVEL --player-names NAME...\n"
                    "  --save-timing FILE      batch mode: what each TCP seat's answer took, tick by tick (JSON)\n"
@@ -75,6 +80,13 @@ int main(int argc, char** argv) {
             return 0;
         } else if (a == "--config") {
             config_path = value();
+        } else if (a == "--seed") {
+            std::string v = value();
+            seed = cc::parse_u64(v);
+            if (!seed) {
+                fprintf(stderr, "error: --seed is a whole number from 0 to 18446744073709551615, not %s\n", v.c_str());
+                return 2;
+            }
         } else if (a == "--batch-mode") {
             batch = true;
         } else if (a == "--viewer-port") {
@@ -150,8 +162,13 @@ int main(int argc, char** argv) {
         log.error("panicked at 'Batch mode can only be used with --config option'");
         return cc::PANIC;
     }
+    if (seed && replay_mode) {
+        log.error("panicked at 'a replay plays the seed it was recorded with: --seed is for a game'");
+        return cc::PANIC;
+    }
     live.save_results = save_results;
     live.save_replay = save_replay;
+    live.seed = seed;
     if (replay_mode) return cc::run_replay(replay_path, live, log);
     if (config_path.empty()) return cc::run_live(nullptr, live, log);
     cc::Json config;
@@ -166,6 +183,7 @@ int main(int argc, char** argv) {
         log.error(std::string("panicked at 'Could not load config: ") + e.what() + "'");
         return cc::PANIC;
     }
+    if (seed) config = cc::with_seed(config, *seed);
     if (!batch) return cc::run_live(&config, live, log);
     return cc::run(config, save_results, save_replay, log, live.rules_2020, save_timing);
 }

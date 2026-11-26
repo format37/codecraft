@@ -15,6 +15,7 @@ docs/private/engine-probes/step9); and the official configs' null host and token
 - A null host listens on 127.0.0.1 and a null token takes any token: the official engine, the Python and the C++ one.
 - `--replay FILE` streams a replay file (ours, and the official engine's) state for state.
 - Restart ends the game at once and plays its config again, waiting for the strategies to reconnect.
+- `--seed N` is the seed of every game, in place of the config's; the viewer's seed box, the seed of every restart.
 - Auto-restart (the default) does so by itself when a strategy disconnects in a game, and when one connects again
   after a game; `--auto-restart off`, or the viewer's switch, leaves the game as it is.
 """
@@ -318,6 +319,7 @@ def test_the_config_screen(tmp_path):
         stream.start()
         assert until(lambda: stream.named("config"))
         offer = stream.named("config")[0]
+        assert offer["seed"] is None and offer["config"]["seed"] is None
         assert offer["config"]["players"] == [{"Tcp": {"host": None, "port": 31001, "accept_timeout": None,
                                                          "timeout": None, "token": None}}] + ["QuickStart"] * 3
         post(port, "/start", {"config": {"seed": 1, "game": {"Create": "Round9"}, "players": ["QuickStart"] * 2}})
@@ -467,6 +469,62 @@ def test_restart(tmp_path):
     finally:
         p.kill()
 
+
+
+@needs_cpp
+def test_seed(tmp_path):
+    """`--seed N` replaces the config's seed in batch mode and in every live game, restarts included; with no
+    --config the config screen offers it (as text too: the page's JSON.parse would round a seed above 2^53). The
+    viewer's seed box (`seed` in /control and /reset, its digits as a string) is the seed of every restart, ↻ or
+    auto, before "same seed"; emptied, or not a seed, the config's seed again."""
+    big = "18446744073709551615"
+    bad = subprocess.run([str(CPP), "--seed", "-1"], capture_output=True, text=True, timeout=10)
+    assert bad.returncode == 2 and "--seed" in bad.stderr
+    port = free_port()
+    config = {"seed": 5, "game": {"Create": custom(8)}, "players": [tcp_seat(port), "QuickStart"]}
+    (tmp_path / "batch.json").write_text(json.dumps({**config, "players": ["QuickStart", "QuickStart"]}))
+    done = subprocess.run([str(CPP), "--config", str(tmp_path / "batch.json"), "--batch-mode", "--seed", big,
+                           "--save-results", str(tmp_path / "results.json")], capture_output=True, text=True,
+                          timeout=60)
+    assert done.returncode == 0, done.stderr
+    assert json.loads((tmp_path / "results.json").read_text())["seed"] == int(big)
+
+    p, vport, log = live(tmp_path, config, "--viewer-speed", "0", "--seed", "42")
+    try:
+        stream = Stream(vport)
+        stream.start()
+        inits = lambda: stream.named("init")  # noqa: E731
+        assert until(lambda: inits(), 10), "".join(log)
+        assert inits()[0]["seed"] == "42"
+        post(vport, "/reset")                                    # nobody connected yet: again at once
+        assert until(lambda: len(inits()) == 2, 5) and inits()[1]["seed"] == "42"
+        post(vport, "/reset", {"seed": big, "same_seed": True})  # the box wins over "same seed"
+        assert until(lambda: len(inits()) == 3, 5) and inits()[2]["seed"] == big
+        post(vport, "/control", {"seed": "7"})
+        a = Client(port, script=hang_up(2))                      # an auto-restart takes the box too
+        a.start()
+        assert until(lambda: len(inits()) == 4, 10), "".join(log)
+        assert a.ticks == [0, 1, 2] and inits()[3]["seed"] == "7"
+        post(vport, "/control", {"seed": None})                  # emptied: --seed's again
+        post(vport, "/reset")
+        assert until(lambda: len(inits()) == 5, 5) and inits()[4]["seed"] == "42"
+        post(vport, "/control", {"seed": 9})
+        post(vport, "/control", {"seed": "18446744073709551616"})  # not a seed: the box is empty
+        post(vport, "/reset")
+        assert until(lambda: len(inits()) == 6, 5) and inits()[5]["seed"] == "42"
+        assert p.poll() is None, "".join(log)
+    finally:
+        p.kill()
+
+    p, vport, log = live(tmp_path, None, "--viewer-speed", "0", "--seed", big)
+    try:
+        stream = Stream(vport)
+        stream.start()
+        assert until(lambda: stream.named("config"), 10), "".join(log)
+        offer = stream.named("config")[0]
+        assert offer["seed"] == big and offer["config"]["seed"] == int(big)
+    finally:
+        p.kill()
 
 
 def server_limits() -> tuple[float, float]:

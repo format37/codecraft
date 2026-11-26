@@ -40,6 +40,7 @@ plays the games of the server. The server builds a new version before its next g
 make -C sim-cpp
 sim-cpp/build/codecraft-sim-cpp                        # a config screen in the browser: the game, the seats, the seed
 sim-cpp/build/codecraft-sim-cpp --config batch1.json   # the official runner's config file, as it is
+sim-cpp/build/codecraft-sim-cpp --config batch1.json --seed 42   # its games on seed 42, whatever the file says
 sim-cpp/build/codecraft-sim-cpp --replay replay.dat    # watch a replay (ours, Ctrl-S, or the official runner's)
 ```
 
@@ -56,6 +57,12 @@ new game has the same map and dice. "New game…" after a game opens the config 
 when a TCP seat's strategy disconnects in a game, and when a strategy connects again after a game. Stop your
 strategy or your debugger, run it again, and the game starts again with it, with no click in the viewer; "same
 seed" holds for these restarts too. A seat cut off by the server's limits does not restart the game.
+
+**The seed.** `--seed N` (0 to 2^64-1) is the seed of every game in place of the config's, in batch mode too; with
+no `--config` the config screen offers it. The **seed** box beside Restart is the seed of every restart from then
+on, ↻ or auto, without restarting the runner: the same map and dice each time while it holds a number (it wins
+over "same seed", which it greys out); empty, the restarts take the config's seed again (`--seed`'s), else a new
+one each game. The viewer keeps the box between visits and sends it to the runner with its other controls.
 
 Players get it without building it: `.github/workflows/runner.yml` publishes every engine version of `master` as the
 image `ghcr.io/format37/codecraft-runner:<version>` (and `:latest`; the same Dockerfile as the server's engine

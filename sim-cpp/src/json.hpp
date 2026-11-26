@@ -1,6 +1,7 @@
 // A small JSON value, reader and writer: configs, LoadFrom state files, results.json.
 #pragma once
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -47,5 +48,7 @@ struct JsonError : std::runtime_error {
 Json parse_json(const std::string& text);
 // As Python's json.dumps(value, indent=2): non-ASCII escaped, no final newline; indent < 0: one line.
 std::string dump_json(const Json& value, int indent = 2);
+// A whole number from 0 to 2^64 - 1 written in decimal digits only (a seed typed by hand): none otherwise.
+std::optional<uint64_t> parse_u64(const std::string& text);
 
 }  // namespace cc
